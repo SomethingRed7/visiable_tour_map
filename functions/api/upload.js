@@ -1,21 +1,19 @@
 // 上传 API:POST /api/upload(multipart)
-// 字段:pass(口令), date, title, text, album, author, location, photo_full[] / photo_thumb[]
+// 字段:date, title, text, album, author, location, lat, lng, photo_full[] / photo_thumb[]
+// 无口令(上传靠隐秘 URL 保护);删除才需口令(见 /api/delete)
 // 照片 → R2 photos/<date>/<ts>-<n>.jpg(+ -thumb),条目 → KV entry:<date>:<ts>
-// 地点 → 服务端 Nominatim 地理编码(CF 边缘发起),失败仅存地名不存坐标
+// 防重复:同一天同照片内容(SHA-256)拒绝;地点已带坐标则直存,否则服务端 Nominatim 编码
 export async function onRequestPost(context) {
   const form = await context.request.formData();
-  const pass = (form.get('pass') || '').trim();
   const date = (form.get('date') || '').trim();
   const title = (form.get('title') || '').trim();
   const text = (form.get('text') || '').trim();
   const album = (form.get('album') || '').trim() || null;
   const author = (form.get('author') || '').trim() || '球';
   const locationName = (form.get('location') || '').trim() || null;
+  const latRaw = parseFloat(form.get('lat'));
+  const lngRaw = parseFloat(form.get('lng'));
 
-  // 口令校验:环境变量未配置则放行(本地 dev 便于调试),配置了必须匹配
-  if (context.env.UPLOAD_PASS && pass !== context.env.UPLOAD_PASS) {
-    return Response.json({ error: '口令不对' }, { status: 401 });
-  }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return Response.json({ error: '日期格式不对,应为 YYYY-MM-DD' }, { status: 400 });
   }
@@ -26,27 +24,52 @@ export async function onRequestPost(context) {
     return Response.json({ error: '内容为空:至少填标题/文字/照片之一' }, { status: 400 });
   }
 
-  // 地点地理编码(失败不阻断上传)
+  // 照片内容哈希:同一天去重
+  const photoHashes = [];
+  if (fulls.length > 0) {
+    const existing = [];
+    try {
+      const list = await context.env.ENTRIES.list({ prefix: `entry:${date}:` });
+      for (const k of list.keys) {
+        const raw = await context.env.ENTRIES.get(k.name);
+        if (raw) existing.push(JSON.parse(raw));
+      }
+    } catch { /* KV 不可用则跳过去重 */ }
+    const existingHashes = new Set(existing.flatMap((e) => e.photo_hashes || []));
+    for (const f of fulls) {
+      const buf = await f.arrayBuffer();
+      const digest = await crypto.subtle.digest('SHA-256', buf);
+      const hash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+      if (existingHashes.has(hash)) {
+        return Response.json({ error: '这张照片今天已经传过啦,换一张或去掉重复' }, { status: 400 });
+      }
+      photoHashes.push(hash);
+    }
+  }
+
+  // 地点:已有坐标直存;否则地名 geocode(失败仅存地名)
   let location = null;
   if (locationName) {
-    try {
-      const q = encodeURIComponent(locationName);
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=zh-CN&q=${q}`, {
-        headers: { 'User-Agent': 'gugugaga-travel-diary/1.0 (personal use)' },
-      });
-      if (res.ok) {
-        const arr = await res.json();
-        if (arr.length > 0) {
-          location = {
-            name: locationName,
-            lat: parseFloat(arr[0].lat),
-            lng: parseFloat(arr[0].lon),
-            display: (arr[0].display_name || locationName).slice(0, 80),
-          };
+    if (Number.isFinite(latRaw) && Number.isFinite(lngRaw)) {
+      location = { name: locationName, lat: latRaw, lng: lngRaw, display: locationName };
+    } else {
+      try {
+        const q = encodeURIComponent(locationName);
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=zh-CN&q=${q}`, {
+          headers: { 'User-Agent': 'gugugaga-travel-diary/1.0 (personal use)' },
+        });
+        if (res.ok) {
+          const arr = await res.json();
+          if (arr.length > 0) {
+            location = {
+              name: locationName,
+              lat: parseFloat(arr[0].lat),
+              lng: parseFloat(arr[0].lon),
+              display: (arr[0].display_name || locationName).slice(0, 80),
+            };
+          }
         }
-      }
-    } catch {
-      // 地理编码不可用 → 仅存地名
+      } catch { /* 忽略 */ }
     }
     if (!location) location = { name: locationName, lat: null, lng: null, display: locationName };
   }
@@ -54,7 +77,6 @@ export async function onRequestPost(context) {
   const ts = Date.now();
   const photoPaths = [];
   for (let i = 0; i < fulls.length; i++) {
-    // R2 key 不带 photos/ 前缀;条目里的显示路径带 /photos/ 前缀
     const base = `${date}/${ts}-${i}`;
     await context.env.PHOTOS.put(`${base}.jpg`, fulls[i].stream(), {
       httpMetadata: { contentType: 'image/jpeg' },
@@ -70,6 +92,7 @@ export async function onRequestPost(context) {
   const entry = {
     date, title, text, album, author, location,
     photos: photoPaths,
+    photo_hashes: photoHashes,
     created_at: new Date().toISOString(),
   };
   await context.env.ENTRIES.put(`entry:${date}:${ts}`, JSON.stringify(entry));

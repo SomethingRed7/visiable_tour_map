@@ -30,8 +30,24 @@
       </label>
 
       <label>
-        地点(可选,如:长沙 · 橘子洲)
-        <input type="text" id="f-location" placeholder="">
+        地点(可选:地图选点 / 输入地名)
+        <div class="loc-row">
+          <input type="text" id="f-location" placeholder="点「选位置」或用地图">
+          <button type="button" id="btn-loc" class="btn-small">🗺️ 选位置</button>
+        </div>
+        <input type="hidden" id="f-lat">
+        <input type="hidden" id="f-lng">
+        <div id="loc-panel" class="loc-panel" hidden>
+          <div class="loc-tools">
+            <input type="text" id="loc-search" placeholder="搜索地名,如:橘子洲">
+            <button type="button" id="btn-loc-search" class="btn-small">搜</button>
+            <button type="button" id="btn-loc-current" class="btn-small">📍 当前位置</button>
+          </div>
+          <div id="loc-results" class="loc-results"></div>
+          <div id="loc-map" class="loc-map"></div>
+          <p class="loc-hint">点击地图选点;选定后点「确定」</p>
+          <button type="button" id="btn-loc-done" class="btn-small">确定</button>
+        </div>
       </label>
 
       <label>
@@ -51,20 +67,29 @@
       </label>
 
       <label>
-        照片(可多选,自动压缩)
+        照片(可多选,自动压缩;同一张照片同一天只能传一次)
         <input type="file" id="f-photos" accept="image/*" multiple>
-      </label>
-
-      <label>
-        口令
-        <input type="password" id="f-pass" required>
       </label>
 
       <div id="photo-preview" class="photo-preview"></div>
       <p id="form-status" class="form-status"></p>
 
-      <button type="submit" class="btn-submit">发布</button>
+      <div id="success-banner" class="success-banner" hidden>
+        ✅ 上传成功!
+        <div class="success-actions">
+          <a id="btn-view-day" class="btn-small" href="/">查看当天</a>
+          <button type="button" id="btn-again" class="btn-small">继续写</button>
+        </div>
+      </div>
+
+      <button type="submit" id="btn-submit" class="btn-submit">发布</button>
     </form>
+
+    <section class="panel manage-panel">
+      <h2 class="panel-heading">管理条目(删除)</h2>
+      <p class="manage-hint">删除需要口令(4 位 PIN)</p>
+      <div id="recent-list" class="recent-list"></div>
+    </section>
   </main>
 
   <footer class="site-footer">咕咕嘎嘎 · 记录每一段在路上</footer>

@@ -374,6 +374,89 @@ body {
 
 .btn-submit:active { opacity: 0.85; }
 
+.btn-small {
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.btn-small:active { opacity: 0.8; }
+
+.loc-row { display: flex; gap: 8px; }
+.loc-row input { flex: 1; }
+
+.loc-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fafafa;
+}
+
+.loc-tools { display: flex; gap: 6px; flex-wrap: wrap; }
+.loc-tools input { flex: 1; min-width: 120px; }
+
+.loc-map { height: 260px; border-radius: 8px; border: 1px solid var(--line); }
+
+.loc-hint { margin: 0; font-size: 0.78rem; color: var(--text-soft); }
+
+.loc-results { display: flex; flex-direction: column; gap: 4px; max-height: 140px; overflow: auto; }
+
+.loc-result {
+  font: inherit;
+  font-size: 0.82rem;
+  text-align: left;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--card);
+  cursor: pointer;
+}
+
+.success-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: #ecfdf5;
+  color: #065f46;
+  font-weight: 700;
+}
+
+.success-actions { display: flex; gap: 8px; }
+
+.success-actions .btn-small { background: #d1fae5; border-color: #a7f3d0; }
+
+.manage-panel { max-width: 640px; }
+
+.manage-hint { margin: 0 0 10px; font-size: 0.8rem; color: var(--text-soft); }
+
+.recent-list { display: flex; flex-direction: column; gap: 6px; }
+
+.recent-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 0.88rem;
+}
+
+.recent-info { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.btn-del { border-color: #fecaca; color: #b91c1c; background: #fef2f2; }
+
 /* ---------- 底部 ---------- */
 .site-footer {
   max-width: 1080px;
@@ -390,4 +473,6 @@ body {
     grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
     align-items: start;
   }
+  /* 动态流跨两列,避免被挤进左列日历下方 */
+  .stream-panel { grid-column: 1 / -1; }
 }

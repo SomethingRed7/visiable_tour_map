@@ -184,7 +184,9 @@ async function renderStream() {
     .map((e) => `<article class="entry stream-entry"><div class="stream-date">${esc(e.date)}</div>${entryCard(e)}</article>`)
     .join('')
     || '<p class="empty">还没有日记,点右上角「写日记」开始吧 ✏️</p>';
-  await renderAlbumMap(list);
+  // 地图仅在选中专辑时显示
+  if (activeAlbum) await renderAlbumMap(list);
+  else $('#album-map').style.display = 'none';
 }
 
 /* ---------- 大图 ---------- */
