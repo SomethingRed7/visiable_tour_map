@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>行程总览 · 咕咕嘎嘎</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-main">
+      <h1 class="site-title">咕咕嘎嘎</h1>
+      <p class="site-subtitle">行程总览</p>
+    </div>
+    <div class="header-side">
+      <a class="btn-write" href="/">← 回首页</a>
+      <button type="button" id="btn-print" class="btn-write">🖨️ 打印</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel">
+      <h2 id="ex-title" class="panel-heading">行程总览</h2>
+      <p id="ex-subtitle" class="manage-hint"></p>
+      <div id="ex-overview" class="entries"></div>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel-heading">地图路线</h2>
+      <div id="ex-map" class="album-map"></div>
+      <p id="ex-map-note" class="manage-hint"></p>
+    </section>
+  </main>
+
+  <footer class="site-footer">咕咕嘎嘎 · 记录每一段在路上</footer>
+
+  <script src="export.js"></script>
+</body>
+</html>

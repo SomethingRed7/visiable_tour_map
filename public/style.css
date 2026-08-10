@@ -555,6 +555,42 @@ body {
   padding: 1px 6px;
 }
 
+/* ---------- 导出 ---------- */
+.export-form {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.export-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-soft);
+}
+
+.export-form input[type="date"] {
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--text);
+}
+
+/* ---------- 打印 ---------- */
+@media print {
+  .site-header { position: static; }
+  .site-header .header-side, .btn-print { display: none; }
+  .layout { max-width: 100%; padding: 0; }
+  .panel { box-shadow: none; border: 1px solid var(--line); page-break-inside: avoid; }
+  .photo-grid img { max-height: 200px; }
+  #ex-map { height: 400px; }
+}
+
 /* ---------- 底部 ---------- */
 .site-footer {
   max-width: 1080px;
