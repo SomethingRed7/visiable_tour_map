@@ -19,7 +19,7 @@ function thumbUrl(p) {
 function photoGridHtml(photos, altPrefix) {
   if (!photos || photos.length === 0) return '';
   const imgs = photos
-    .map((p, i) => `<img src="${thumbUrl(p)}" data-full="${p}" alt="${altPrefix} ${i + 1}" loading="lazy" onerror="this.src=this.dataset.full">`)
+    .map((p, i) => `<img src="${thumbUrl(p)}" data-full="${p}" alt="${altPrefix} ${i + 1}" loading="lazy" onerror="if(this.src!==this.dataset.full){this.src=this.dataset.full}else{this.style.display='none'}">`)
     .join('');
   return `<div class="photo-grid">${imgs}</div>`;
 }
