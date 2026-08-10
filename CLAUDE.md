@@ -2,6 +2,13 @@
 
 This file provides guidance to Claude Code (and other coding agents) when working in this repository.
 
+
+## 约束
+- 不 commit/push 除非用户要求; github.com 间歇被墙 → push 失败用后台循环重试
+- 用户数据(真实日记)勿删;测试条目用完即清
+- 用户沟通极简;
+- 关于grill: **一次仅问一个问题**。歧义(如"去掉删除")先问清是指标题文字还是按钮
+
 ## Project overview
 
 通用旅行日记 portal「咕咕嘎嘎」:纯静态前端 + Cloudflare Pages Functions(R2 存照片、D1 存条目),上传即时可见零重建。用户自行网页上传,公开查看,家人随时可看。仓库 `SomethingRed7/visiable_tour_map`(**private**)。线上 https://gugugaga-viw.pages.dev/。
