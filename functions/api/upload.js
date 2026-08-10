@@ -31,7 +31,7 @@ export async function onRequestPost(context) {
     const existingHashes = new Set();
     for (const k of keys) {
       if (k.startsWith(`${date}:`)) {
-        const raw = await context.env.ENTRIES.get(`entry:${k}`);
+        const raw = await context.env.ENTRIES.get(`entry:${k}`, { type: 'strong' });
         if (raw) {
           const e = JSON.parse(raw);
           for (const h of e.photo_hashes || []) existingHashes.add(h);
@@ -108,7 +108,7 @@ export async function onRequestPost(context) {
 
 async function readAllKeys(env) {
   try {
-    const raw = await env.ENTRIES.get('index:all');
+    const raw = await env.ENTRIES.get('index:all', { type: 'strong' });
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
