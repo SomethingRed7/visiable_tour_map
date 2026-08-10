@@ -1,0 +1,12 @@
+name = "gugugaga"
+compatibility_date = "2026-08-10"
+pages_build_output_dir = "."
+
+# 本地 dev(wrangler pages dev)会用占位绑定模拟;部署时替换为真实资源
+[[kv_namespaces]]
+binding = "ENTRIES"
+id = "local-dev-placeholder"
+
+[[r2_buckets]]
+binding = "PHOTOS"
+bucket_name = "gugugaga-photos"

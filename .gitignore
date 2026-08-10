@@ -7,5 +7,9 @@ logs/
 # 照片原图暂存(压缩后才会入库)
 photos/_incoming/
 
+# Node / wrangler
+node_modules/
+.wrangler/
+
 # macOS
 .DS_Store

@@ -1,0 +1,13 @@
+{
+  "name": "gugugaga",
+  "version": "2.0.0",
+  "private": true,
+  "description": "咕咕嘎嘎 - 通用旅行日记 portal(Cloudflare Pages + Functions + R2 + KV)",
+  "scripts": {
+    "dev": "wrangler pages dev .",
+    "deploy": "wrangler pages deploy ."
+  },
+  "devDependencies": {
+    "wrangler": "^3.100.0"
+  }
+}
