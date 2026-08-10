@@ -144,8 +144,20 @@ async function renderAlbumMap(list) {
     mk.bindPopup(`<b>${esc(e.date)}</b> ${esc(e.title || '')}<br>${esc(e.location.display || e.location.name || '')}`);
     bounds.push([e.location.lat, e.location.lng]);
   }
-  if (bounds.length === 1) map.setView(bounds[0], 12);
-  else map.fitBounds(bounds, { padding: [30, 30] });
+  if (bounds.length === 1) {
+    map.setView(bounds[0], 12);
+  } else if (bounds.length > 1) {
+    // 沿路规划(CF 边缘 OSRM 代理,失败回退直线),按日期排序连线
+    const ordered = withLoc.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    let line = ordered.map((e) => [e.location.lat, e.location.lng]);
+    try {
+      const ptsStr = ordered.map((e) => `${e.location.lat},${e.location.lng}`).join('|');
+      const route = await (await fetch(`/api/route?pts=${encodeURIComponent(ptsStr)}`)).json();
+      if (route.coordinates && route.coordinates.length > 1) line = route.coordinates;
+    } catch { /* 直线 */ }
+    L.polyline(line, { color: '#d97706', weight: 3, opacity: 0.8 }).addTo(map);
+    map.fitBounds(line, { padding: [30, 30] });
+  }
 }
 
 /* ---------- 专辑 / 动态流 ---------- */

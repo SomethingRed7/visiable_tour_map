@@ -98,8 +98,15 @@ async function renderMap(list, box, noteEl) {
     mk.on('click', () => map.setView([p.lat, p.lng], Math.max(map.getZoom(), 12)));
   });
   if (pts.length > 1) {
-    L.polyline(latlngs, { color: '#d97706', weight: 3, opacity: 0.8 }).addTo(map);
-    map.fitBounds(latlngs, { padding: [40, 40] });
+    // 沿路规划:CF 边缘 OSRM 代理,失败回退直线
+    let line = latlngs;
+    try {
+      const ptsStr = pts.map((p) => `${p.lat},${p.lng}`).join('|');
+      const route = await (await fetch(`/api/route?pts=${encodeURIComponent(ptsStr)}`)).json();
+      if (route.coordinates && route.coordinates.length > 1) line = route.coordinates;
+    } catch { /* 直线 */ }
+    L.polyline(line, { color: '#d97706', weight: 3, opacity: 0.8 }).addTo(map);
+    map.fitBounds(line, { padding: [40, 40] });
   } else {
     map.setView(latlngs[0], 12);
   }
