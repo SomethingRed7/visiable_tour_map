@@ -99,6 +99,105 @@ function renderFooter(data) {
     : '数据源:飞书文档';
 }
 
+/* ---------- 地图(懒加载) ---------- */
+function loadResource(kind, src) {
+  return new Promise((resolve, reject) => {
+    const el = document.createElement(kind === 'css' ? 'link' : 'script');
+    if (kind === 'css') {
+      el.rel = 'stylesheet';
+      el.href = src;
+    } else {
+      el.src = src;
+    }
+    el.onload = resolve;
+    el.onerror = () => reject(new Error(`加载失败 ${src}`));
+    document.head.appendChild(el);
+  });
+}
+
+const MARKER_COLORS = { booked: '#15803d', pending: '#9ca3af' };
+let currentData = null;
+let mapInited = false;
+
+function focusDay(day) {
+  const card = document.querySelector(`.day-card[data-day="${day}"]`);
+  if (!card) return;
+  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  card.classList.add('is-focused');
+  setTimeout(() => card.classList.remove('is-focused'), 1600);
+}
+
+async function initMap(data) {
+  const area = $('#map-area');
+  area.innerHTML = '<div id="leaflet-map" class="leaflet-map"></div>';
+  try {
+    await Promise.all([
+      loadResource('css', 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css'),
+      loadResource('js', 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js'),
+    ]);
+  } catch (e) {
+    area.innerHTML = '<div class="map-placeholder">🗺️ 地图资源加载失败(网络原因),行程卡片不受影响</div>';
+    return;
+  }
+  if (typeof L === 'undefined') {
+    area.innerHTML = '<div class="map-placeholder">🗺️ 地图不可用,行程卡片不受影响</div>';
+    return;
+  }
+
+  const map = L.map('leaflet-map', { scrollWheelZoom: false }).setView([-41.5, 173], 5);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
+  }).addTo(map);
+
+  for (const d of data.days) {
+    const color = MARKER_COLORS[d.status] || MARKER_COLORS.pending;
+    const icon = L.divIcon({
+      className: 'day-marker-wrap',
+      html: `<div class="day-marker" style="background:${color}">${d.day}</div>`,
+      iconSize: [24, 24],
+      iconAnchor: [12, 12],
+    });
+    const m = L.marker([d.lat, d.lon], { icon });
+    m.bindTooltip(
+      `<b>${d.city}</b>${d.city_en ? ' ' + d.city_en : ''}<br>Day ${d.day} · ${d.date}`,
+      { direction: 'top', offset: [0, -10] }
+    );
+    m.on('click', () => focusDay(d.day));
+    m.addTo(map);
+  }
+
+  for (const r of data.routes || []) {
+    L.polyline(r.coords, { color: '#0e7490', weight: 3, opacity: 0.65 }).addTo(map);
+  }
+
+  const bounds = L.latLngBounds(data.days.map((d) => [d.lat, d.lon]));
+  for (const r of data.routes || []) {
+    for (const c of r.coords) bounds.extend(c);
+  }
+  map.fitBounds(bounds.pad(0.08));
+  mapInited = true;
+}
+
+function setupMapLazyLoad() {
+  const area = $('#map-area');
+  if (!area) return;
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting) && currentData && !mapInited) {
+          io.disconnect();
+          initMap(currentData);
+        }
+      },
+      { rootMargin: '400px' }
+    );
+    io.observe(area);
+  } else if (currentData) {
+    initMap(currentData);
+  }
+}
+
 /* ---------- 启动 ---------- */
 async function init() {
   const index = await loadJSON('data/trips/index.json');
@@ -112,10 +211,12 @@ async function init() {
   const trip = index.find((t) => t.id === requested) || index[0];
   const data = await loadJSON(`data/trips/${encodeURIComponent(trip.id)}.json`);
 
+  currentData = data;
   renderHeader(trip, index, data);
   setupSwitcher();
   renderCards(data);
   renderFooter(data);
+  setupMapLazyLoad();
 }
 
 init().catch((err) => {

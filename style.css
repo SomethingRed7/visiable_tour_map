@@ -179,15 +179,57 @@ body {
   color: var(--text-soft);
 }
 
+/* ---------- 地图 ---------- */
+.leaflet-map {
+  height: 100%;
+  min-height: 260px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.day-marker-wrap {
+  background: transparent;
+  border: none;
+}
+
+.day-marker {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+}
+
+.day-card.is-focused {
+  box-shadow: 0 0 0 3px var(--brand);
+  transition: box-shadow 0.3s;
+}
+
+/* ---------- 移动端:卡片先,地图后 ---------- */
+.timeline { order: 1; }
+.map-area { order: 2; }
+
 /* ---------- 桌面端:地图左、时间线右 ---------- */
 @media (min-width: 900px) {
   .layout {
     grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
     align-items: start;
   }
+  .timeline { order: 0; grid-column: 2; }
   .map-area {
+    order: 0;
+    grid-column: 1;
     position: sticky;
     top: 76px;
   }
   .map-placeholder { height: 520px; }
+  .leaflet-map { height: 520px; min-height: 520px; }
 }
