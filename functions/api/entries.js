@@ -10,6 +10,7 @@ function norm(e) {
     album: e.album || null,
     author: e.author || null,
     location: e.location || null,
+    ts: e.ts || null,
     photos: e.photos || [],
     created_at: e.created_at || null,
   };

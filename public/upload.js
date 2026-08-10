@@ -250,6 +250,15 @@ form.addEventListener('submit', (e) => {
 $('#f-photos').addEventListener('change', renderPreview);
 
 /* ---------- 最近条目 + 删除 ---------- */
+function entryTs(e) {
+  if (e.ts) return String(e.ts);
+  if (e.photos && e.photos[0]) {
+    const m = e.photos[0].match(/(\d{13})-\d+\.jpg$/);
+    if (m) return m[1];
+  }
+  return '';
+}
+
 async function renderRecent() {
   const box = $('#recent-list');
   try {
@@ -260,7 +269,7 @@ async function renderRecent() {
     box.innerHTML = list.length
       ? list.map((e) => `<div class="recent-item">
           <span class="recent-info">${esc(e.date)} ${esc(e.title || '')} · ${esc(e.author || '')}</span>
-          <button type="button" class="btn-small btn-del" data-date="${esc(e.date)}" data-ts="${esc((e.created_at || '').replace(/\D/g, '').slice(0, 13))}">删除</button>
+          <button type="button" class="btn-small btn-del" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}">删除</button>
         </div>`).join('')
       : '<p class="empty">还没有条目</p>';
     [...box.querySelectorAll('.btn-del')].forEach((b) => b.addEventListener('click', () => askDelete(b)));

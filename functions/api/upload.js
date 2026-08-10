@@ -91,6 +91,7 @@ export async function onRequestPost(context) {
 
   const entry = {
     date, title, text, album, author, location,
+    ts,
     photos: photoPaths,
     photo_hashes: photoHashes,
     created_at: new Date().toISOString(),
