@@ -4,11 +4,9 @@
   --text: #1f2937;
   --text-soft: #6b7280;
   --line: #e5e7eb;
-  --brand: #0e7490;
-  --green: #15803d;
-  --green-bg: #dcfce7;
-  --gray: #6b7280;
-  --gray-bg: #f3f4f6;
+  --brand: #d97706;
+  --brand-soft: #fef3c7;
+  --accent: #0e7490;
   --radius: 12px;
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
@@ -41,28 +39,33 @@ body {
   border-bottom: 1px solid var(--line);
 }
 
-.trip-title {
+.site-title {
   margin: 0;
-  font-size: 1.35rem;
-  font-weight: 700;
-  color: var(--text);
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--brand);
+  letter-spacing: 0.04em;
 }
 
-.trip-subtitle {
+.site-subtitle {
   margin: 2px 0 0;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   color: var(--text-soft);
 }
 
-.trip-switcher {
-  font-size: 1rem;
-  padding: 8px 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--card);
-  color: var(--text);
-  max-width: 60vw;
+.btn-write {
+  display: inline-block;
+  padding: 9px 18px;
+  border-radius: 999px;
+  background: var(--brand);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: var(--shadow);
 }
+
+.btn-write:active { opacity: 0.85; }
 
 /* ---------- 布局 ---------- */
 .layout {
@@ -74,161 +77,161 @@ body {
   padding: 16px 20px 40px;
 }
 
-.map-area { min-width: 0; }
-
-.map-placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 260px;
-  border: 2px dashed #cbd5e1;
-  border-radius: var(--radius);
-  background: #f0fdfa;
-  color: var(--text-soft);
-  font-size: 0.95rem;
-}
-
-/* ---------- 时间线卡片 ---------- */
-.timeline {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  min-width: 0;
-}
-
-.day-card {
+.panel {
   background: var(--card);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  padding: 16px 18px;
-  border-left: 4px solid var(--gray);
+  padding: 18px 20px;
 }
 
-.day-card.is-today { border-left-color: var(--brand); }
-.day-card.status-booked { border-left-color: var(--green); }
-
-.day-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-bottom: 6px;
-}
-
-.day-badge {
-  background: var(--brand);
-  color: #fff;
-  font-size: 0.8rem;
-  font-weight: 600;
-  padding: 2px 10px;
-  border-radius: 999px;
-}
-
-.day-date {
-  font-size: 0.9rem;
-  color: var(--text-soft);
-}
-
-.status-badge {
-  font-size: 0.78rem;
-  font-weight: 600;
-  padding: 2px 10px;
-  border-radius: 999px;
-}
-
-.status-badge.booked { background: var(--green-bg); color: var(--green); }
-.status-badge.pending { background: var(--gray-bg); color: var(--gray); }
-
-.day-city {
-  margin: 4px 0 2px;
-  font-size: 1.2rem;
+.panel-heading {
+  margin: 0 0 12px;
+  font-size: 1.1rem;
   font-weight: 700;
 }
 
-.city-en {
-  font-size: 0.85rem;
-  font-weight: 400;
-  color: var(--text-soft);
+/* ---------- 日历 ---------- */
+.cal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
 }
 
-.day-summary { margin: 4px 0; color: var(--text); }
+.cal-nav h2 { margin: 0; font-size: 1.05rem; }
 
-.day-activities {
+.cal-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--card);
+  font-size: 1.2rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  text-align: center;
+  color: var(--text-soft);
+  font-size: 0.82rem;
+  margin-bottom: 4px;
+}
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.cal-blank { min-height: 44px; }
+
+.cal-day {
+  position: relative;
+  min-height: 44px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.cal-day:hover { background: #f3f4f6; }
+
+.cal-day.has-entry { background: var(--brand-soft); }
+
+.cal-day.selected {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 2px var(--brand-soft);
+}
+
+.cal-num { font-size: 0.95rem; font-weight: 600; }
+
+.cal-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--brand);
+  margin-top: 2px;
+}
+
+/* ---------- 条目 ---------- */
+.entries { display: flex; flex-direction: column; gap: 14px; }
+
+.entry {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  background: var(--card);
+}
+
+.entry-title { margin: 4px 0 4px; font-size: 1.08rem; }
+
+.entry-text {
   margin: 6px 0;
-  padding-left: 1.2em;
+  white-space: pre-line;
   color: var(--text);
 }
 
-.day-meta {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 2px 12px;
-  margin: 8px 0 0;
-  font-size: 0.9rem;
+.album-tag {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: #ecfeff;
+  border-radius: 999px;
+  padding: 2px 10px;
+  margin-bottom: 4px;
 }
 
-.day-meta dt { color: var(--text-soft); white-space: nowrap; }
-.day-meta dd { margin: 0; }
+.empty { color: var(--text-soft); font-size: 0.9rem; }
 
-/* ---------- 倒计时 / 今日播报 ---------- */
-.countdown {
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--brand);
-  white-space: nowrap;
-}
-
-.update-card {
-  background: linear-gradient(135deg, #ecfeff, #f0fdfa);
-  border: 1px solid #a5f3fc;
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 18px 20px;
-  border-left: 4px solid var(--brand);
-}
-
-.update-card .update-title {
+/* ---------- 动态流 ---------- */
+.stream-head {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
   flex-wrap: wrap;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
 }
 
-.update-card .update-title h2 {
-  margin: 0;
-  font-size: 1.15rem;
+.stream-head .panel-heading { margin: 0; }
+
+.album-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.chip {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--text);
+  font-size: 0.82rem;
+  padding: 4px 12px;
+  cursor: pointer;
 }
 
-.update-card .update-text {
-  font-size: 1.02rem;
-  margin: 4px 0;
+.chip.active {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
 }
 
-.update-card .update-photos {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 10px;
-}
+.stream-entry { display: flex; flex-direction: column; gap: 4px; }
 
-.update-card .update-photos img {
-  width: 120px;
-  height: 90px;
-  object-fit: cover;
-  border-radius: 8px;
-}
-
-.soft-note {
+.stream-date {
+  font-size: 0.8rem;
   color: var(--text-soft);
-  font-size: 0.85rem;
-  margin: 6px 0 0;
+  font-weight: 600;
 }
 
-/* ---------- 照片网格 / 大图 ---------- */
+/* ---------- 照片 ---------- */
 .photo-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   gap: 8px;
   margin-top: 10px;
 }
@@ -269,59 +272,14 @@ body {
   padding: 0 20px 32px;
   font-size: 0.82rem;
   color: var(--text-soft);
+  text-align: center;
 }
 
-/* ---------- 地图 ---------- */
-.leaflet-map {
-  height: 100%;
-  min-height: 260px;
-  border-radius: var(--radius);
-  overflow: hidden;
-  box-shadow: var(--shadow);
-}
-
-.day-marker-wrap {
-  background: transparent;
-  border: none;
-}
-
-.day-marker {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 2px solid #fff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
-  cursor: pointer;
-}
-
-.day-card.is-focused {
-  box-shadow: 0 0 0 3px var(--brand);
-  transition: box-shadow 0.3s;
-}
-
-/* ---------- 移动端:卡片先,地图后 ---------- */
-.timeline { order: 1; }
-.map-area { order: 2; }
-
-/* ---------- 桌面端:地图左、时间线右 ---------- */
+/* ---------- 桌面端 ---------- */
 @media (min-width: 900px) {
   .layout {
-    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
     align-items: start;
   }
-  .timeline { order: 0; grid-column: 2; }
-  .map-area {
-    order: 0;
-    grid-column: 1;
-    position: sticky;
-    top: 76px;
-  }
-  .map-placeholder { height: 520px; }
-  .leaflet-map { height: 520px; min-height: 520px; }
+  .calendar-panel { position: sticky; top: 84px; }
 }

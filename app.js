@@ -1,62 +1,17 @@
-/* 旅行地图集 - 数据驱动渲染 */
+/* 咕咕嘎嘎 - 旅行日记 portal */
 'use strict';
 
-const $ = (sel) => document.querySelector(sel);
+const $ = (s) => document.querySelector(s);
 
-// 部署/数据更新时递增,强制浏览器刷新 JSON 缓存
-const DATA_VERSION = '20260810b';
+let allEntries = [];
+let currentMonth = null;   // 'YYYY-MM'
+let selectedDate = null;
+let activeAlbum = null;
 
-async function loadJSON(url) {
-  const res = await fetch(`${url}?v=${DATA_VERSION}`, { cache: 'no-store' });
-  if (!res.ok) throw new Error(`加载失败 ${url} (HTTP ${res.status})`);
-  return res.json();
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-function escapeHtml(s) {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-/* ---------- 状态徽章 ---------- */
-const STATUS = {
-  booked:  { label: '已订',  cls: 'booked' },
-  pending: { label: '待定',  cls: 'pending' },
-};
-
-function statusBadge(status) {
-  const s = STATUS[status] || STATUS.pending;
-  return `<span class="status-badge ${s.cls}">${s.label}</span>`;
-}
-
-/* ---------- 头部 ---------- */
-function renderHeader(trip, index, data) {
-  $('#trip-title').textContent = data.meta.title || trip.title || '旅行';
-  $('#trip-subtitle').textContent = data.meta.subtitle || '';
-  document.title = `${data.meta.title || trip.title} · 旅行地图集`;
-
-  const sel = $('#trip-switcher');
-  if (index.length > 1) {
-    sel.hidden = false;
-    sel.innerHTML = index
-      .map((t) => `<option value="${escapeHtml(t.id)}" ${t.id === trip.id ? 'selected' : ''}>${escapeHtml(t.title)}</option>`)
-      .join('');
-  } else {
-    sel.hidden = true;
-  }
-}
-
-function setupSwitcher() {
-  $('#trip-switcher').addEventListener('change', (e) => {
-    const url = new URL(window.location.href);
-    url.searchParams.set('trip', e.target.value);
-    window.location.href = url.toString();
-  });
-}
-
-/* ---------- 照片 ---------- */
 function thumbUrl(p) {
   return p.replace(/\.(jpg|jpeg|png)$/i, '-thumb.$1');
 }
@@ -69,6 +24,111 @@ function photoGridHtml(photos, altPrefix) {
   return `<div class="photo-grid">${imgs}</div>`;
 }
 
+function entryCard(e) {
+  return `<article class="entry">
+    ${e.album ? `<span class="album-tag">${esc(e.album)}</span>` : ''}
+    ${e.title ? `<h3 class="entry-title">${esc(e.title)}</h3>` : ''}
+    ${e.text ? `<div class="entry-text">${esc(e.text).replace(/\n/g, '<br>')}</div>` : ''}
+    ${photoGridHtml(e.photos, e.date)}
+  </article>`;
+}
+
+/* ---------- 日历 ---------- */
+function initCalendar() {
+  const now = new Date();
+  currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  $('#cal-prev').addEventListener('click', () => shiftMonth(-1));
+  $('#cal-next').addEventListener('click', () => shiftMonth(1));
+  renderCalendar();
+}
+
+function shiftMonth(delta) {
+  const [y, m] = currentMonth.split('-').map(Number);
+  const d0 = new Date(y, m - 1 + delta, 1);
+  currentMonth = `${d0.getFullYear()}-${String(d0.getMonth() + 1).padStart(2, '0')}`;
+  renderCalendar();
+}
+
+function renderCalendar() {
+  const [y, m] = currentMonth.split('-').map(Number);
+  $('#cal-title').textContent = `${y} 年 ${m} 月`;
+  const startWd = new Date(y, m - 1, 1).getDay();
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const entrySet = new Set(allEntries.filter((e) => e.date.startsWith(currentMonth)).map((e) => e.date));
+
+  const grid = $('#cal-grid');
+  grid.innerHTML = '';
+  for (let i = 0; i < startWd; i++) {
+    const b = document.createElement('div');
+    b.className = 'cal-blank';
+    grid.appendChild(b);
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ds = `${currentMonth}-${String(d).padStart(2, '0')}`;
+    const cell = document.createElement('div');
+    cell.className = 'cal-day'
+      + (entrySet.has(ds) ? ' has-entry' : '')
+      + (ds === selectedDate ? ' selected' : '');
+    cell.innerHTML = `<span class="cal-num">${d}</span>${entrySet.has(ds) ? '<span class="cal-dot"></span>' : ''}`;
+    cell.addEventListener('click', () => selectDate(ds));
+    grid.appendChild(cell);
+  }
+}
+
+function selectDate(ds) {
+  selectedDate = ds;
+  activeAlbum = null;
+  renderAlbums();
+  renderCalendar();
+  const dayEntries = allEntries
+    .filter((e) => e.date === ds)
+    .sort((a, b) => ((a.created_at || '') < (b.created_at || '') ? -1 : 1));
+  const [y, m, d] = ds.split('-');
+  $('#day-title').textContent = `${y} 年 ${Number(m)} 月 ${Number(d)} 日`;
+  $('#day-entries').innerHTML = dayEntries.length
+    ? dayEntries.map(entryCard).join('')
+    : '<p class="empty">这天还没有日记</p>';
+}
+
+/* ---------- 专辑 / 动态流 ---------- */
+function renderAlbums() {
+  const albums = [...new Set(allEntries.map((e) => e.album).filter(Boolean))];
+  const chips = $('#album-chips');
+  chips.innerHTML = '';
+  const mk = (label, album, active) => {
+    const b = document.createElement('button');
+    b.className = 'chip' + (active ? ' active' : '');
+    b.textContent = label;
+    b.addEventListener('click', () => setAlbum(album));
+    chips.appendChild(b);
+  };
+  mk('全部', null, activeAlbum === null);
+  for (const a of albums) mk(a, a, activeAlbum === a);
+}
+
+function setAlbum(album) {
+  activeAlbum = album;
+  renderAlbums();
+  renderStream();
+}
+
+function renderStream() {
+  let list = allEntries;
+  if (activeAlbum) list = list.filter((e) => e.album === activeAlbum);
+  list = [...list].sort((a, b) => {
+    if (activeAlbum) return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; // 专辑正序
+    if (a.date !== b.date) return a.date > b.date ? -1 : 1;                 // 动态倒序
+    return (a.created_at || '') > (b.created_at || '') ? -1 : 1;
+  });
+  $('#stream-title').textContent = activeAlbum ? `专辑 · ${activeAlbum}` : '最近动态';
+  $('#stream').innerHTML = list
+    .slice(0, 60)
+    .map((e) => `<article class="entry stream-entry"><div class="stream-date">${esc(e.date)}</div>${entryCard(e)}</article>`)
+    .join('')
+    || '<p class="empty">还没有日记,点右上角「写日记」开始吧 ✏️</p>';
+}
+
+/* ---------- 大图 ---------- */
 function setupLightbox() {
   const lb = document.getElementById('lightbox');
   document.addEventListener('click', (e) => {
@@ -85,271 +145,21 @@ function setupLightbox() {
   }
 }
 
-/* ---------- 每日卡片 ---------- */
-function renderCards(data) {
-  const tl = $('#timeline');
-  tl.innerHTML = '';
-
-  if (!data.days || data.days.length === 0) {
-    tl.innerHTML = '<p class="empty">暂无行程数据</p>';
-    return;
-  }
-
-  const todayDay = tripPhase(data) === 'during' ? tripDayNumber(data, nzToday()) : null;
-
-  for (const d of data.days) {
-    const card = document.createElement('article');
-    card.className = `day-card${d.status === 'booked' ? ' status-booked' : ''}${d.day === todayDay ? ' is-today' : ''}`;
-    card.dataset.day = d.day;
-
-    const activities = (d.activities || [])
-      .map((a) => `<li>${escapeHtml(a)}</li>`)
-      .join('');
-
-    card.innerHTML = `
-      <div class="day-head">
-        <span class="day-badge">Day ${d.day}</span>
-        <span class="day-date">${escapeHtml(d.date)}${d.weekday ? ' ' + escapeHtml(d.weekday) : ''}</span>
-        ${statusBadge(d.status)}
-      </div>
-      <h3 class="day-city">${escapeHtml(d.city)}${d.city_en ? ` <span class="city-en">${escapeHtml(d.city_en)}</span>` : ''}</h3>
-      ${d.summary ? `<p class="day-summary">${escapeHtml(d.summary)}</p>` : ''}
-      ${activities ? `<ul class="day-activities">${activities}</ul>` : ''}
-      <dl class="day-meta">
-        ${d.accommodation ? `<div><dt>住宿</dt><dd>${escapeHtml(d.accommodation)}</dd></div>` : ''}
-        ${d.meals ? `<div><dt>餐食</dt><dd>${escapeHtml(d.meals)}</dd></div>` : ''}
-        ${d.transport ? `<div><dt>交通</dt><dd>${escapeHtml(d.transport)}</dd></div>` : ''}
-      </dl>
-      ${photoGridHtml(d.photos, `Day ${d.day} 照片`)}
-    `;
-    tl.appendChild(card);
-  }
-}
-
-/* ---------- 底部 ---------- */
-function renderFooter(data) {
-  const updated = data.meta && data.meta.updated_at;
-  $('#footer').textContent = updated
-    ? `最近更新:${updated} · 数据源:飞书文档`
-    : '数据源:飞书文档';
-}
-
-/* ---------- 日期与进度 ---------- */
-const NZ_OFFSET_H = 12; // 新西兰 9 月为 NZST (UTC+12)
-
-function dateStr(offsetHours) {
-  const now = new Date(Date.now() + (offsetHours || 0) * 3600 * 1000);
-  const y = now.getUTCFullYear();
-  const m = String(now.getUTCMonth() + 1).padStart(2, '0');
-  const d = String(now.getUTCDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
-const cnToday = () => dateStr(0);
-const nzToday = () => dateStr(NZ_OFFSET_H);
-
-function daysDiff(a, b) {
-  return Math.round((new Date(`${a}T00:00:00`) - new Date(`${b}T00:00:00`)) / 86400000);
-}
-
-function tripDayNumber(data, today) {
-  const n = daysDiff(today, data.meta.departure) + 1;
-  return Math.min(Math.max(n, 1), data.days.length);
-}
-
-function tripPhase(data) {
-  const t = cnToday();
-  if (t < data.meta.departure) return 'before';
-  if (t > data.meta.return) return 'after';
-  return 'during';
-}
-
-function renderCountdown(data) {
-  const el = $('#countdown');
-  const phase = tripPhase(data);
-  if (phase === 'before') {
-    el.textContent = `距出发还有 ${daysDiff(data.meta.departure, cnToday())} 天`;
-  } else if (phase === 'during') {
-    const day = tripDayNumber(data, nzToday());
-    el.textContent = `第 ${day} 天 · ${data.days[day - 1].city}`;
-  } else {
-    el.textContent = '旅程已结束 🎉';
-  }
-}
-
-function renderDailyUpdate(data) {
-  const tl = $('#timeline');
-  if (tripPhase(data) !== 'during') return;
-
-  const day = tripDayNumber(data, nzToday());
-  const d = data.days[day - 1];
-  if (!d) return;
-
-  const card = document.createElement('section');
-  card.className = 'update-card';
-  card.id = 'today-update';
-
-  // 照片唯一来源 = day.photos(当天相册与今日播报卡共用;actual 不含 photos 字段)
-  const photos = (d.photos && d.photos.length)
-    ? photoGridHtml(d.photos, `Day ${day} 实况照片`)
-    : '';
-
-  card.innerHTML = `
-    <div class="update-title">
-      <span class="day-badge">今日播报</span>
-      <h2>Day ${day} · ${escapeHtml(d.city)}${d.city_en ? ` <span class="city-en">${escapeHtml(d.city_en)}</span>` : ''}</h2>
-    </div>
-    ${d.actual && d.actual.text
-      ? `<p class="update-text">${escapeHtml(d.actual.text)}</p>`
-      : `<p class="update-text">${escapeHtml(d.summary)}</p><p class="soft-note">按计划中,实况待更新 ✉️</p>`}
-    ${photos}
-  `;
-  tl.prepend(card);
-}
-
-/* ---------- 地图(懒加载) ---------- */
-function loadResource(kind, src) {
-  return new Promise((resolve, reject) => {
-    const el = document.createElement(kind === 'css' ? 'link' : 'script');
-    if (kind === 'css') {
-      el.rel = 'stylesheet';
-      el.href = src;
-    } else {
-      el.src = src;
-    }
-    el.onload = resolve;
-    el.onerror = () => reject(new Error(`加载失败 ${src}`));
-    document.head.appendChild(el);
-  });
-}
-
-const MARKER_COLORS = { booked: '#15803d', pending: '#9ca3af' };
-let currentData = null;
-let mapInited = false;
-
-function focusDay(day) {
-  const card = document.querySelector(`.day-card[data-day="${day}"]`);
-  if (!card) return;
-  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  card.classList.add('is-focused');
-  setTimeout(() => card.classList.remove('is-focused'), 1600);
-}
-
-async function initMap(data) {
-  const area = $('#map-area');
-  area.innerHTML = '<div id="leaflet-map" class="leaflet-map"></div>';
-  try {
-    await Promise.all([
-      loadResource('css', 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css'),
-      loadResource('js', 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js'),
-    ]);
-  } catch (e) {
-    area.innerHTML = '<div class="map-placeholder">🗺️ 地图资源加载失败(网络原因),行程卡片不受影响</div>';
-    return;
-  }
-  if (typeof L === 'undefined') {
-    area.innerHTML = '<div class="map-placeholder">🗺️ 地图不可用,行程卡片不受影响</div>';
-    return;
-  }
-
-  const map = L.map('leaflet-map', { scrollWheelZoom: false }).setView([-41.5, 173], 5);
-
-  // 默认底图:高德瓦片(国内实测 0.2s,OSM 瓦片在国内不可达 HTTP 000)
-  // OSM 作自动回退(高德故障/境外网络)
-  const TILE_AMAP = 'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}';
-  const TILE_OSM = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-
-  let tileErrors = 0;
-  let tileLayer = L.tileLayer(TILE_AMAP, {
-    maxZoom: 18,
-    subdomains: ['1', '2', '3', '4'],
-    attribution: '&copy; 高德地图',
-  }).addTo(map);
-
-  tileLayer.on('tileerror', () => {
-    tileErrors += 1;
-    if (tileErrors >= 4 && map.hasLayer(tileLayer)) {
-      map.removeLayer(tileLayer);
-      tileLayer = L.tileLayer(TILE_OSM, {
-        maxZoom: 18,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
-      }).addTo(map);
-    }
-  });
-
-  for (const d of data.days) {
-    const color = MARKER_COLORS[d.status] || MARKER_COLORS.pending;
-    const icon = L.divIcon({
-      className: 'day-marker-wrap',
-      html: `<div class="day-marker" style="background:${color}">${d.day}</div>`,
-      iconSize: [24, 24],
-      iconAnchor: [12, 12],
-    });
-    const m = L.marker([d.lat, d.lon], { icon });
-    m.bindTooltip(
-      `<b>${d.city}</b>${d.city_en ? ' ' + d.city_en : ''}<br>Day ${d.day} · ${d.date}`,
-      { direction: 'top', offset: [0, -10] }
-    );
-    m.on('click', () => focusDay(d.day));
-    m.addTo(map);
-  }
-
-  for (const r of data.routes || []) {
-    L.polyline(r.coords, { color: '#0e7490', weight: 3, opacity: 0.65 }).addTo(map);
-  }
-
-  const bounds = L.latLngBounds(data.days.map((d) => [d.lat, d.lon]));
-  for (const r of data.routes || []) {
-    for (const c of r.coords) bounds.extend(c);
-  }
-  map.fitBounds(bounds.pad(0.08));
-  mapInited = true;
-}
-
-function setupMapLazyLoad() {
-  const area = $('#map-area');
-  if (!area) return;
-  if ('IntersectionObserver' in window) {
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting) && currentData && !mapInited) {
-          io.disconnect();
-          initMap(currentData);
-        }
-      },
-      { rootMargin: '400px' }
-    );
-    io.observe(area);
-  } else if (currentData) {
-    initMap(currentData);
-  }
-}
-
 /* ---------- 启动 ---------- */
 async function init() {
-  const index = await loadJSON('data/trips/index.json');
-
-  if (!Array.isArray(index) || index.length === 0) {
-    $('#timeline').innerHTML = '<p class="empty">暂无行程,请先在 data/trips/ 中添加</p>';
-    return;
-  }
-
-  const requested = new URLSearchParams(window.location.search).get('trip');
-  const trip = index.find((t) => t.id === requested) || index[0];
-  const data = await loadJSON(`data/trips/${encodeURIComponent(trip.id)}.json`);
-
-  currentData = data;
-  renderHeader(trip, index, data);
-  setupSwitcher();
+  const data = await (await fetch('/api/entries')).json();
+  allEntries = data.entries || [];
   setupLightbox();
-  renderCountdown(data);
-  renderCards(data);
-  renderDailyUpdate(data);
-  renderFooter(data);
-  setupMapLazyLoad();
+  initCalendar();
+  renderAlbums();
+  renderStream();
+
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  if (allEntries.some((e) => e.date === today)) selectDate(today);
 }
 
 init().catch((err) => {
   console.error(err);
-  $('#timeline').innerHTML = `<p class="empty">页面加载失败:${escapeHtml(err.message)}</p>`;
+  $('#stream').innerHTML = `<p class="empty">加载失败:${esc(err.message)}</p>`;
 });

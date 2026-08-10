@@ -3,35 +3,51 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>旅行地图集</title>
+  <title>咕咕嘎嘎 · 旅行日记</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header class="site-header">
     <div class="header-main">
-      <h1 id="trip-title" class="trip-title">…</h1>
-      <p id="trip-subtitle" class="trip-subtitle"></p>
+      <h1 class="site-title">咕咕嘎嘎</h1>
+      <p class="site-subtitle">记录每一段在路上</p>
     </div>
     <div class="header-side">
-      <span id="countdown" class="countdown"></span>
-      <select id="trip-switcher" class="trip-switcher" hidden aria-label="切换行程"></select>
+      <a class="btn-write" href="upload.html">✏️ 写日记</a>
     </div>
   </header>
 
   <main class="layout">
-    <section id="map-area" class="map-area">
-      <div id="map" class="map-placeholder">🗺️ 地图加载中…(滚动到此处自动加载)</div>
+    <section class="panel calendar-panel">
+      <div class="cal-nav">
+        <button id="cal-prev" class="cal-btn" aria-label="上个月">‹</button>
+        <h2 id="cal-title"></h2>
+        <button id="cal-next" class="cal-btn" aria-label="下个月">›</button>
+      </div>
+      <div class="cal-weekdays">
+        <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+      </div>
+      <div id="cal-grid" class="cal-grid"></div>
     </section>
 
-    <section id="timeline" class="timeline" aria-label="每日行程"></section>
+    <section class="panel day-panel">
+      <h2 id="day-title" class="panel-heading">点击日历上的日期,查看当天动态</h2>
+      <div id="day-entries" class="entries"></div>
+    </section>
+
+    <section class="panel stream-panel">
+      <div class="stream-head">
+        <h2 id="stream-title" class="panel-heading">最近动态</h2>
+        <div id="album-chips" class="album-chips"></div>
+      </div>
+      <div id="stream" class="entries"></div>
+    </section>
   </main>
 
-  <footer id="footer" class="site-footer"></footer>
+  <footer class="site-footer">咕咕嘎嘎 · 记录每一段在路上</footer>
 
-  <div id="lightbox" class="lightbox" aria-hidden="true">
-    <img alt="查看大图">
-  </div>
+  <div id="lightbox" class="lightbox" aria-hidden="true"><img alt="查看大图"></div>
 
-  <script src="app.js?v=20260810c"></script>
+  <script src="app.js?v=2.0"></script>
 </body>
 </html>
