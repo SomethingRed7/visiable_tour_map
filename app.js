@@ -3,8 +3,11 @@
 
 const $ = (sel) => document.querySelector(sel);
 
+// 部署/数据更新时递增,强制浏览器刷新 JSON 缓存
+const DATA_VERSION = '20260810a';
+
 async function loadJSON(url) {
-  const res = await fetch(url);
+  const res = await fetch(`${url}?v=${DATA_VERSION}`, { cache: 'no-store' });
   if (!res.ok) throw new Error(`加载失败 ${url} (HTTP ${res.status})`);
   return res.json();
 }
@@ -63,9 +66,11 @@ function renderCards(data) {
     return;
   }
 
+  const todayDay = tripPhase(data) === 'during' ? tripDayNumber(data, nzToday()) : null;
+
   for (const d of data.days) {
     const card = document.createElement('article');
-    card.className = `day-card${d.status === 'booked' ? ' status-booked' : ''}`;
+    card.className = `day-card${d.status === 'booked' ? ' status-booked' : ''}${d.day === todayDay ? ' is-today' : ''}`;
     card.dataset.day = d.day;
 
     const activities = (d.activities || [])
@@ -97,6 +102,78 @@ function renderFooter(data) {
   $('#footer').textContent = updated
     ? `最近更新:${updated} · 数据源:飞书文档`
     : '数据源:飞书文档';
+}
+
+/* ---------- 日期与进度 ---------- */
+const NZ_OFFSET_H = 12; // 新西兰 9 月为 NZST (UTC+12)
+
+function dateStr(offsetHours) {
+  const now = new Date(Date.now() + (offsetHours || 0) * 3600 * 1000);
+  const y = now.getUTCFullYear();
+  const m = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(now.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+const cnToday = () => dateStr(0);
+const nzToday = () => dateStr(NZ_OFFSET_H);
+
+function daysDiff(a, b) {
+  return Math.round((new Date(`${a}T00:00:00`) - new Date(`${b}T00:00:00`)) / 86400000);
+}
+
+function tripDayNumber(data, today) {
+  const n = daysDiff(today, data.meta.departure) + 1;
+  return Math.min(Math.max(n, 1), data.days.length);
+}
+
+function tripPhase(data) {
+  const t = cnToday();
+  if (t < data.meta.departure) return 'before';
+  if (t > data.meta.return) return 'after';
+  return 'during';
+}
+
+function renderCountdown(data) {
+  const el = $('#countdown');
+  const phase = tripPhase(data);
+  if (phase === 'before') {
+    el.textContent = `距出发还有 ${daysDiff(data.meta.departure, cnToday())} 天`;
+  } else if (phase === 'during') {
+    const day = tripDayNumber(data, nzToday());
+    el.textContent = `第 ${day} 天 · ${data.days[day - 1].city}`;
+  } else {
+    el.textContent = '旅程已结束 🎉';
+  }
+}
+
+function renderDailyUpdate(data) {
+  const tl = $('#timeline');
+  if (tripPhase(data) !== 'during') return;
+
+  const day = tripDayNumber(data, nzToday());
+  const d = data.days[day - 1];
+  if (!d) return;
+
+  const card = document.createElement('section');
+  card.className = 'update-card';
+  card.id = 'today-update';
+
+  const photos = (d.actual && d.actual.photos && d.actual.photos.length)
+    ? `<div class="update-photos">${d.actual.photos.map((p) => `<img src="${p}" alt="Day ${day} 实况照片" loading="lazy">`).join('')}</div>`
+    : '';
+
+  card.innerHTML = `
+    <div class="update-title">
+      <span class="day-badge">今日播报</span>
+      <h2>Day ${day} · ${escapeHtml(d.city)}${d.city_en ? ` <span class="city-en">${escapeHtml(d.city_en)}</span>` : ''}</h2>
+    </div>
+    ${d.actual && d.actual.text
+      ? `<p class="update-text">${escapeHtml(d.actual.text)}</p>`
+      : `<p class="update-text">${escapeHtml(d.summary)}</p><p class="soft-note">按计划中,实况待更新 ✉️</p>`}
+    ${photos}
+  `;
+  tl.prepend(card);
 }
 
 /* ---------- 地图(懒加载) ---------- */
@@ -214,7 +291,9 @@ async function init() {
   currentData = data;
   renderHeader(trip, index, data);
   setupSwitcher();
+  renderCountdown(data);
   renderCards(data);
+  renderDailyUpdate(data);
   renderFooter(data);
   setupMapLazyLoad();
 }

@@ -170,6 +170,61 @@ body {
 .day-meta dt { color: var(--text-soft); white-space: nowrap; }
 .day-meta dd { margin: 0; }
 
+/* ---------- 倒计时 / 今日播报 ---------- */
+.countdown {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--brand);
+  white-space: nowrap;
+}
+
+.update-card {
+  background: linear-gradient(135deg, #ecfeff, #f0fdfa);
+  border: 1px solid #a5f3fc;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 18px 20px;
+  border-left: 4px solid var(--brand);
+}
+
+.update-card .update-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.update-card .update-title h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.update-card .update-text {
+  font-size: 1.02rem;
+  margin: 4px 0;
+}
+
+.update-card .update-photos {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.update-card .update-photos img {
+  width: 120px;
+  height: 90px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.soft-note {
+  color: var(--text-soft);
+  font-size: 0.85rem;
+  margin: 6px 0 0;
+}
+
 /* ---------- 底部 ---------- */
 .site-footer {
   max-width: 1080px;
