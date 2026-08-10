@@ -1,42 +1,43 @@
-# 旅行地图集 (visiable_tour_map)
+# 咕咕嘎嘎 (gugugaga)
 
-数据驱动的可视化旅行网站:每个行程一个 JSON,地图 + 每日时间线 + 照片 + 报平安播报。飞书文档为唯一权威数据源,Hermes 按需同步。
+通用旅行日记 portal:日历 + 每日动态 + 专辑聚合 + 公开上传。纯静态前端 + Cloudflare Pages Functions(R2 存照片,KV 存条目),上传即时可见、零重建。
 
 ## 线上地址
 
-https://somethingred7.github.io/visiable_tour_map/ (二维码:qr-website.png)
+https://gugugaga-viw.pages.dev/ (二维码:qr-gugugaga.png)
 
-## 本地预览
+## 架构
+
+- `public/` — 静态前端(index.html portal / upload.html 写日记)
+- `functions/` — serverless:
+  - `GET /api/entries?date=|month=|album=` — seed(预置条目)+ KV 合并查询
+  - `POST /api/upload` — multipart(前端已压缩 1600+480 两版),照片→R2,条目→KV
+  - `GET /photos/<key>` — R2 直出,长缓存
+- `functions/seed.js` — 预置条目(新西兰蜜月 2026,16 条),只读
+- `wrangler.toml` — KV `ENTRIES` + R2 `PHOTOS` 绑定
+
+## 本地开发
 
 ```bash
-python3 -m http.server 8000
-# 打开 http://localhost:8000
+npm install
+npm run dev        # wrangler pages dev public(本地模拟 KV/R2,无需账号)
 ```
 
-## 目录结构
+## 部署
 
+```bash
+npx wrangler login                                  # 首次授权
+npx wrangler r2 bucket create gugugaga-photos       # 首次(需 dashboard 启用 R2)
+npx wrangler kv namespace create ENTRIES            # 首次,id 写入 wrangler.toml
+npm run deploy                                      # wrangler pages deploy public
 ```
-data/trips/index.json   行程列表(决定头部切换器)
-data/trips/<id>.json    每个行程的完整数据(meta + days + routes)
-photos/<tripId>/dayNN/  照片(压缩后)
-scripts/                工具脚本(照片压缩、数据校验)
-```
 
-## 新行程接入
+## 数据流
 
-1. 复制 `data/trips/nz2026.json` 为 `data/trips/<新id>.json`,填入行程数据
-2. 在 `data/trips/index.json` 的数组里加一项 `{id, title, subtitle, departure, return, updated_at}`
-3. 照片放 `photos/<新id>/dayNN/`,在 days 的 `photos` 数组里引用
-4. **push 前必跑**数据契约校验(日期连续/坐标/隐私残留/照片引用):
+写日记(手机浏览器)→ 前端 canvas 压缩(1600 大图 + 480 缩略图,兼容微信浏览器)→ POST /api/upload → 照片入 R2、条目入 KV → 首页日历即时可见。
 
-   ```bash
-   python3 scripts/validate_trips.py
-   ```
+## 注意
 
-5. `git push`,网站自动出现行程切换
-
-详见 spec:https://github.com/SomethingRed7/visiable_tour_map/issues/1
-
-## 备注
-
-- `logs/`(MCP 运行日志)与 `.hermes/`(本地计划文档)不在仓库维护范围,已 gitignore
+- 仓库 private;部署面仅 `public/` + `functions/`(scripts/data 不暴露)
+- 完全公开上传,无鉴权(v1 决策);无删除 UI,错传需清 KV/R2
+- 上传照片带 immutable 长缓存,删除对象后边缘缓存仍可服务至 TTL(无条目引用则不可见)
