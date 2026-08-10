@@ -93,7 +93,7 @@ async function renderMap(list, box, noteEl) {
 
   const latlngs = pts.map((p) => [p.lat, p.lng]);
   pts.forEach((p, i) => {
-    const mk = L.marker([p.lat, p.lng]).addTo(map);
+    const mk = L.marker([p.lat, p.lng], { icon: L.divIcon({ className: 'gg-marker', html: '📍', iconSize: [24, 24], iconAnchor: [12, 24] }) }).addTo(map);
     mk.bindPopup(`<b>${esc(p.date)}</b> ${esc(p.title)}<br>${esc(p.name)}`);
     mk.on('click', () => map.setView([p.lat, p.lng], Math.max(map.getZoom(), 12)));
   });

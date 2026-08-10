@@ -120,7 +120,7 @@ async function openPicker() {
 function placeMarker(lat, lng) {
   if (!pickerMap) return;
   if (pickerMap._marker) pickerMap.removeLayer(pickerMap._marker);
-  pickerMap._marker = L.marker([lat, lng]).addTo(pickerMap);
+  pickerMap._marker = L.marker([lat, lng], { icon: L.divIcon({ className: 'gg-marker', html: '📍', iconSize: [24, 24], iconAnchor: [12, 24] }) }).addTo(pickerMap);
 }
 
 async function pickResult(r) {

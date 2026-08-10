@@ -142,7 +142,7 @@ async function renderAlbumMap(list) {
   }).addTo(map);
   const bounds = [];
   for (const e of withLoc) {
-    const mk = L.marker([e.location.lat, e.location.lng]).addTo(map);
+    const mk = L.marker([e.location.lat, e.location.lng], { icon: L.divIcon({ className: 'gg-marker', html: '📍', iconSize: [24, 24], iconAnchor: [12, 24] }) }).addTo(map);
     mk.bindPopup(`<b>${esc(e.date)}</b> ${esc(e.title || '')}<br>${esc(e.location.display || e.location.name || '')}`);
     bounds.push([e.location.lat, e.location.lng]);
   }
