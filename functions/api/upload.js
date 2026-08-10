@@ -1,7 +1,7 @@
 // 上传 API:POST /api/upload(multipart)
 // 字段:date, title, text, album, author, location, lat, lng, photo_full[] / photo_thumb[]
 // 无口令(上传靠隐秘 URL 保护);删除才需口令(见 /api/delete)
-// 照片 → R2 photos/<date>/<ts>-<n>.jpg(+ -thumb),条目 → KV entry:<date>:<ts>
+// 照片 → R2 photos/<date>/<ts>-<n>.jpg(+ -thumb),条目 → D1(强一致)
 // 防重复:同一天同照片内容(SHA-256)拒绝;地点已带坐标则直存,否则服务端 Nominatim 编码
 export async function onRequestPost(context) {
   const form = await context.request.formData();
@@ -24,20 +24,18 @@ export async function onRequestPost(context) {
     return Response.json({ error: '内容为空:至少填标题/文字/照片之一' }, { status: 400 });
   }
 
-  // 照片内容哈希:同一天去重(index:all 强一致读,避免 KV list 最终一致性漏判)
+  // 照片内容哈希:同一天去重(D1 强一致查询)
   const photoHashes = [];
   if (fulls.length > 0) {
-    const keys = await readAllKeys(context.env);
     const existingHashes = new Set();
-    for (const k of keys) {
-      if (k.startsWith(`${date}:`)) {
-        const raw = await context.env.ENTRIES.get(`entry:${k}`, { type: 'strong' });
-        if (raw) {
-          const e = JSON.parse(raw);
-          for (const h of e.photo_hashes || []) existingHashes.add(h);
-        }
+    try {
+      const rows = await context.env.DB.prepare('SELECT photo_hashes FROM entries WHERE date = ?1')
+        .bind(date)
+        .all();
+      for (const r of rows.results || []) {
+        for (const h of JSON.parse(r.photo_hashes || '[]')) existingHashes.add(h);
       }
-    }
+    } catch { /* DB 不可用则跳过去重 */ }
     for (const f of fulls) {
       const buf = await f.arrayBuffer();
       const digest = await crypto.subtle.digest('SHA-256', buf);
@@ -59,6 +57,7 @@ export async function onRequestPost(context) {
         const q = encodeURIComponent(locationName);
         const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=zh-CN&q=${q}`, {
           headers: { 'User-Agent': 'gugugaga-travel-diary/1.0 (personal use)' },
+          signal: AbortSignal.timeout(8000),
         });
         if (res.ok) {
           const arr = await res.json();
@@ -79,6 +78,7 @@ export async function onRequestPost(context) {
   const ts = Date.now();
   const photoPaths = [];
   for (let i = 0; i < fulls.length; i++) {
+    // R2 key 不带 photos/ 前缀;条目里的显示路径带 /photos/ 前缀
     const base = `${date}/${ts}-${i}`;
     await context.env.PHOTOS.put(`${base}.jpg`, fulls[i].stream(), {
       httpMetadata: { contentType: 'image/jpeg' },
@@ -98,19 +98,10 @@ export async function onRequestPost(context) {
     photo_hashes: photoHashes,
     created_at: new Date().toISOString(),
   };
-  await context.env.ENTRIES.put(`entry:${date}:${ts}`, JSON.stringify(entry));
-  // 维护索引 index:all(强一致 get 读,避免 KV list 最终一致性)
-  const keys = await readAllKeys(context.env);
-  keys.push(`${date}:${ts}`);
-  await context.env.ENTRIES.put('index:all', JSON.stringify(keys));
+  await context.env.DB.prepare(
+    'INSERT OR REPLACE INTO entries (date, ts, title, text, album, author, location, photos, photo_hashes, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)'
+  )
+    .bind(date, ts, title, text, album, author, JSON.stringify(location), JSON.stringify(photoPaths), JSON.stringify(photoHashes), entry.created_at)
+    .run();
   return Response.json({ ok: true, entry });
-}
-
-async function readAllKeys(env) {
-  try {
-    const raw = await env.ENTRIES.get('index:all', { type: 'strong' });
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
 }

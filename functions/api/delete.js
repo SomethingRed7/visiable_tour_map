@@ -1,6 +1,6 @@
 // 删除 API:POST /api/delete(multipart)
-// 字段:pin(删除口令), date, ts(条目键 entry:<date>:<ts>)
-// 校验 DELETE_PASS;删除 KV 条目 + R2 照片(大图+缩略图)
+// 字段:pin(删除口令), date, ts(条目主键的一部分)
+// 校验 DELETE_PASS;删除 D1 条目 + R2 照片(大图+缩略图)
 export async function onRequestPost(context) {
   const form = await context.request.formData();
   const pin = (form.get('pin') || '').trim();
@@ -14,25 +14,23 @@ export async function onRequestPost(context) {
     return Response.json({ error: '参数不对' }, { status: 400 });
   }
 
-  const key = `entry:${date}:${ts}`;
-  const raw = await context.env.ENTRIES.get(key);
-  if (!raw) return Response.json({ error: '条目不存在' }, { status: 404 });
+  const row = await context.env.DB.prepare('SELECT photos FROM entries WHERE date = ?1 AND ts = ?2')
+    .bind(date, Number(ts))
+    .first();
+  if (!row) return Response.json({ error: '条目不存在' }, { status: 404 });
 
-  const entry = JSON.parse(raw);
-  for (const p of entry.photos || []) {
-    const k = p.replace(/^\/photos\//, '');
-    if (!k) continue;
-    await context.env.PHOTOS.delete(k);
-    await context.env.PHOTOS.delete(k.replace(/\.(jpg|jpeg|png)$/i, '-thumb.$1'));
-  }
-  await context.env.ENTRIES.delete(key);
-  // 同步从索引移除
   try {
-    const indexRaw = await context.env.ENTRIES.get('index:all', { type: 'strong' });
-    if (indexRaw) {
-      const keys = JSON.parse(indexRaw).filter((k) => k !== `${date}:${ts}`);
-      await context.env.ENTRIES.put('index:all', JSON.stringify(keys));
+    const photos = JSON.parse(row.photos || '[]');
+    for (const p of photos) {
+      const k = p.replace(/^\/photos\//, '');
+      if (!k) continue;
+      await context.env.PHOTOS.delete(k);
+      await context.env.PHOTOS.delete(k.replace(/\.(jpg|jpeg|png)$/i, '-thumb.$1'));
     }
-  } catch { /* 索引不可用则忽略 */ }
+  } catch { /* R2 清理失败不阻断条目删除 */ }
+
+  await context.env.DB.prepare('DELETE FROM entries WHERE date = ?1 AND ts = ?2')
+    .bind(date, Number(ts))
+    .run();
   return Response.json({ ok: true });
 }

@@ -1,17 +1,21 @@
 // 条目查询 API:GET /api/entries?date=|?month=|?album=|(空=最近)
-// seed(预置条目)与 KV 新条目合并,按日期排序。
+// 数据源:D1(SQLite,强一致);seed(预置条目)与 D1 合并,按日期排序。
 import { SEED } from '../seed.js';
 
 function norm(e) {
+  let location = null;
+  try { location = e.location ? JSON.parse(e.location) : null; } catch { location = null; }
+  let photos = [];
+  try { photos = JSON.parse(e.photos || '[]'); } catch { photos = []; }
   return {
     date: e.date || '',
     title: e.title || '',
     text: e.text || '',
     album: e.album || null,
     author: e.author || null,
-    location: e.location || null,
-    ts: e.ts || null,
-    photos: e.photos || [],
+    location,
+    ts: e.ts ?? null,
+    photos,
     created_at: e.created_at || null,
   };
 }
@@ -25,28 +29,22 @@ export async function onRequestGet(context) {
 
   const kvEntries = [];
   try {
-    // 主路径:index:all 强一致读;缺失时回退 list(迁移前)
-    const indexRaw = await context.env.ENTRIES.get('index:all', { type: 'strong' });
-    let keys = null;
-    if (indexRaw) {
-      let all = JSON.parse(indexRaw);
-      if (date) all = all.filter((k) => k.startsWith(`${date}:`));
-      else if (month) all = all.filter((k) => k.startsWith(month));
-      else all = all.slice(-limit);
-      keys = all;
+    let stmt;
+    let args = [];
+    if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      stmt = 'SELECT * FROM entries WHERE date = ?1 ORDER BY ts ASC';
+      args = [date];
+    } else if (month && /^\d{4}-\d{2}$/.test(month)) {
+      stmt = 'SELECT * FROM entries WHERE date LIKE ?1 ORDER BY date ASC, ts ASC';
+      args = [`${month}%`];
     } else {
-      let list;
-      if (month) list = await context.env.ENTRIES.list({ prefix: `entry:${month}:`, consistency: 'strong' });
-      else if (date) list = await context.env.ENTRIES.list({ prefix: `entry:${date}:`, consistency: 'strong' });
-      else list = await context.env.ENTRIES.list({ limit, consistency: 'strong' });
-      keys = list.keys.map((k) => k.name.replace(/^entry:/, ''));
+      stmt = 'SELECT * FROM entries ORDER BY date DESC, ts DESC LIMIT ?1';
+      args = [limit];
     }
-    for (const k of keys) {
-      const raw = await context.env.ENTRIES.get(`entry:${k}`, { type: 'strong' });
-      if (raw) kvEntries.push(JSON.parse(raw));
-    }
+    const res = await context.env.DB.prepare(stmt).bind(...args).all();
+    for (const r of res.results || []) kvEntries.push(r);
   } catch {
-    // KV 绑定不可用时(未配置/本地未模拟)静默降级,仅返回 seed
+    // DB 绑定不可用时(未配置/本地未模拟)静默降级,仅返回 seed
   }
 
   let merged = [...SEED, ...kvEntries];
