@@ -2,6 +2,10 @@
 
 数据驱动的可视化旅行网站:每个行程一个 JSON,地图 + 每日时间线 + 照片 + 报平安播报。飞书文档为唯一权威数据源,Hermes 按需同步。
 
+## 线上地址
+
+https://somethingred7.github.io/visiable_tour_map/ (二维码:qr-website.png)
+
 ## 本地预览
 
 ```bash
