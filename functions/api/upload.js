@@ -24,18 +24,20 @@ export async function onRequestPost(context) {
     return Response.json({ error: '内容为空:至少填标题/文字/照片之一' }, { status: 400 });
   }
 
-  // 照片内容哈希:同一天去重
+  // 照片内容哈希:同一天去重(index:all 强一致读,避免 KV list 最终一致性漏判)
   const photoHashes = [];
   if (fulls.length > 0) {
-    const existing = [];
-    try {
-      const list = await context.env.ENTRIES.list({ prefix: `entry:${date}:` });
-      for (const k of list.keys) {
-        const raw = await context.env.ENTRIES.get(k.name);
-        if (raw) existing.push(JSON.parse(raw));
+    const keys = await readAllKeys(context.env);
+    const existingHashes = new Set();
+    for (const k of keys) {
+      if (k.startsWith(`${date}:`)) {
+        const raw = await context.env.ENTRIES.get(`entry:${k}`);
+        if (raw) {
+          const e = JSON.parse(raw);
+          for (const h of e.photo_hashes || []) existingHashes.add(h);
+        }
       }
-    } catch { /* KV 不可用则跳过去重 */ }
-    const existingHashes = new Set(existing.flatMap((e) => e.photo_hashes || []));
+    }
     for (const f of fulls) {
       const buf = await f.arrayBuffer();
       const digest = await crypto.subtle.digest('SHA-256', buf);
@@ -97,5 +99,18 @@ export async function onRequestPost(context) {
     created_at: new Date().toISOString(),
   };
   await context.env.ENTRIES.put(`entry:${date}:${ts}`, JSON.stringify(entry));
+  // 维护索引 index:all(强一致 get 读,避免 KV list 最终一致性)
+  const keys = await readAllKeys(context.env);
+  keys.push(`${date}:${ts}`);
+  await context.env.ENTRIES.put('index:all', JSON.stringify(keys));
   return Response.json({ ok: true, entry });
+}
+
+async function readAllKeys(env) {
+  try {
+    const raw = await env.ENTRIES.get('index:all');
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
 }

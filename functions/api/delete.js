@@ -26,5 +26,13 @@ export async function onRequestPost(context) {
     await context.env.PHOTOS.delete(k.replace(/\.(jpg|jpeg|png)$/i, '-thumb.$1'));
   }
   await context.env.ENTRIES.delete(key);
+  // 同步从索引移除
+  try {
+    const indexRaw = await context.env.ENTRIES.get('index:all');
+    if (indexRaw) {
+      const keys = JSON.parse(indexRaw).filter((k) => k !== `${date}:${ts}`);
+      await context.env.ENTRIES.put('index:all', JSON.stringify(keys));
+    }
+  } catch { /* 索引不可用则忽略 */ }
   return Response.json({ ok: true });
 }

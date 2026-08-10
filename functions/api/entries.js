@@ -25,16 +25,24 @@ export async function onRequestGet(context) {
 
   const kvEntries = [];
   try {
-    let list;
-    if (month && /^\d{4}-\d{2}$/.test(month)) {
-      list = await context.env.ENTRIES.list({ prefix: `entry:${month}:` });
-    } else if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      list = await context.env.ENTRIES.list({ prefix: `entry:${date}:` });
+    // 主路径:index:all 强一致(单次 get);缺失时回退 list(旧数据迁移前,最终一致可接受)
+    const indexRaw = await context.env.ENTRIES.get('index:all');
+    let keys = null;
+    if (indexRaw) {
+      let all = JSON.parse(indexRaw);
+      if (date) all = all.filter((k) => k.startsWith(`${date}:`));
+      else if (month) all = all.filter((k) => k.startsWith(month));
+      else all = all.slice(-limit);
+      keys = all;
     } else {
-      list = await context.env.ENTRIES.list({ limit });
+      let list;
+      if (month) list = await context.env.ENTRIES.list({ prefix: `entry:${month}:` });
+      else if (date) list = await context.env.ENTRIES.list({ prefix: `entry:${date}:` });
+      else list = await context.env.ENTRIES.list({ limit });
+      keys = list.keys.map((k) => k.name.replace(/^entry:/, ''));
     }
-    for (const k of list.keys) {
-      const raw = await context.env.ENTRIES.get(k.name);
+    for (const k of keys) {
+      const raw = await context.env.ENTRIES.get(`entry:${k}`);
       if (raw) kvEntries.push(JSON.parse(raw));
     }
   } catch {
