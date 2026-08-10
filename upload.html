@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>写日记 · 咕咕嘎嘎</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-main">
+      <h1 class="site-title">咕咕嘎嘎</h1>
+      <p class="site-subtitle">写日记</p>
+    </div>
+    <div class="header-side">
+      <a class="btn-write" href="index.html">← 返回首页</a>
+    </div>
+  </header>
+
+  <main class="layout">
+    <form id="diary-form" class="panel upload-form">
+      <label>
+        日期
+        <input type="date" id="f-date" required>
+      </label>
+
+      <label>
+        专辑(可选,如 长沙周末 / 新西兰蜜月 2026)
+        <input type="text" id="f-album" list="album-list" placeholder="留空则不归类">
+        <datalist id="album-list"></datalist>
+      </label>
+
+      <label>
+        标题
+        <input type="text" id="f-title" placeholder="今天去了哪?">
+      </label>
+
+      <label>
+        文字
+        <textarea id="f-text" rows="5" placeholder="记点什么吧..."></textarea>
+      </label>
+
+      <label>
+        照片(可多选,自动压缩)
+        <input type="file" id="f-photos" accept="image/*" multiple>
+      </label>
+
+      <div id="photo-preview" class="photo-preview"></div>
+      <p id="form-status" class="form-status"></p>
+
+      <button type="submit" class="btn-submit">发布</button>
+    </form>
+  </main>
+
+  <footer class="site-footer">咕咕嘎嘎 · 记录每一段在路上</footer>
+
+  <script src="upload.js"></script>
+</body>
+</html>

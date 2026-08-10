@@ -156,7 +156,16 @@ async function init() {
 
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  if (allEntries.some((e) => e.date === today)) selectDate(today);
+  const urlDate = new URLSearchParams(location.search).get('date');
+
+  if (urlDate && /^\d{4}-\d{2}-\d{2}$/.test(urlDate)) {
+    // 上传成功跳转 ?date=YYYY-MM-DD → 定位到该月并选中当天
+    currentMonth = urlDate.slice(0, 7);
+    renderCalendar();
+    selectDate(urlDate);
+  } else if (allEntries.some((e) => e.date === today)) {
+    selectDate(today);
+  }
 }
 
 init().catch((err) => {

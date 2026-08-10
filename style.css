@@ -265,6 +265,75 @@ body {
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
 }
 
+/* ---------- 写日记表单 ---------- */
+.upload-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 640px;
+}
+
+.upload-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.upload-form input[type="text"],
+.upload-form input[type="date"],
+.upload-form textarea {
+  font: inherit;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--text);
+}
+
+.upload-form input[type="file"] { font-size: 0.88rem; }
+
+.photo-preview {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 8px;
+}
+
+.preview-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.72rem;
+  color: var(--text-soft);
+}
+
+.preview-item img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.form-status { font-size: 0.88rem; color: var(--text-soft); min-height: 1.2em; margin: 0; }
+
+.form-status.error { color: #b91c1c; }
+
+.btn-submit {
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  padding: 12px 20px;
+  border: none;
+  border-radius: 999px;
+  background: var(--brand);
+  color: #fff;
+  cursor: pointer;
+}
+
+.btn-submit:active { opacity: 0.85; }
+
 /* ---------- 底部 ---------- */
 .site-footer {
   max-width: 1080px;
