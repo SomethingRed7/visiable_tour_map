@@ -221,7 +221,8 @@ async function doUpload() {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return setStatus(data.error || `上传失败(HTTP ${res.status})`, true);
 
-    // 成功:横幅 + 清空表单
+    // 成功:记住本次选择 + 横幅 + 清空表单
+    rememberDefaults();
     $('#success-banner').hidden = false;
     $('#btn-view-day').href = `/?date=${date}`;
     setStatus('', false);
@@ -374,6 +375,7 @@ function cancelEdit() {
   $('#f-date').value = new Date().toISOString().slice(0, 10);
   $('#f-location').value = $('#f-lat').value = $('#f-lng').value = '';
   picked = null;
+  applyDefaults();
 }
 
 $('#btn-cancel-edit').addEventListener('click', cancelEdit);
@@ -466,7 +468,41 @@ function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+/* ---------- 记住上次选择(快速打卡) ---------- */
+const LS_AUTHOR = 'gg_author';
+const LS_ALBUM = 'gg_album';
+const LS_LOC_NAME = 'gg_loc_name';
+const LS_LOC_LAT = 'gg_loc_lat';
+const LS_LOC_LNG = 'gg_loc_lng';
+
+function applyDefaults() {
+  $('#f-author').value = localStorage.getItem(LS_AUTHOR) || '球';
+  $('#f-album').value = localStorage.getItem(LS_ALBUM) || '';
+  const loc = localStorage.getItem(LS_LOC_NAME);
+  if (loc) {
+    $('#f-location').value = loc;
+    $('#f-lat').value = localStorage.getItem(LS_LOC_LAT) || '';
+    $('#f-lng').value = localStorage.getItem(LS_LOC_LNG) || '';
+  }
+}
+
+function rememberDefaults() {
+  localStorage.setItem(LS_AUTHOR, $('#f-author').value || '球');
+  localStorage.setItem(LS_ALBUM, $('#f-album').value.trim() || '');
+  const loc = $('#f-location').value.trim();
+  if (loc) {
+    localStorage.setItem(LS_LOC_NAME, loc);
+    localStorage.setItem(LS_LOC_LAT, $('#f-lat').value);
+    localStorage.setItem(LS_LOC_LNG, $('#f-lng').value);
+  } else {
+    localStorage.removeItem(LS_LOC_NAME);
+    localStorage.removeItem(LS_LOC_LAT);
+    localStorage.removeItem(LS_LOC_LNG);
+  }
+}
+
 /* 默认日期 = 今天 */
 $('#f-date').value = new Date().toISOString().slice(0, 10);
+applyDefaults();
 loadAlbums();
 renderRecent();

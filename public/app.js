@@ -7,6 +7,8 @@ let allEntries = [];
 let currentMonth = null;   // 'YYYY-MM'
 let selectedDate = null;
 let activeAlbum = null;
+// 暂不显示「最近动态」流:默认只保留专辑入口;true = 恢复(含「全部」chip)
+const SHOW_RECENT_FEED = false;
 
 function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -172,7 +174,7 @@ function renderAlbums() {
     b.addEventListener('click', () => setAlbum(album));
     chips.appendChild(b);
   };
-  mk('全部', null, activeAlbum === null);
+  if (SHOW_RECENT_FEED) mk('全部', null, activeAlbum === null);
   for (const a of albums) mk(a, a, activeAlbum === a);
 }
 
@@ -185,6 +187,13 @@ function setAlbum(album) {
 async function renderStream() {
   let list = allEntries;
   if (activeAlbum) list = list.filter((e) => e.album === activeAlbum);
+  if (!activeAlbum && !SHOW_RECENT_FEED) {
+    // 专辑入口:默认不渲染动态流
+    $('#stream-title').textContent = '专辑';
+    $('#stream').innerHTML = `<p class="empty">${allEntries.length ? '选择一个专辑查看' : '还没有日记 ✏️'}</p>`;
+    $('#album-map').style.display = 'none';
+    return;
+  }
   list = [...list].sort((a, b) => {
     if (activeAlbum) return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; // 专辑正序
     if (a.date !== b.date) return a.date > b.date ? -1 : 1;                 // 动态倒序
@@ -195,7 +204,7 @@ async function renderStream() {
     .slice(0, 60)
     .map((e) => `<article class="entry stream-entry"><div class="stream-date">${esc(e.date)}</div>${entryCard(e)}</article>`)
     .join('')
-    || '<p class="empty">还没有日记,点右上角「写日记」开始吧 ✏️</p>';
+    || '<p class="empty">还没有日记 ✏️</p>';
   // 地图仅在选中专辑时显示
   if (activeAlbum) await renderAlbumMap(list);
   else $('#album-map').style.display = 'none';
