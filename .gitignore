@@ -1,0 +1,8 @@
+# MCP 运行日志(不在仓库维护范围)
+logs/
+
+# 本地计划/工作文档
+.hermes/
+
+# macOS
+.DS_Store

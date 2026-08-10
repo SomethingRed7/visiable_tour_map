@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>旅行地图集</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-main">
+      <h1 id="trip-title" class="trip-title">…</h1>
+      <p id="trip-subtitle" class="trip-subtitle"></p>
+    </div>
+    <div class="header-side">
+      <select id="trip-switcher" class="trip-switcher" hidden aria-label="切换行程"></select>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section id="map-area" class="map-area">
+      <div id="map" class="map-placeholder">🗺️ 地图区域(即将接入)</div>
+    </section>
+
+    <section id="timeline" class="timeline" aria-label="每日行程"></section>
+  </main>
+
+  <footer id="footer" class="site-footer"></footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

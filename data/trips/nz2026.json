@@ -1,0 +1,44 @@
+{
+  "meta": {
+    "title": "新西兰蜜月之旅",
+    "subtitle": "2026.08.29 - 09.13 · 南北岛 16 天",
+    "departure": "2026-08-29",
+    "return": "2026-09-13",
+    "updated_at": "2026-08-10T00:00:00+08:00"
+  },
+  "days": [
+    {
+      "day": 1,
+      "date": "2026-08-29",
+      "weekday": "周六",
+      "city": "奥克兰",
+      "city_en": "Auckland",
+      "lat": -36.8485,
+      "lon": 174.7633,
+      "summary": "抵达奥克兰,机场取车",
+      "activities": ["抵达奥克兰", "机场取车"],
+      "accommodation": "奥克兰市区酒店",
+      "meals": "",
+      "transport": "自驾",
+      "status": "booked",
+      "photos": []
+    },
+    {
+      "day": 2,
+      "date": "2026-08-30",
+      "weekday": "周日",
+      "city": "罗托鲁瓦",
+      "city_en": "Rotorua",
+      "lat": -38.1368,
+      "lon": 176.2497,
+      "summary": "自驾前往罗托鲁瓦,地热公园",
+      "activities": ["自驾前往罗托鲁瓦", "地热公园"],
+      "accommodation": "罗托鲁瓦温泉酒店",
+      "meals": "",
+      "transport": "自驾",
+      "status": "pending",
+      "photos": []
+    }
+  ],
+  "routes": []
+}
