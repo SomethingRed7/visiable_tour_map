@@ -23,7 +23,13 @@ scripts/                工具脚本(照片压缩、数据校验)
 1. 复制 `data/trips/nz2026.json` 为 `data/trips/<新id>.json`,填入行程数据
 2. 在 `data/trips/index.json` 的数组里加一项 `{id, title, subtitle, departure, return, updated_at}`
 3. 照片放 `photos/<新id>/dayNN/`,在 days 的 `photos` 数组里引用
-4. `git push`,网站自动出现行程切换
+4. **push 前必跑**数据契约校验(日期连续/坐标/隐私残留/照片引用):
+
+   ```bash
+   python3 scripts/validate_trips.py
+   ```
+
+5. `git push`,网站自动出现行程切换
 
 详见 spec:https://github.com/SomethingRed7/visiable_tour_map/issues/1
 
