@@ -61,13 +61,20 @@ async function doUpload() {
   const title = $('#f-title').value.trim();
   const text = $('#f-text').value.trim();
   const album = $('#f-album').value.trim() || null;
+  const author = $('#f-author').value || '球';
+  const location = $('#f-location').value.trim() || null;
+  const pass = $('#f-pass').value.trim();
   const files = [...$('#f-photos').files];
 
   if (!date) return setStatus('请选择日期', true);
+  if (!pass) return setStatus('请输入口令', true);
   if (!title && !text && files.length === 0) return setStatus('至少填标题/文字/照片之一', true);
 
   const fd = new FormData();
   fd.append('date', date);
+  fd.append('pass', pass);
+  fd.append('author', author);
+  if (location) fd.append('location', location);
   if (title) fd.append('title', title);
   if (text) fd.append('text', text);
   if (album) fd.append('album', album);

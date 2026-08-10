@@ -8,6 +8,8 @@ function norm(e) {
     title: e.title || '',
     text: e.text || '',
     album: e.album || null,
+    author: e.author || null,
+    location: e.location || null,
     photos: e.photos || [],
     created_at: e.created_at || null,
   };

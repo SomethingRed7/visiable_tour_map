@@ -12,9 +12,6 @@
       <h1 class="site-title">咕咕嘎嘎</h1>
       <p class="site-subtitle">写日记</p>
     </div>
-    <div class="header-side">
-      <a class="btn-write" href="index.html">← 返回首页</a>
-    </div>
   </header>
 
   <main class="layout">
@@ -25,8 +22,21 @@
       </label>
 
       <label>
-        专辑(可选,如 长沙周末 / 新西兰蜜月 2026)
-        <input type="text" id="f-album" list="album-list" placeholder="留空则不归类">
+        上传人
+        <select id="f-author">
+          <option value="球">球</option>
+          <option value="小红">小红</option>
+        </select>
+      </label>
+
+      <label>
+        地点(可选,如:长沙 · 橘子洲)
+        <input type="text" id="f-location" placeholder="">
+      </label>
+
+      <label>
+        专辑(可选)
+        <input type="text" id="f-album" list="album-list">
         <datalist id="album-list"></datalist>
       </label>
 
@@ -43,6 +53,11 @@
       <label>
         照片(可多选,自动压缩)
         <input type="file" id="f-photos" accept="image/*" multiple>
+      </label>
+
+      <label>
+        口令
+        <input type="password" id="f-pass" required>
       </label>
 
       <div id="photo-preview" class="photo-preview"></div>

@@ -185,8 +185,46 @@ body {
   background: #ecfeff;
   border-radius: 999px;
   padding: 2px 10px;
+}
+
+.entry-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
   margin-bottom: 4px;
 }
+
+.author-tag {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #92400e;
+  background: var(--brand-soft);
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+
+.author-tag.rose {
+  color: #9d174d;
+  background: #fce7f3;
+}
+
+.loc-tag {
+  font-size: 0.78rem;
+  color: var(--text-soft);
+}
+
+.album-map {
+  display: none;
+  height: 320px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+
+.album-map .leaflet-container { font: inherit; }
 
 .empty { color: var(--text-soft); font-size: 0.9rem; }
 
@@ -284,7 +322,9 @@ body {
 
 .upload-form input[type="text"],
 .upload-form input[type="date"],
-.upload-form textarea {
+.upload-form input[type="password"],
+.upload-form textarea,
+.upload-form select {
   font: inherit;
   padding: 10px 12px;
   border: 1px solid var(--line);
@@ -350,5 +390,4 @@ body {
     grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
     align-items: start;
   }
-  .calendar-panel { position: sticky; top: 84px; }
 }

@@ -25,8 +25,14 @@ function photoGridHtml(photos, altPrefix) {
 }
 
 function entryCard(e) {
+  const authorTag = e.author
+    ? `<span class="author-tag${e.author === '小红' ? ' rose' : ''}">${esc(e.author)}</span>`
+    : '';
+  const locTag = e.location && e.location.name
+    ? `<span class="loc-tag">📍 ${esc(e.location.name)}</span>`
+    : '';
   return `<article class="entry">
-    ${e.album ? `<span class="album-tag">${esc(e.album)}</span>` : ''}
+    <div class="entry-meta">${authorTag}${e.album ? `<span class="album-tag">${esc(e.album)}</span>` : ''}${locTag}</div>
     ${e.title ? `<h3 class="entry-title">${esc(e.title)}</h3>` : ''}
     ${e.text ? `<div class="entry-text">${esc(e.text).replace(/\n/g, '<br>')}</div>` : ''}
     ${photoGridHtml(e.photos, e.date)}
@@ -90,6 +96,58 @@ function selectDate(ds) {
     : '<p class="empty">这天还没有日记</p>';
 }
 
+/* ---------- 专辑地图(Leaflet + 高德瓦片,懒加载) ---------- */
+let albumMap = null;
+
+function loadLeaflet() {
+  return new Promise((resolve, reject) => {
+    if (window.L) return resolve();
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js';
+    s.onload = () => {
+      const l = document.createElement('link');
+      l.rel = 'stylesheet';
+      l.href = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(l);
+      resolve();
+    };
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+async function renderAlbumMap(list) {
+  const box = $('#album-map');
+  const withLoc = list.filter((e) => e.location && e.location.lat != null && e.location.lng != null);
+  if (!withLoc.length) {
+    box.style.display = 'none';
+    return;
+  }
+  box.style.display = 'block';
+  try {
+    await loadLeaflet();
+  } catch {
+    box.style.display = 'none';
+    return;
+  }
+  if (albumMap) albumMap.remove();
+  const map = L.map('album-map', { scrollWheelZoom: false });
+  albumMap = map;
+  L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
+    maxZoom: 18,
+    subdomains: ['1', '2', '3', '4'],
+    attribution: '&copy; 高德地图',
+  }).addTo(map);
+  const bounds = [];
+  for (const e of withLoc) {
+    const mk = L.marker([e.location.lat, e.location.lng]).addTo(map);
+    mk.bindPopup(`<b>${esc(e.date)}</b> ${esc(e.title || '')}<br>${esc(e.location.display || e.location.name || '')}`);
+    bounds.push([e.location.lat, e.location.lng]);
+  }
+  if (bounds.length === 1) map.setView(bounds[0], 12);
+  else map.fitBounds(bounds, { padding: [30, 30] });
+}
+
 /* ---------- 专辑 / 动态流 ---------- */
 function renderAlbums() {
   const albums = [...new Set(allEntries.map((e) => e.album).filter(Boolean))];
@@ -112,7 +170,7 @@ function setAlbum(album) {
   renderStream();
 }
 
-function renderStream() {
+async function renderStream() {
   let list = allEntries;
   if (activeAlbum) list = list.filter((e) => e.album === activeAlbum);
   list = [...list].sort((a, b) => {
@@ -126,6 +184,7 @@ function renderStream() {
     .map((e) => `<article class="entry stream-entry"><div class="stream-date">${esc(e.date)}</div>${entryCard(e)}</article>`)
     .join('')
     || '<p class="empty">还没有日记,点右上角「写日记」开始吧 ✏️</p>';
+  await renderAlbumMap(list);
 }
 
 /* ---------- 大图 ---------- */

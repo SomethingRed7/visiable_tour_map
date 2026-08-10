@@ -10,3 +10,7 @@ id = "73d4fb83273a49be907778313fa23164"
 [[r2_buckets]]
 binding = "PHOTOS"
 bucket_name = "gugugaga-photos"
+
+# 上传口令(部署随 toml 下发;repo 为 private)
+[vars]
+UPLOAD_PASS = "gugu-97204a4b"
