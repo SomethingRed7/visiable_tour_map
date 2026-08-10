@@ -250,7 +250,7 @@ form.addEventListener('submit', (e) => {
 });
 $('#f-photos').addEventListener('change', renderPreview);
 
-/* ---------- 最近条目:预览 / 编辑(删除入口已移除,删除走 API 手动) ---------- */
+/* ---------- 最近条目:预览 / 编辑 / 删除 ---------- */
 let editing = null;    // { date, ts, photos }
 let removedPaths = []; // 编辑中要删除的照片路径
 
@@ -286,15 +286,17 @@ async function renderRecent() {
       .slice(0, 20);
     box.innerHTML = list.length
       ? list.map((e) => `<div class="recent-item">
-          <a class="recent-info" href="/?date=${esc(e.date)}">${esc(e.date)} ${esc(e.title || '')} · ${esc(e.author || '')}</a>
+          <span class="recent-info">${esc(e.date)} ${esc(e.title || '')} · ${esc(e.author || '')}</span>
           <span class="recent-actions">
             <button type="button" class="btn-small btn-prev" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}">预览</button>
             <button type="button" class="btn-small btn-edit" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}">编辑</button>
+            <button type="button" class="btn-small btn-del" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}">删除</button>
           </span>
         </div>`).join('')
       : '<p class="empty">还没有条目</p>';
     [...box.querySelectorAll('.btn-prev')].forEach((b) => b.addEventListener('click', () => openPreview(b.dataset.date, b.dataset.ts)));
     [...box.querySelectorAll('.btn-edit')].forEach((b) => b.addEventListener('click', () => enterEdit(b.dataset.date, b.dataset.ts)));
+    [...box.querySelectorAll('.btn-del')].forEach((b) => b.addEventListener('click', () => askDelete(b)));
   } catch { /* 忽略 */ }
 }
 
@@ -426,6 +428,26 @@ async function doUpdate() {
     btn.disabled = false;
     btn.textContent = '保存修改';
   }
+}
+
+/* ---- 删除(需 PIN) ---- */
+function askDelete(btn) {
+  const { date, ts } = btn.dataset;
+  const pin = window.prompt(`删除 ${date} 的这条?输入删除口令(4 位 PIN):`);
+  if (pin === null) return;
+  doDelete(date, ts, pin.trim());
+}
+
+async function doDelete(date, ts, pin) {
+  const fd = new FormData();
+  fd.append('date', date);
+  fd.append('ts', ts);
+  fd.append('pin', pin);
+  const res = await fetch('/api/delete', { method: 'POST', body: fd });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return alert(data.error || `删除失败(HTTP ${res.status})`);
+  alert('已删除 ✅');
+  renderRecent();
 }
 
 /* ---- 导出行程 ---- */
