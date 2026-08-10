@@ -1,11 +1,11 @@
 name = "gugugaga"
 compatibility_date = "2026-08-10"
-pages_build_output_dir = "."
+pages_build_output_dir = "public"
 
-# 本地 dev(wrangler pages dev)会用占位绑定模拟;部署时替换为真实资源
+# 真实绑定:KV id 来自 `wrangler kv namespace create`;R2 bucket 需先在 dashboard 启用
 [[kv_namespaces]]
 binding = "ENTRIES"
-id = "local-dev-placeholder"
+id = "73d4fb83273a49be907778313fa23164"
 
 [[r2_buckets]]
 binding = "PHOTOS"
