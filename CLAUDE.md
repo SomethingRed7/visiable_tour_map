@@ -7,7 +7,11 @@ This file provides guidance to Claude Code (and other coding agents) when workin
 - 不 commit/push 除非用户要求; github.com 间歇被墙 → push 失败用后台循环重试
 - 用户数据(真实日记)勿删;测试条目用完即清
 - 用户沟通极简;
-- 关于grill: **一次仅问一个问题**。歧义(如"去掉删除")先问清是指标题文字还是按钮
+
+## grill 使用规范
+- **一次仅问一个问题**
+- 歧义问题必须问清楚
+- grill会话完成以后，提示用户调用 /to-spec 归档
 
 ## Project overview
 
