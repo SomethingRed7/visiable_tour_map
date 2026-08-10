@@ -20,7 +20,6 @@
         日期
         <input type="date" id="f-date" required>
       </label>
-
       <label>
         上传人
         <select id="f-author">
@@ -71,6 +70,7 @@
         <input type="file" id="f-photos" accept="image/*" multiple>
       </label>
 
+      <div id="edit-photos" class="edit-photos" hidden></div>
       <div id="photo-preview" class="photo-preview"></div>
       <p id="form-status" class="form-status"></p>
 
@@ -82,7 +82,10 @@
         </div>
       </div>
 
-      <button type="submit" id="btn-submit" class="btn-submit">发布</button>
+      <div class="form-actions">
+        <button type="submit" id="btn-submit" class="btn-submit">发布</button>
+        <button type="button" id="btn-cancel-edit" class="btn-small" hidden>取消编辑</button>
+      </div>
     </form>
 
     <section class="panel manage-panel">
@@ -91,6 +94,14 @@
       <div id="recent-list" class="recent-list"></div>
     </section>
   </main>
+
+  <!-- 预览弹层 -->
+  <div id="preview-modal" class="modal" hidden>
+    <div class="modal-card">
+      <div id="preview-body"></div>
+      <button type="button" id="btn-preview-close" class="btn-small">关闭</button>
+    </div>
+  </div>
 
   <footer class="site-footer">咕咕嘎嘎 · 记录每一段在路上</footer>
 

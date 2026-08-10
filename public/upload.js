@@ -245,11 +245,15 @@ $('#btn-again').addEventListener('click', () => {
 
 form.addEventListener('submit', (e) => {
   e.preventDefault();
-  doUpload();
+  if (editing) doUpdate();
+  else doUpload();
 });
 $('#f-photos').addEventListener('change', renderPreview);
 
-/* ---------- 最近条目 + 删除 ---------- */
+/* ---------- 最近条目:预览 / 编辑 / 删除 ---------- */
+let editing = null;    // { date, ts, photos }
+let removedPaths = []; // 编辑中要删除的照片路径
+
 function entryTs(e) {
   if (e.ts) return String(e.ts);
   if (e.photos && e.photos[0]) {
@@ -257,6 +261,20 @@ function entryTs(e) {
     if (m) return m[1];
   }
   return '';
+}
+
+function thumbUrl(p) { return p.replace(/\.(jpg|jpeg|png)$/i, '-thumb.$1'); }
+
+function entryCardHtml(e) {
+  const authorTag = e.author ? `<span class="author-tag${e.author === '小红' ? ' rose' : ''}">${esc(e.author)}</span>` : '';
+  const locTag = e.location && e.location.name ? `<span class="loc-tag">📍 ${esc(e.location.name)}</span>` : '';
+  const photos = (e.photos || []).map((p) => `<img src="${thumbUrl(p)}" data-full="${p}" alt="照片" loading="lazy">`).join('');
+  return `<article class="entry preview-entry">
+    <div class="entry-meta">${authorTag}${e.album ? `<span class="album-tag">${esc(e.album)}</span>` : ''}${locTag}</div>
+    ${e.title ? `<h3 class="entry-title">${esc(e.title)}</h3>` : ''}
+    ${e.text ? `<div class="entry-text">${esc(e.text).replace(/\n/g, '<br>')}</div>` : ''}
+    ${photos ? `<div class="photo-grid">${photos}</div>` : ''}
+  </article>`;
 }
 
 async function renderRecent() {
@@ -269,13 +287,150 @@ async function renderRecent() {
     box.innerHTML = list.length
       ? list.map((e) => `<div class="recent-item">
           <span class="recent-info">${esc(e.date)} ${esc(e.title || '')} · ${esc(e.author || '')}</span>
-          <button type="button" class="btn-small btn-del" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}">删除</button>
+          <span class="recent-actions">
+            <button type="button" class="btn-small btn-prev" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}">预览</button>
+            <button type="button" class="btn-small btn-edit" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}">编辑</button>
+            <button type="button" class="btn-small btn-del" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}">删除</button>
+          </span>
         </div>`).join('')
       : '<p class="empty">还没有条目</p>';
+    [...box.querySelectorAll('.btn-prev')].forEach((b) => b.addEventListener('click', () => openPreview(b.dataset.date, b.dataset.ts)));
+    [...box.querySelectorAll('.btn-edit')].forEach((b) => b.addEventListener('click', () => enterEdit(b.dataset.date, b.dataset.ts)));
     [...box.querySelectorAll('.btn-del')].forEach((b) => b.addEventListener('click', () => askDelete(b)));
   } catch { /* 忽略 */ }
 }
 
+/* ---- 预览(只读弹层,portal 同款卡片) ---- */
+async function openPreview(date, ts) {
+  const data = await (await fetch(`/api/entries?date=${date}`)).json();
+  const e = (data.entries || []).find((x) => String(x.ts) === String(ts));
+  if (!e) return alert('条目不存在');
+  $('#preview-body').innerHTML = `<div class="preview-date">${esc(e.date)}</div>` + entryCardHtml(e);
+  $('#preview-modal').hidden = false;
+  $('#preview-body').querySelectorAll('.photo-grid img').forEach((img) => {
+    img.addEventListener('click', () => window.open(img.dataset.full || img.src, '_blank'));
+  });
+}
+
+$('#btn-preview-close').addEventListener('click', () => { $('#preview-modal').hidden = true; });
+$('#preview-modal').addEventListener('click', (e) => { if (e.target.id === 'preview-modal') $('#preview-modal').hidden = true; });
+
+/* ---- 编辑 ---- */
+async function enterEdit(date, ts) {
+  const data = await (await fetch(`/api/entries?date=${date}`)).json();
+  const e = (data.entries || []).find((x) => String(x.ts) === String(ts));
+  if (!e) return alert('条目不存在');
+
+  editing = { date, ts, photos: e.photos || [] };
+  removedPaths = [];
+  $('#f-date').value = date;
+  $('#f-date').disabled = true; // 日期是主键,编辑不改
+  $('#f-title').value = e.title || '';
+  $('#f-text').value = e.text || '';
+  $('#f-album').value = e.album || '';
+  $('#f-author').value = e.author || '球';
+  $('#f-location').value = (e.location && e.location.name) || '';
+  $('#f-lat').value = $('#f-lng').value = '';
+  picked = null;
+  $('#f-photos').value = '';
+  $('#photo-preview').innerHTML = '';
+  $('#success-banner').hidden = true;
+  setStatus('编辑模式:可改文字/地点,点照片 ✕ 移除,选新照片追加', false);
+  renderEditPhotos();
+  $('#btn-submit').textContent = '保存修改';
+  $('#btn-cancel-edit').hidden = false;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function renderEditPhotos() {
+  const box = $('#edit-photos');
+  if (!editing) { box.hidden = true; return; }
+  box.hidden = false;
+  box.innerHTML = '<div class="edit-photos-title">现有照片(点 ✕ 移除)</div><div class="edit-photos-grid">' +
+    editing.photos.map((p) => `<div class="edit-photo${removedPaths.includes(p) ? ' removed' : ''}">
+      <img src="${thumbUrl(p)}" alt="现有照片">
+      <button type="button" class="edit-photo-x" data-p="${esc(p)}">✕</button>
+      ${removedPaths.includes(p) ? '<span class="edit-photo-mark">待移除</span>' : ''}
+    </div>`).join('') + '</div>';
+  [...box.querySelectorAll('.edit-photo-x')].forEach((b) => {
+    b.addEventListener('click', () => {
+      const p = b.dataset.p;
+      if (removedPaths.includes(p)) removedPaths = removedPaths.filter((x) => x !== p);
+      else removedPaths.push(p);
+      renderEditPhotos();
+    });
+  });
+}
+
+function cancelEdit() {
+  editing = null;
+  removedPaths = [];
+  $('#f-date').disabled = false;
+  $('#edit-photos').hidden = true;
+  $('#btn-submit').textContent = '发布';
+  $('#btn-cancel-edit').hidden = true;
+  setStatus('', false);
+  form.reset();
+  $('#f-date').value = new Date().toISOString().slice(0, 10);
+  $('#f-location').value = $('#f-lat').value = $('#f-lng').value = '';
+  picked = null;
+}
+
+$('#btn-cancel-edit').addEventListener('click', cancelEdit);
+
+/* ---- 保存修改 ---- */
+async function doUpdate() {
+  const pin = window.prompt('保存修改需要口令(4 位 PIN):');
+  if (pin === null) return;
+  const date = editing.date;
+  const title = $('#f-title').value.trim();
+  const text = $('#f-text').value.trim();
+  const album = $('#f-album').value.trim() || null;
+  const author = $('#f-author').value || '球';
+  const location = $('#f-location').value.trim() || null;
+  const lat = $('#f-lat').value;
+  const lng = $('#f-lng').value;
+  const files = [...$('#f-photos').files];
+
+  const fd = new FormData();
+  fd.append('pin', pin.trim());
+  fd.append('date', date);
+  fd.append('ts', editing.ts);
+  fd.append('author', author);
+  fd.append('title', title);
+  fd.append('text', text);
+  fd.append('album', album || '');
+  fd.append('location', location || '');
+  if (lat && lng) { fd.append('lat', lat); fd.append('lng', lng); }
+  fd.append('photos_to_remove', JSON.stringify(removedPaths));
+
+  const btn = $('#btn-submit');
+  btn.disabled = true;
+  btn.textContent = '保存中...';
+  try {
+    for (let i = 0; i < files.length; i++) {
+      setStatus(`压缩照片 ${i + 1}/${files.length}...`);
+      const full = await compressImage(files[i], 1600, 0.85);
+      const thumb = await compressImage(files[i], 480, 0.75);
+      fd.append('photo_full', full, files[i].name);
+      fd.append('photo_thumb', thumb, files[i].name);
+    }
+    setStatus('保存中...');
+    const res = await fetch('/api/update', { method: 'POST', body: fd });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return setStatus(data.error || `保存失败(HTTP ${res.status})`, true);
+    setStatus('已保存 ✅', false);
+    cancelEdit();
+    renderRecent();
+  } catch (e) {
+    setStatus(e.message, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '保存修改';
+  }
+}
+
+/* ---- 删除 ---- */
 function askDelete(btn) {
   const { date, ts } = btn.dataset;
   const pin = window.prompt(`删除 ${date} 的这条?输入删除口令(4 位 PIN):`);
