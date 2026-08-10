@@ -252,10 +252,29 @@ async function initMap(data) {
   }
 
   const map = L.map('leaflet-map', { scrollWheelZoom: false }).setView([-41.5, 173], 5);
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+
+  // 默认底图:高德瓦片(国内实测 0.2s,OSM 瓦片在国内不可达 HTTP 000)
+  // OSM 作自动回退(高德故障/境外网络)
+  const TILE_AMAP = 'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}';
+  const TILE_OSM = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+
+  let tileErrors = 0;
+  let tileLayer = L.tileLayer(TILE_AMAP, {
     maxZoom: 18,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
+    subdomains: ['1', '2', '3', '4'],
+    attribution: '&copy; 高德地图',
   }).addTo(map);
+
+  tileLayer.on('tileerror', () => {
+    tileErrors += 1;
+    if (tileErrors >= 4 && map.hasLayer(tileLayer)) {
+      map.removeLayer(tileLayer);
+      tileLayer = L.tileLayer(TILE_OSM, {
+        maxZoom: 18,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
+      }).addTo(map);
+    }
+  });
 
   for (const d of data.days) {
     const color = MARKER_COLORS[d.status] || MARKER_COLORS.pending;
