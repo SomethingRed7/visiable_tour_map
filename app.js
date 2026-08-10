@@ -56,6 +56,35 @@ function setupSwitcher() {
   });
 }
 
+/* ---------- 照片 ---------- */
+function thumbUrl(p) {
+  return p.replace(/\.(jpg|jpeg|png)$/i, '-thumb.$1');
+}
+
+function photoGridHtml(photos, altPrefix) {
+  if (!photos || photos.length === 0) return '';
+  const imgs = photos
+    .map((p, i) => `<img src="${thumbUrl(p)}" data-full="${p}" alt="${altPrefix} ${i + 1}" loading="lazy" onerror="this.src=this.dataset.full">`)
+    .join('');
+  return `<div class="photo-grid">${imgs}</div>`;
+}
+
+function setupLightbox() {
+  const lb = document.getElementById('lightbox');
+  document.addEventListener('click', (e) => {
+    const img = e.target.closest('.photo-grid img');
+    if (!img || !lb) return;
+    lb.querySelector('img').src = img.dataset.full || img.src;
+    lb.classList.add('open');
+  });
+  if (lb) {
+    lb.addEventListener('click', () => lb.classList.remove('open'));
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') lb.classList.remove('open');
+    });
+  }
+}
+
 /* ---------- 每日卡片 ---------- */
 function renderCards(data) {
   const tl = $('#timeline');
@@ -91,6 +120,7 @@ function renderCards(data) {
         ${d.meals ? `<div><dt>餐食</dt><dd>${escapeHtml(d.meals)}</dd></div>` : ''}
         ${d.transport ? `<div><dt>交通</dt><dd>${escapeHtml(d.transport)}</dd></div>` : ''}
       </dl>
+      ${photoGridHtml(d.photos, `Day ${d.day} 照片`)}
     `;
     tl.appendChild(card);
   }
@@ -160,7 +190,7 @@ function renderDailyUpdate(data) {
   card.id = 'today-update';
 
   const photos = (d.actual && d.actual.photos && d.actual.photos.length)
-    ? `<div class="update-photos">${d.actual.photos.map((p) => `<img src="${p}" alt="Day ${day} 实况照片" loading="lazy">`).join('')}</div>`
+    ? photoGridHtml(d.actual.photos, `Day ${day} 实况照片`)
     : '';
 
   card.innerHTML = `
@@ -291,6 +321,7 @@ async function init() {
   currentData = data;
   renderHeader(trip, index, data);
   setupSwitcher();
+  setupLightbox();
   renderCountdown(data);
   renderCards(data);
   renderDailyUpdate(data);

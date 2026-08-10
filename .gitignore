@@ -4,5 +4,8 @@ logs/
 # 本地计划/工作文档
 .hermes/
 
+# 照片原图暂存(压缩后才会入库)
+photos/_incoming/
+
 # macOS
 .DS_Store
