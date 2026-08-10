@@ -4,7 +4,7 @@
 const $ = (sel) => document.querySelector(sel);
 
 // 部署/数据更新时递增,强制浏览器刷新 JSON 缓存
-const DATA_VERSION = '20260810a';
+const DATA_VERSION = '20260810b';
 
 async function loadJSON(url) {
   const res = await fetch(`${url}?v=${DATA_VERSION}`, { cache: 'no-store' });
@@ -189,8 +189,9 @@ function renderDailyUpdate(data) {
   card.className = 'update-card';
   card.id = 'today-update';
 
-  const photos = (d.actual && d.actual.photos && d.actual.photos.length)
-    ? photoGridHtml(d.actual.photos, `Day ${day} 实况照片`)
+  // 照片唯一来源 = day.photos(当天相册与今日播报卡共用;actual 不含 photos 字段)
+  const photos = (d.photos && d.photos.length)
+    ? photoGridHtml(d.photos, `Day ${day} 实况照片`)
     : '';
 
   card.innerHTML = `
