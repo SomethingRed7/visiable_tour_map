@@ -112,7 +112,10 @@ function ensureAmap() {
   if (!amapReadyPromise) {
     amapReadyPromise = loadAmap(amapKey, amapSecurity)
       .then(() => !!(window.AMap && window.AMap.Geocoder && window.AMap.PlaceSearch))
-      .catch(() => false);
+      .catch(() => {
+        amapReadyPromise = null; // 首载失败允许下次重试(网络抖动)
+        return false;
+      });
   }
   return amapReadyPromise;
 }
