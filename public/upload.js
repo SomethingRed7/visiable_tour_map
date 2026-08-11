@@ -85,8 +85,8 @@ function loadAmap(key) {
     s.src = `https://webapi.amap.com/maps?v=2.0&key=${key}`;
     s.onload = () => {
       if (window.AMap && window.AMap.plugin) {
-        // v2.0 插件经 AMap.plugin 加载(URL 的 plugin= 参数在 v1.4 有效,v2 可能忽略)
-        window.AMap.plugin(['AMap.Geolocation'], resolve);
+        // v2.0 插件经 AMap.plugin 加载;反查/搜索/定位三个都要
+        window.AMap.plugin(['AMap.Geolocation', 'AMap.Geocoder', 'AMap.PlaceSearch'], resolve);
       } else resolve();
     };
     s.onerror = reject;
@@ -114,6 +114,11 @@ async function openPicker() {
   } catch {
     $('#loc-status').textContent = '地图加载失败,仍可搜索选点';
   }
+  // 预载高德 SDK(key 已配置时),让搜索/反查直接用高德(快+准)
+  try {
+    await fetchConfig();
+    if (amapKey) await loadAmap(amapKey);
+  } catch { /* 高德不可用则走服务端回退 */ }
 }
 
 function initPickerMap() {
@@ -129,15 +134,21 @@ function initPickerMap() {
     $('#loc-confirm').hidden = false;
     $('#loc-confirm-name').textContent = '查找附近地点…';
     $('#loc-nearby').hidden = true;
-    try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 18000);
-      const res = await (await fetch(`/api/geocode?lat=${lat}&lng=${lng}`, { signal: ctrl.signal })).json();
-      clearTimeout(timer);
-      const r = res.results && res.results[0];
-      if (r) $('#loc-confirm-name').textContent = r.name;
-      renderNearby((r && r.nearby) || [], lat, lng);
-    } catch { /* 反查失败保持自定义位置 */ }
+    // 优先客户端高德(快+POI 准);失败回退服务端 Nominatim+Overpass
+    const ok = await amapReverse(lat, lng);
+    if (!ok) {
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 15000);
+        const res = await (await fetch(`/api/geocode?lat=${lat}&lng=${lng}`, { signal: ctrl.signal })).json();
+        clearTimeout(timer);
+        const r = res.results && res.results[0];
+        if (r) {
+          $('#loc-confirm-name').textContent = r.name;
+          renderNearby((r && r.nearby) || [], lat, lng);
+        }
+      } catch { /* 反查失败保持自定义位置 */ }
+    }
   });
 }
 
@@ -173,6 +184,46 @@ function renderLocResults(arr) {
   });
 }
 
+// 高德客户端反查(Geocoder + 周边 POI),返回 true 表示已处理
+async function amapReverse(lat, lng) {
+  if (!window.AMap || !window.AMap.Geocoder || !window.AMap.PlaceSearch) return false;
+  try {
+    const geocoder = new AMap.Geocoder({ extensions: 'all' });
+    const rev = await new Promise((resolve) => {
+      geocoder.getAddress([lng, lat], (st, res) => {
+        resolve(st === 'complete' && res && res.regeocode ? res.regeocode : null);
+      });
+    });
+    if (!rev) return false;
+    const pois = (rev.pois || []).filter((p) => p && p.name);
+    const name = pois[0] ? pois[0].name : (rev.formattedAddress || '自定义位置');
+    $('#loc-confirm-name').textContent = name;
+    // 附近列表:Geocoder 的 pois + 补充 searchAround(带距离的 POI)
+    const seen = new Set();
+    const nearby = pois.slice(1)
+      .map((p) => ({ name: p.name, lat: p.location && p.location.lat, lng: p.location && p.location.lng }))
+      .filter((n) => n.lat != null && !seen.has(n.name) && seen.add(n.name));
+    if (nearby.length < 6) {
+      try {
+        const ps = new AMap.PlaceSearch({ pageSize: 6 });
+        const around = await new Promise((resolve) => {
+          ps.searchAround([lng, lat], 400, (st, res) => {
+            resolve(st === 'complete' && res && res.poiList ? res.poiList.pois : []);
+          });
+        });
+        for (const p of around) {
+          if (!p || !p.name || seen.has(p.name)) continue;
+          nearby.push({ name: p.name, lat: p.location && p.location.lat, lng: p.location && p.location.lng });
+          seen.add(p.name);
+          if (nearby.length >= 6) break;
+        }
+      } catch { /* 忽略 */ }
+    }
+    renderNearby(nearby.filter((n) => n.lat != null), lat, lng);
+    return true;
+  } catch { return false; }
+}
+
 function renderNearby(arr, lat, lng) {
   const box = $('#loc-nearby');
   if (!arr.length) { box.hidden = true; return; }
@@ -191,22 +242,39 @@ function renderNearby(arr, lat, lng) {
   $('#loc-status').textContent = `坐标 ${lat.toFixed(5)}, ${lng.toFixed(5)}(地图数据与反查数据源不同,名字不准时点上面的附近)`;
 }
 
-// 搜索:输入即搜(300ms 防抖,无需点按钮)
+// 搜索:输入即搜(300ms 防抖);高德 PlaceSearch 优先(快+中文 POI 准),失败回退服务端
 let searchTimer = null;
+async function serverSearch(q) {
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 6000);
+    const res = await (await fetch(`/api/geocode?q=${encodeURIComponent(q)}`, { signal: ctrl.signal })).json();
+    clearTimeout(timer);
+    renderLocResults(res.results || []);
+  } catch {
+    $('#loc-results').innerHTML = '<p class="empty">搜索超时,试试点地图选</p>';
+  }
+}
 $('#loc-search').addEventListener('input', () => {
   clearTimeout(searchTimer);
   const q = $('#loc-search').value.trim();
   if (!q) { $('#loc-results').innerHTML = ''; return; }
-  searchTimer = setTimeout(async () => {
-    try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 6000);
-      const res = await (await fetch(`/api/geocode?q=${encodeURIComponent(q)}`, { signal: ctrl.signal })).json();
-      clearTimeout(timer);
-      renderLocResults(res.results || []);
-    } catch {
-      $('#loc-results').innerHTML = '<p class="empty">搜索超时,试试点地图选</p>';
+  searchTimer = setTimeout(() => {
+    if (window.AMap && window.AMap.PlaceSearch) {
+      try {
+        const ps = new AMap.PlaceSearch({ pageSize: 5 });
+        ps.search(q, (status, result) => {
+          const pois = status === 'complete' && result && result.poiList ? result.poiList.pois : [];
+          if (pois.length) {
+            renderLocResults(pois.map((p) => ({ name: p.name, lat: p.location && p.location.lat, lng: p.location && p.location.lng })).filter((n) => n.lat != null));
+            return;
+          }
+          serverSearch(q);
+        });
+        return;
+      } catch { /* 回退 */ }
     }
+    serverSearch(q);
   }, 300);
 });
 
@@ -220,15 +288,19 @@ async function locateCurrent() {
     $('#loc-confirm').hidden = false;
     $('#loc-confirm-name').textContent = '当前位置';
     (async () => {
-      try {
-        const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 18000);
-        const res = await (await fetch(`/api/geocode?lat=${lat}&lng=${lng}`, { signal: ctrl.signal })).json();
-        clearTimeout(timer);
-        const r = res.results && res.results[0];
-        if (r) $('#loc-confirm-name').textContent = r.name;
-        renderNearby((r && r.nearby) || [], lat, lng);
-      } catch { /* 保持当前位置 */ }
+      // 高德客户端反查优先;失败回退服务端
+      const ok = await amapReverse(lat, lng);
+      if (!ok) {
+        try {
+          const ctrl = new AbortController();
+          const timer = setTimeout(() => ctrl.abort(), 15000);
+          const res = await (await fetch(`/api/geocode?lat=${lat}&lng=${lng}`, { signal: ctrl.signal })).json();
+          clearTimeout(timer);
+          const r = res.results && res.results[0];
+          if (r) $('#loc-confirm-name').textContent = r.name;
+          renderNearby((r && r.nearby) || [], lat, lng);
+        } catch { /* 保持当前位置 */ }
+      }
     })();
     st.textContent = '已定位,确认后点「确定选这个点」';
   };
