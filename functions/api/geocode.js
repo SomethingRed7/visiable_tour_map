@@ -4,7 +4,7 @@
 const UA = 'gugugaga-travel-diary/1.0 (personal use)';
 
 async function amapRegeo(env, lat, lng) {
-  const key = env.AMAP_KEY || '';
+  const key = env.AMAP_WEB_KEY || '';
   if (!key) return null;
   try {
     const res = await fetch(
