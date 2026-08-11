@@ -484,14 +484,14 @@ async function doUpdate() {
     const res = await fetch('/api/update', { method: 'POST', body: fd });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return setStatus(data.error || `保存失败(HTTP ${res.status})`, true);
-    setStatus('已保存 ✅', false);
     cancelEdit();
+    setStatus('已保存 ✅', false);
     renderRecent();
   } catch (e) {
     setStatus(e.message, true);
   } finally {
     btn.disabled = false;
-    btn.textContent = '保存修改';
+    btn.textContent = editing ? '保存修改' : '发布';
   }
 }
 

@@ -85,31 +85,28 @@ export async function onRequestPost(context) {
     } catch { /* 忽略解析错误 */ }
   }
 
-  // 新增照片(前端已压缩);同日去重(排除本条目自身哈希)
+  // 新增照片(前端已压缩);去重只针对本条剩余照片(编辑时允许跨条目复用照片——
+  // 用户整理/移动照片到别的同日条目是正常操作;防重复只适用于新上传,见 upload.js)
   const fulls = form.getAll('photo_full').filter((f) => typeof f !== 'string');
   const thumbs = form.getAll('photo_thumb').filter((f) => typeof f !== 'string');
   if (fulls.length > 0) {
-    const existingHashes = new Set(photoHashes);
-    try {
-      const rows = await context.env.DB.prepare('SELECT ts, photo_hashes FROM entries WHERE date = ?1').bind(date).all();
-      for (const r of rows.results || []) {
-        if (Number(r.ts) === Number(ts)) continue;
-        for (const h of JSON.parse(r.photo_hashes || '[]')) existingHashes.add(h);
-      }
-    } catch { /* 忽略 */ }
-    // 新照片编号:现有最大编号 + 1(避免删除后碰撞)
-    let nextIdx = photos.length;
-    for (const p of photos) {
-      const m = p.match(/-(\d+)\.jpg$/);
-      if (m) nextIdx = Math.max(nextIdx, parseInt(m[1], 10) + 1);
-    }
+    const ownHashes = new Set(photoHashes);
+    // 新照片编号:取最小未用编号(避免与现有或刚删除的照片路径碰撞)
+    const used = new Set(
+      photos.map((p) => {
+        const m = p.match(/-(\d+)\.jpg$/);
+        return m ? parseInt(m[1], 10) : -1;
+      })
+    );
+    let nextIdx = 0;
+    while (used.has(nextIdx)) nextIdx++;
     for (let i = 0; i < fulls.length; i++) {
       const f = fulls[i];
       const buf = await f.arrayBuffer();
       const digest = await crypto.subtle.digest('SHA-256', buf);
       const hash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
-      if (existingHashes.has(hash)) {
-        return Response.json({ error: '这张照片今天已经传过啦,换一张或去掉重复' }, { status: 400 });
+      if (ownHashes.has(hash)) {
+        return Response.json({ error: '这张照片在这条日记里已经有一张了,换一张或去掉重复' }, { status: 400 });
       }
       const base = `${date}/${ts}-${nextIdx + i}`;
       await context.env.PHOTOS.put(`${base}.jpg`, f.stream(), { httpMetadata: { contentType: 'image/jpeg' } });
