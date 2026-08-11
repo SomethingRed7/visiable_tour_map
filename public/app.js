@@ -26,6 +26,13 @@ function photoGridHtml(photos, altPrefix) {
   return `<div class="photo-grid">${imgs}</div>`;
 }
 
+function fmtTime(ts) {
+  if (!ts) return '';
+  const d = new Date(Number(ts));
+  if (Number.isNaN(d.getTime())) return '';
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
 function entryCard(e) {
   const authorTag = e.author
     ? `<span class="author-tag${e.author === '小红' ? ' rose' : ''}">${esc(e.author)}</span>`
@@ -33,8 +40,9 @@ function entryCard(e) {
   const locTag = e.location && e.location.name
     ? `<span class="loc-tag">📍 ${esc(e.location.name)}</span>`
     : '';
+  const timeTag = e.ts ? `<span class="time-tag">${fmtTime(e.ts)}</span>` : '';
   return `<article class="entry">
-    <div class="entry-meta">${authorTag}${e.album ? `<span class="album-tag">${esc(e.album)}</span>` : ''}${locTag}</div>
+    <div class="entry-meta">${timeTag}${authorTag}${e.album ? `<span class="album-tag">${esc(e.album)}</span>` : ''}${locTag}</div>
     ${e.title ? `<h3 class="entry-title">${esc(e.title)}</h3>` : ''}
     ${e.text ? `<div class="entry-text">${esc(e.text).replace(/\n/g, '<br>')}</div>` : ''}
     ${photoGridHtml(e.photos, e.date)}
@@ -143,7 +151,7 @@ async function renderAlbumMap(list) {
   const bounds = [];
   for (const e of withLoc) {
     const mk = L.marker([e.location.lat, e.location.lng], { icon: L.divIcon({ className: 'gg-marker', html: '📍', iconSize: [24, 24], iconAnchor: [12, 24] }) }).addTo(map);
-    mk.bindPopup(`<b>${esc(e.date)}</b> ${esc(e.title || '')}<br>${esc(e.location.display || e.location.name || '')}`);
+    mk.bindPopup(`<b>${esc(e.date)} ${fmtTime(e.ts)}</b> ${esc(e.title || '')}<br>${esc(e.location.display || e.location.name || '')}`);
     bounds.push([e.location.lat, e.location.lng]);
   }
   if (bounds.length === 1) {

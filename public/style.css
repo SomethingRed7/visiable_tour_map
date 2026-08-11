@@ -223,6 +223,12 @@ body {
   color: var(--text-soft);
 }
 
+.time-tag {
+  font-size: 0.75rem;
+  color: var(--text-soft);
+  font-variant-numeric: tabular-nums;
+}
+
 .album-map {
   display: none;
   height: 320px;

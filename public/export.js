@@ -14,6 +14,13 @@ function fmt(d) {
   return `${y} 年 ${Number(m)} 月 ${Number(day)} 日`;
 }
 
+function fmtTime(ts) {
+  if (!ts) return '';
+  const d = new Date(Number(ts));
+  if (Number.isNaN(d.getTime())) return '';
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
 async function init() {
   const params = new URLSearchParams(location.search);
   const from = params.get('from') || '';
@@ -47,6 +54,7 @@ async function init() {
   box.innerHTML = list.map((e) => `<article class="entry">
     <div class="entry-meta">
       <span class="stream-date">${esc(e.date)}</span>
+      ${e.ts ? `<span class="time-tag">${fmtTime(e.ts)}</span>` : ''}
       ${e.author ? `<span class="author-tag${e.author === '小红' ? ' rose' : ''}">${esc(e.author)}</span>` : ''}
       ${e.album ? `<span class="album-tag">${esc(e.album)}</span>` : ''}
       ${e.location && e.location.name ? `<span class="loc-tag">📍 ${esc(e.location.name)}</span>` : ''}
@@ -68,7 +76,7 @@ async function init() {
 async function renderMap(list, box, noteEl) {
   const pts = list
     .filter((e) => e.location && e.location.lat != null && e.location.lng != null)
-    .map((e) => ({ date: e.date, title: e.title || '', name: (e.location.display || e.location.name || ''), lat: e.location.lat, lng: e.location.lng }));
+    .map((e) => ({ date: e.date, ts: e.ts, title: e.title || '', name: (e.location.display || e.location.name || ''), lat: e.location.lat, lng: e.location.lng }));
 
   const skipped = list.length - pts.length;
   noteEl.textContent = skipped > 0 ? `(有 ${skipped} 条没有坐标,未上地图)` : '';
@@ -94,7 +102,7 @@ async function renderMap(list, box, noteEl) {
   const latlngs = pts.map((p) => [p.lat, p.lng]);
   pts.forEach((p, i) => {
     const mk = L.marker([p.lat, p.lng], { icon: L.divIcon({ className: 'gg-marker', html: '📍', iconSize: [24, 24], iconAnchor: [12, 24] }) }).addTo(map);
-    mk.bindPopup(`<b>${esc(p.date)}</b> ${esc(p.title)}<br>${esc(p.name)}`);
+    mk.bindPopup(`<b>${esc(p.date)} ${fmtTime(p.ts)}</b> ${esc(p.title)}<br>${esc(p.name)}`);
     mk.on('click', () => map.setView([p.lat, p.lng], Math.max(map.getZoom(), 12)));
   });
   if (pts.length > 1) {

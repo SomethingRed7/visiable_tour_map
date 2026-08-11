@@ -444,12 +444,20 @@ function entryTs(e) {
 
 function thumbUrl(p) { return p.replace(/\.(jpg|jpeg|png)$/i, '-thumb.$1'); }
 
+function fmtTime(ts) {
+  if (!ts) return '';
+  const d = new Date(Number(ts));
+  if (Number.isNaN(d.getTime())) return '';
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
 function entryCardHtml(e) {
   const authorTag = e.author ? `<span class="author-tag${e.author === '小红' ? ' rose' : ''}">${esc(e.author)}</span>` : '';
   const locTag = e.location && e.location.name ? `<span class="loc-tag">📍 ${esc(e.location.name)}</span>` : '';
+  const timeTag = entryTs(e) ? `<span class="time-tag">${fmtTime(entryTs(e))}</span>` : '';
   const photos = (e.photos || []).map((p) => `<img src="${thumbUrl(p)}" data-full="${p}" alt="照片" loading="lazy" onerror="if(this.src!==this.dataset.full){this.src=this.dataset.full}else{this.style.display='none'}">`).join('');
   return `<article class="entry preview-entry">
-    <div class="entry-meta">${authorTag}${e.album ? `<span class="album-tag">${esc(e.album)}</span>` : ''}${locTag}</div>
+    <div class="entry-meta">${timeTag}${authorTag}${e.album ? `<span class="album-tag">${esc(e.album)}</span>` : ''}${locTag}</div>
     ${e.title ? `<h3 class="entry-title">${esc(e.title)}</h3>` : ''}
     ${e.text ? `<div class="entry-text">${esc(e.text).replace(/\n/g, '<br>')}</div>` : ''}
     ${photos ? `<div class="photo-grid">${photos}</div>` : ''}
@@ -465,7 +473,7 @@ async function renderRecent() {
       .slice(0, 20);
     box.innerHTML = list.length
       ? list.map((e) => `<div class="recent-item">
-          <span class="recent-info">${esc(e.date)} ${esc(e.title || '')} · ${esc(e.author || '')}</span>
+          <span class="recent-info">${esc(e.date)} <span class="time-tag">${fmtTime(entryTs(e))}</span> ${esc(e.title || '')} · ${esc(e.author || '')}</span>
           <span class="recent-actions">
             <button type="button" class="btn-small btn-prev" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}">预览</button>
             <button type="button" class="btn-small btn-edit" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}">编辑</button>
