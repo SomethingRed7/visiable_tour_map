@@ -19,7 +19,7 @@ DELETE_PASS = "2026"
 # AMAP_SECURITY = 同 key 的「安全密钥」(securityJsCode)——2021 后 JS API 服务必须,缺了报 INVALID_USER_SCODE
 # AMAP_WEB_KEY = Web服务 key —— 服务端 regeo(restapi.amap.com),无需白名单
 AMAP_KEY = "c89c48432f7c8a0f2408cffc4a535d15"
-AMAP_SECURITY = ""
+AMAP_SECURITY = "5aaffe1e328474981800c46a0e5bdc90"
 AMAP_WEB_KEY = ""
 
 # 条目存储:D1(SQLite,强一致;KV 最终一致性曾导致上传后查不到)
