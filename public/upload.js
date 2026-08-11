@@ -101,6 +101,18 @@ async function fetchConfig() {
   } catch { amapKey = ''; }
 }
 
+let amapReadyPromise = null; // 高德 SDK+插件就绪(含等待,避免首次加载抢跑)
+function ensureAmap() {
+  if (window.AMap && window.AMap.Geocoder && window.AMap.PlaceSearch) return Promise.resolve(true);
+  if (!amapKey) return Promise.resolve(false);
+  if (!amapReadyPromise) {
+    amapReadyPromise = loadAmap(amapKey)
+      .then(() => !!(window.AMap && window.AMap.Geocoder && window.AMap.PlaceSearch))
+      .catch(() => false);
+  }
+  return amapReadyPromise;
+}
+
 async function openPicker() {
   $('#loc-overlay').hidden = false;
   $('#loc-results').innerHTML = '';
@@ -186,7 +198,8 @@ function renderLocResults(arr) {
 
 // 高德客户端反查(Geocoder + 周边 POI),返回 true 表示已处理
 async function amapReverse(lat, lng) {
-  if (!window.AMap || !window.AMap.Geocoder || !window.AMap.PlaceSearch) return false;
+  const ready = await ensureAmap();
+  if (!ready) return false;
   try {
     const geocoder = new AMap.Geocoder({ extensions: 'all' });
     const rev = await new Promise((resolve) => {
@@ -259,8 +272,9 @@ $('#loc-search').addEventListener('input', () => {
   clearTimeout(searchTimer);
   const q = $('#loc-search').value.trim();
   if (!q) { $('#loc-results').innerHTML = ''; return; }
-  searchTimer = setTimeout(() => {
-    if (window.AMap && window.AMap.PlaceSearch) {
+  searchTimer = setTimeout(async () => {
+    const ready = await ensureAmap();
+    if (ready) {
       try {
         const ps = new AMap.PlaceSearch({ pageSize: 5 });
         ps.search(q, (status, result) => {
@@ -307,9 +321,8 @@ async function locateCurrent() {
   const fail = () => st.textContent = '定位失败:检查位置权限/系统定位后重试,或直接搜索/点地图选';
 
   try { await fetchConfig(); } catch { amapKey = ''; }
-  if (amapKey) {
+  if (await ensureAmap()) {
     try {
-      await loadAmap(amapKey);
       const geolocation = new AMap.Geolocation({ enableHighAccuracy: true, timeout: 10000 });
       geolocation.getCurrentPosition((status, result) => {
         if (status === 'complete' && result && result.position) {
