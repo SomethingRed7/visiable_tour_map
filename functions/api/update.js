@@ -69,9 +69,14 @@ export async function onRequestPost(context) {
 
   // 删除指定照片:按路径定位索引,同步移除 R2/列表/哈希
   const toRemoveRaw = form.get('photos_to_remove');
+  let maxIdx = -1; // 现有+已删照片的最大编号(新照片必须大于它,防止路径复用)
   if (toRemoveRaw) {
     try {
       const toRemove = new Set(JSON.parse(toRemoveRaw));
+      photos.forEach((p) => {
+        const m = p.match(/-(\d+)\.jpg$/);
+        if (m) maxIdx = Math.max(maxIdx, parseInt(m[1], 10));
+      });
       const idxs = photos.map((p, i) => (toRemove.has(p) ? i : -1)).filter((i) => i >= 0).sort((a, b) => b - a);
       for (const idx of idxs) {
         const k = photos[idx].replace(/^\/photos\//, '');
@@ -91,15 +96,9 @@ export async function onRequestPost(context) {
   const thumbs = form.getAll('photo_thumb').filter((f) => typeof f !== 'string');
   if (fulls.length > 0) {
     const ownHashes = new Set(photoHashes);
-    // 新照片编号:取最小未用编号(避免与现有或刚删除的照片路径碰撞)
-    const used = new Set(
-      photos.map((p) => {
-        const m = p.match(/-(\d+)\.jpg$/);
-        return m ? parseInt(m[1], 10) : -1;
-      })
-    );
-    let nextIdx = 0;
-    while (used.has(nextIdx)) nextIdx++;
+    // 新照片编号:必须大于 现有+已删 的最大编号(路径复用会被 photos 路由的
+    // immutable 1yr 边缘缓存掩盖——URL 相同则旧图仍被缓存,表现为"替换没生效")
+    let nextIdx = maxIdx + 1;
     for (let i = 0; i < fulls.length; i++) {
       const f = fulls[i];
       const buf = await f.arrayBuffer();

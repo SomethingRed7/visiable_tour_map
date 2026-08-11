@@ -435,6 +435,7 @@ function cancelEdit() {
   $('#btn-cancel-edit').hidden = true;
   setStatus('', false);
   form.reset();
+  $('#photo-preview').innerHTML = ''; // form.reset 不清 div,预览残留会误显示为"待上传"
   $('#f-date').value = new Date().toISOString().slice(0, 10);
   $('#f-location').value = $('#f-lat').value = $('#f-lng').value = '';
   picked = null;
