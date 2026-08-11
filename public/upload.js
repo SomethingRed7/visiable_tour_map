@@ -133,11 +133,8 @@ async function openPicker() {
   } catch {
     $('#loc-status').textContent = '地图加载失败,仍可搜索选点';
   }
-  // 预载高德 SDK(key 已配置时),让搜索/反查直接用高德(快+准)
-  try {
-    await fetchConfig();
-    if (amapKey) await loadAmap(amapKey);
-  } catch { /* 高德不可用则走服务端回退 */ }
+  // 默认自动定位推荐(减少操作;权限已允许时秒出,失败有引导仍可搜索/点图)
+  setTimeout(() => locateCurrent(), 0);
 }
 
 function initPickerMap() {
