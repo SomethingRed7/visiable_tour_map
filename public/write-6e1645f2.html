@@ -29,25 +29,35 @@
       </label>
 
       <label>
-        地点(可选:地图选点 / 输入地名)
+        地点(可选)
         <div class="loc-row">
-          <input type="text" id="f-location" placeholder="点「选位置」或用地图">
+          <input type="text" id="f-location" placeholder="点「选位置」选地点" readonly>
           <button type="button" id="btn-loc" class="btn-small">🗺️ 选位置</button>
         </div>
         <input type="hidden" id="f-lat">
         <input type="hidden" id="f-lng">
-        <div id="loc-panel" class="loc-panel" hidden>
-          <div class="loc-tools">
-            <input type="text" id="loc-search" placeholder="搜索地名,如:橘子洲">
-            <button type="button" id="btn-loc-search" class="btn-small">搜</button>
-            <button type="button" id="btn-loc-current" class="btn-small">📍 当前位置</button>
+      </label>
+
+      <!-- 全屏选点器(搜索优先,微信/高德式) -->
+      <div id="loc-overlay" class="loc-overlay" hidden>
+        <div class="loc-overlay-card">
+          <div class="loc-overlay-head">
+            <span class="loc-overlay-title">选择位置</span>
+            <button type="button" id="btn-loc-close" class="btn-small">✕</button>
+          </div>
+          <div class="loc-search-row">
+            <input type="search" id="loc-search" placeholder="搜索地名/店铺,如:橘子洲" autocomplete="off" enterkeyhint="search">
+            <button type="button" id="btn-loc-current" class="btn-small">📍 定位</button>
           </div>
           <div id="loc-results" class="loc-results"></div>
           <div id="loc-map" class="loc-map"></div>
-          <p class="loc-hint">点击地图选点;选定后点「确定」</p>
-          <button type="button" id="btn-loc-done" class="btn-small">确定</button>
+          <div id="loc-confirm" class="loc-confirm" hidden>
+            <span id="loc-confirm-name" class="loc-confirm-name"></span>
+            <button type="button" id="btn-loc-done" class="btn-small">确定选这个点</button>
+          </div>
+          <p id="loc-status" class="form-status"></p>
         </div>
-      </label>
+      </div>
 
       <label>
         专辑(可选)

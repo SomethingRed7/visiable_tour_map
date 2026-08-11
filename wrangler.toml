@@ -14,6 +14,8 @@ bucket_name = "gugugaga-photos"
 # 删除口令(4 位 PIN,上传无需口令;repo 为 private)
 [vars]
 DELETE_PASS = "2026"
+# 高德 JS API key(定位用,前端公钥;留空=纯浏览器定位,注册后填这里)
+AMAP_KEY = ""
 
 # 条目存储:D1(SQLite,强一致;KV 最终一致性曾导致上传后查不到)
 [[d1_databases]]

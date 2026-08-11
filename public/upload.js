@@ -56,9 +56,10 @@ function renderPreview() {
     .join('');
 }
 
-/* ---------- 地图选点 ---------- */
+/* ---------- 选点器(搜索优先,微信/高德式全屏) ---------- */
 let pickerMap = null;
 let picked = null; // { name, lat, lng }
+let amapKey = '';  // 高德 JS key(经 /api/config 下发;空=纯浏览器定位)
 
 function loadLeaflet() {
   return new Promise((resolve, reject) => {
@@ -77,44 +78,60 @@ function loadLeaflet() {
   });
 }
 
+function loadAmap(key) {
+  return new Promise((resolve, reject) => {
+    if (window.AMap) return resolve();
+    const s = document.createElement('script');
+    s.src = `https://webapi.amap.com/maps?v=2.0&key=${key}&plugin=AMap.Geolocation`;
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+async function fetchConfig() {
+  try {
+    const res = await (await fetch('/api/config')).json();
+    amapKey = res.amap_key || '';
+  } catch { amapKey = ''; }
+}
+
 async function openPicker() {
-  const panel = $('#loc-panel');
-  panel.hidden = false;
+  $('#loc-overlay').hidden = false;
+  $('#loc-results').innerHTML = '';
+  $('#loc-confirm').hidden = true;
+  $('#loc-status').textContent = '';
+  setTimeout(() => $('#loc-search').focus(), 50);
   try {
     await loadLeaflet();
+    if (!pickerMap) initPickerMap();
+    setTimeout(() => pickerMap.invalidateSize(), 120);
   } catch {
-    setStatus('地图加载失败,可手动输入地名', true);
-    return;
+    $('#loc-status').textContent = '地图加载失败,仍可搜索选点';
   }
-  if (!pickerMap) {
-    pickerMap = L.map('loc-map', { scrollWheelZoom: false }).setView([30.57, 104.07], 5);
-    L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
-      maxZoom: 18,
-      subdomains: ['1', '2', '3', '4'],
-      attribution: '&copy; 高德地图',
-    }).addTo(pickerMap);
-    pickerMap.on('click', async (ev) => {
-      const { lat, lng } = ev.latlng;
-      placeMarker(lat, lng);
-      // 先立即落定,反查地名成功后升级
-      picked = { name: '自定义位置', lat, lng };
-      $('#f-location').value = picked.name;
-      try {
-        const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 6000);
-        const res = await (await fetch(`/api/geocode?lat=${lat}&lng=${lng}`, { signal: ctrl.signal })).json();
-        clearTimeout(timer);
-        const r = res.results && res.results[0];
-        if (r) {
-          picked = { name: r.name, lat, lng };
-          $('#f-location').value = r.name;
-        }
-      } catch {
-        /* 反查失败保持自定义位置 */
-      }
-    });
-  }
-  setTimeout(() => pickerMap.invalidateSize(), 100);
+}
+
+function initPickerMap() {
+  pickerMap = L.map('loc-map', { scrollWheelZoom: false }).setView([30.57, 104.07], 5);
+  L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
+    maxZoom: 18,
+    subdomains: ['1', '2', '3', '4'],
+    attribution: '&copy; 高德地图',
+  }).addTo(pickerMap);
+  pickerMap.on('click', async (ev) => {
+    const { lat, lng } = ev.latlng;
+    placeMarker(lat, lng);
+    $('#loc-confirm').hidden = false;
+    $('#loc-confirm-name').textContent = '自定义位置';
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 6000);
+      const res = await (await fetch(`/api/geocode?lat=${lat}&lng=${lng}`, { signal: ctrl.signal })).json();
+      clearTimeout(timer);
+      const r = res.results && res.results[0];
+      if (r) $('#loc-confirm-name').textContent = r.name;
+    } catch { /* 反查失败保持自定义位置 */ }
+  });
 }
 
 function placeMarker(lat, lng) {
@@ -123,61 +140,107 @@ function placeMarker(lat, lng) {
   pickerMap._marker = L.marker([lat, lng], { icon: L.divIcon({ className: 'gg-marker', html: '📍', iconSize: [24, 24], iconAnchor: [12, 24] }) }).addTo(pickerMap);
 }
 
-async function pickResult(r) {
-  picked = { name: r.name, lat: r.lat, lng: r.lng };
-  $('#f-location').value = r.name;
-  $('#loc-results').innerHTML = '';
-  placeMarker(r.lat, r.lng);
-  pickerMap.setView([r.lat, r.lng], 13);
+function selectPoint(name, lat, lng) {
+  picked = { name, lat, lng };
+  $('#f-location').value = name;
+  $('#f-lat').value = lat;
+  $('#f-lng').value = lng;
+  $('#loc-overlay').hidden = true;
+  setStatus(`已选位置:${name}`, false);
 }
 
-$('#btn-loc').addEventListener('click', openPicker);
-$('#btn-loc-done').addEventListener('click', () => {
-  $('#loc-panel').hidden = true;
-  if (picked) {
-    $('#f-lat').value = picked.lat;
-    $('#f-lng').value = picked.lng;
-    setStatus(`已选位置:${picked.name}`, false);
-  }
-});
-$('#btn-loc-search').addEventListener('click', async () => {
-  const q = $('#loc-search').value.trim();
-  if (!q) return;
-  try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 6000);
-    const res = await (await fetch(`/api/geocode?q=${encodeURIComponent(q)}`, { signal: ctrl.signal })).json();
-    clearTimeout(timer);
-    $('#loc-results').innerHTML = (res.results || [])
-      .map((r, i) => `<button type="button" class="loc-result" data-i="${i}">${r.name}</button>`)
-      .join('');
-    [...document.querySelectorAll('.loc-result')].forEach((b, i) => {
-      b.addEventListener('click', () => pickResult(res.results[i]));
+function renderLocResults(arr) {
+  const box = $('#loc-results');
+  box.innerHTML = arr.length
+    ? arr.map((r, i) => `<button type="button" class="loc-result" data-i="${i}">📍 ${esc(r.name)}</button>`).join('')
+    : '<p class="empty">没搜到,试试直接点地图选</p>';
+  [...box.querySelectorAll('.loc-result')].forEach((b) => {
+    b.addEventListener('click', () => {
+      const r = arr[Number(b.dataset.i)];
+      if (pickerMap) {
+        placeMarker(r.lat, r.lng);
+        pickerMap.setView([r.lat, r.lng], 14);
+      }
+      selectPoint(r.name, r.lat, r.lng);
     });
-  } catch {
-    setStatus('搜索超时,换个关键词或直接点地图', true);
-  }
-});
-$('#btn-loc-current').addEventListener('click', () => {
-  if (!navigator.geolocation) return setStatus('浏览器不支持定位', true);
-  setStatus('定位中...');
-  navigator.geolocation.getCurrentPosition(async (pos) => {
-    const { latitude, longitude } = pos.coords;
-    placeMarker(latitude, longitude);
-    picked = { name: '当前位置', lat: latitude, lng: longitude };
-    $('#f-location').value = picked.name;
+  });
+}
+
+// 搜索:输入即搜(300ms 防抖,无需点按钮)
+let searchTimer = null;
+$('#loc-search').addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  const q = $('#loc-search').value.trim();
+  if (!q) { $('#loc-results').innerHTML = ''; return; }
+  searchTimer = setTimeout(async () => {
     try {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 6000);
-      const res = await (await fetch(`/api/geocode?lat=${latitude}&lng=${longitude}`, { signal: ctrl.signal })).json();
+      const res = await (await fetch(`/api/geocode?q=${encodeURIComponent(q)}`, { signal: ctrl.signal })).json();
       clearTimeout(timer);
-      const r = res.results && res.results[0];
-      if (r) { picked = { name: r.name, lat: latitude, lng: longitude }; $('#f-location').value = r.name; }
-    } catch { /* 保持当前位置 */ }
-    if (pickerMap) pickerMap.setView([latitude, longitude], 14);
-    setStatus(`已选位置:${picked.name}`, false);
-  }, () => setStatus('定位失败(需要浏览器位置权限)', true), { enableHighAccuracy: true });
+      renderLocResults(res.results || []);
+    } catch {
+      $('#loc-results').innerHTML = '<p class="empty">搜索超时,试试点地图选</p>';
+    }
+  }, 300);
 });
+
+// 定位:高德(配置了 key 时,国行安卓也能定到)否则纯浏览器定位,失败给明确引导
+async function locateCurrent() {
+  const st = $('#loc-status');
+  st.textContent = '定位中...';
+  const done = (lat, lng) => {
+    placeMarker(lat, lng);
+    if (pickerMap) pickerMap.setView([lat, lng], 14);
+    $('#loc-confirm').hidden = false;
+    $('#loc-confirm-name').textContent = '当前位置';
+    (async () => {
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 6000);
+        const res = await (await fetch(`/api/geocode?lat=${lat}&lng=${lng}`, { signal: ctrl.signal })).json();
+        clearTimeout(timer);
+        const r = res.results && res.results[0];
+        if (r) $('#loc-confirm-name').textContent = r.name;
+      } catch { /* 保持当前位置 */ }
+    })();
+    st.textContent = '已定位,确认后点「确定选这个点」';
+  };
+  const fail = () => st.textContent = '定位失败:检查位置权限/系统定位后重试,或直接搜索/点地图选';
+
+  try { await fetchConfig(); } catch { amapKey = ''; }
+  if (amapKey) {
+    try {
+      await loadAmap(amapKey);
+      const geolocation = new AMap.Geolocation({ enableHighAccuracy: true, timeout: 10000 });
+      geolocation.getCurrentPosition((status, result) => {
+        if (status === 'complete' && result && result.position) {
+          done(result.position.getLat(), result.position.getLng());
+        } else {
+          fail();
+        }
+      });
+      return;
+    } catch { /* 高德加载失败降级浏览器定位 */ }
+  }
+  if (!navigator.geolocation) return fail();
+  navigator.geolocation.getCurrentPosition(
+    (pos) => done(pos.coords.latitude, pos.coords.longitude),
+    () => fail(),
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+  );
+}
+
+$('#btn-loc').addEventListener('click', openPicker);
+$('#f-location').addEventListener('click', openPicker);
+$('#btn-loc-close').addEventListener('click', () => { $('#loc-overlay').hidden = true; });
+$('#loc-overlay').addEventListener('click', (e) => { if (e.target.id === 'loc-overlay') $('#loc-overlay').hidden = true; });
+$('#btn-loc-done').addEventListener('click', () => {
+  const m = pickerMap && pickerMap._marker && pickerMap._marker.getLatLng();
+  if (!m) return $('#loc-status').textContent = '先在搜索列表选一条,或点一下地图';
+  selectPoint($('#loc-confirm-name').textContent || '自定义位置', m.lat, m.lng);
+});
+$('#btn-loc-current').addEventListener('click', locateCurrent);
 
 /* ---------- 上传 ---------- */
 async function doUpload() {

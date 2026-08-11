@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (and other coding agents) when workin
 
 
 ## 约束
-- 不 commit/push 除非用户要求; github.com 间歇被墙 → push 失败用后台循环重试
+- github.com 间歇被墙 → push 失败用后台循环重试
 - 用户数据(真实日记)勿删;测试条目用完即清
-- 用户沟通极简;
+
 
 ## grill 使用规范
 - **一次仅问一个问题**
