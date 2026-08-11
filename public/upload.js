@@ -59,7 +59,8 @@ function renderPreview() {
 /* ---------- 选点器(搜索优先,微信/高德式全屏) ---------- */
 let pickerMap = null;
 let picked = null; // { name, lat, lng }
-let amapKey = '';  // 高德 JS key(经 /api/config 下发;空=纯浏览器定位)
+let amapKey = '';      // 高德 JS key(经 /api/config 下发;空=纯浏览器定位)
+let amapSecurity = ''; // 高德安全密钥 securityJsCode(2021 后服务必需)
 
 function loadLeaflet() {
   return new Promise((resolve, reject) => {
@@ -78,7 +79,7 @@ function loadLeaflet() {
   });
 }
 
-function loadAmap(key) {
+function loadAmap(key, securityCode) {
   return new Promise((resolve, reject) => {
     if (window.AMap && window.AMap.Geolocation) return resolve();
     const s = document.createElement('script');
@@ -90,6 +91,8 @@ function loadAmap(key) {
       } else resolve();
     };
     s.onerror = reject;
+    // 2021 后必须的安全密钥(缺了服务报 INVALID_USER_SCODE);须在加载脚本前设置
+    if (securityCode) window._AMapSecurityConfig = { securityJsCode: securityCode };
     document.head.appendChild(s);
   });
 }
@@ -98,7 +101,8 @@ async function fetchConfig() {
   try {
     const res = await (await fetch('/api/config')).json();
     amapKey = res.amap_key || '';
-  } catch { amapKey = ''; }
+    amapSecurity = res.amap_security_js_code || '';
+  } catch { amapKey = ''; amapSecurity = ''; }
 }
 
 let amapReadyPromise = null; // 高德 SDK+插件就绪(含等待,避免首次加载抢跑)
@@ -106,7 +110,7 @@ function ensureAmap() {
   if (window.AMap && window.AMap.Geocoder && window.AMap.PlaceSearch) return Promise.resolve(true);
   if (!amapKey) return Promise.resolve(false);
   if (!amapReadyPromise) {
-    amapReadyPromise = loadAmap(amapKey)
+    amapReadyPromise = loadAmap(amapKey, amapSecurity)
       .then(() => !!(window.AMap && window.AMap.Geocoder && window.AMap.PlaceSearch))
       .catch(() => false);
   }
