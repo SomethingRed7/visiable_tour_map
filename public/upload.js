@@ -122,14 +122,16 @@ function initPickerMap() {
     const { lat, lng } = ev.latlng;
     placeMarker(lat, lng);
     $('#loc-confirm').hidden = false;
-    $('#loc-confirm-name').textContent = '自定义位置';
+    $('#loc-confirm-name').textContent = '查找附近地点…';
+    $('#loc-nearby').hidden = true;
     try {
       const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 6000);
+      const timer = setTimeout(() => ctrl.abort(), 18000);
       const res = await (await fetch(`/api/geocode?lat=${lat}&lng=${lng}`, { signal: ctrl.signal })).json();
       clearTimeout(timer);
       const r = res.results && res.results[0];
       if (r) $('#loc-confirm-name').textContent = r.name;
+      renderNearby((r && r.nearby) || [], lat, lng);
     } catch { /* 反查失败保持自定义位置 */ }
   });
 }
@@ -166,6 +168,24 @@ function renderLocResults(arr) {
   });
 }
 
+function renderNearby(arr, lat, lng) {
+  const box = $('#loc-nearby');
+  if (!arr.length) { box.hidden = true; return; }
+  box.hidden = false;
+  box.innerHTML = `<div class="loc-nearby-title">附近:点一个用它的名字</div>` +
+    arr.map((n, i) => `<button type="button" class="loc-nearby-chip" data-i="${i}">${esc(n.name)}</button>`).join('');
+  [...box.querySelectorAll('.loc-nearby-chip')].forEach((b) => {
+    b.addEventListener('click', () => {
+      const n = arr[Number(b.dataset.i)];
+      placeMarker(n.lat, n.lng);
+      if (pickerMap) pickerMap.setView([n.lat, n.lng], Math.max(pickerMap.getZoom(), 15));
+      $('#loc-confirm-name').textContent = n.name;
+      $('#loc-status').textContent = `坐标 ${n.lat.toFixed(5)}, ${n.lng.toFixed(5)}`;
+    });
+  });
+  $('#loc-status').textContent = `坐标 ${lat.toFixed(5)}, ${lng.toFixed(5)}(地图数据与反查数据源不同,名字不准时点上面的附近)`;
+}
+
 // 搜索:输入即搜(300ms 防抖,无需点按钮)
 let searchTimer = null;
 $('#loc-search').addEventListener('input', () => {
@@ -197,11 +217,12 @@ async function locateCurrent() {
     (async () => {
       try {
         const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 6000);
+        const timer = setTimeout(() => ctrl.abort(), 18000);
         const res = await (await fetch(`/api/geocode?lat=${lat}&lng=${lng}`, { signal: ctrl.signal })).json();
         clearTimeout(timer);
         const r = res.results && res.results[0];
         if (r) $('#loc-confirm-name').textContent = r.name;
+        renderNearby((r && r.nearby) || [], lat, lng);
       } catch { /* 保持当前位置 */ }
     })();
     st.textContent = '已定位,确认后点「确定选这个点」';
