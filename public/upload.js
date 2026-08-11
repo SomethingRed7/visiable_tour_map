@@ -80,10 +80,15 @@ function loadLeaflet() {
 
 function loadAmap(key) {
   return new Promise((resolve, reject) => {
-    if (window.AMap) return resolve();
+    if (window.AMap && window.AMap.Geolocation) return resolve();
     const s = document.createElement('script');
-    s.src = `https://webapi.amap.com/maps?v=2.0&key=${key}&plugin=AMap.Geolocation`;
-    s.onload = resolve;
+    s.src = `https://webapi.amap.com/maps?v=2.0&key=${key}`;
+    s.onload = () => {
+      if (window.AMap && window.AMap.plugin) {
+        // v2.0 插件经 AMap.plugin 加载(URL 的 plugin= 参数在 v1.4 有效,v2 可能忽略)
+        window.AMap.plugin(['AMap.Geolocation'], resolve);
+      } else resolve();
+    };
     s.onerror = reject;
     document.head.appendChild(s);
   });

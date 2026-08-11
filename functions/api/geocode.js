@@ -1,7 +1,31 @@
 // 地理编码 API:GET /api/geocode?q=地名 | ?lat=&lng=(反向,含附近地点)
-// 经 CF 边缘调 Nominatim/Overpass(国内网络直连不可达)
-// 注意:Nominatim 反查返回的是 OSM 最近命名节点(常是星巴克/小区名),与高德瓦片上的
-// POI 标签不一致——所以反向结果附带 nearby(Overpass 周边命名建筑/场所)供前端点选
+// 反向:配置了 AMAP_KEY 时用高德 regeo(与瓦片同源,POI 名一致,含附近 pois);
+// 否则回退 Nominatim(反查)+ Overpass(nearby)——两者都是 OSM 数据,与高德瓦片不一致
+const UA = 'gugugaga-travel-diary/1.0 (personal use)';
+
+async function amapRegeo(env, lat, lng) {
+  const key = env.AMAP_KEY || '';
+  if (!key) return null;
+  try {
+    const res = await fetch(
+      `https://restapi.amap.com/v3/geocode/regeo?key=${key}&location=${lng},${lat}&radius=300&extensions=all`,
+      { signal: AbortSignal.timeout(8000) }
+    );
+    if (!res.ok) return null;
+    const d = await res.json();
+    if (d.status !== '1' || !d.regeocode) return null;
+    const pois = (d.regeocode.pois || [])
+      .filter((p) => p && p.name)
+      .sort((a, b) => parseFloat(a.distance || 99999) - parseFloat(b.distance || 99999))
+      .slice(0, 6);
+    const name = pois[0] ? pois[0].name : (d.regeocode.formatted_address || '自定义位置').slice(0, 80);
+    const nearby = pois.slice(1).map((p) => {
+      const [lngN, latN] = String(p.location || '').split(',').map(Number);
+      return { name: p.name, lat: Number.isFinite(latN) ? latN : null, lng: Number.isFinite(lngN) ? lngN : null };
+    });
+    return { name: name.slice(0, 80), lat: parseFloat(lat), lng: parseFloat(lng), nearby };
+  } catch { return null; }
+}
 async function nearbyOverpass(lat, lng) {
   // 注意:around:400 在高密度城区会返回超大结果导致 overpass 服务端报错(实测),
   // 300m + relation 子句是稳定可用的形态
@@ -39,14 +63,17 @@ export async function onRequestGet(context) {
   const q = url.searchParams.get('q');
   const lat = url.searchParams.get('lat');
   const lng = url.searchParams.get('lng');
-  const ua = 'gugugaga-travel-diary/1.0 (personal use)';
 
   try {
     if (lat && lng && Number.isFinite(parseFloat(lat)) && Number.isFinite(parseFloat(lng))) {
+      // 优先高德 regeo(与瓦片同源);失败回退 Nominatim+Overpass
+      const amap = await amapRegeo(context.env, lat, lng);
+      if (amap) return Response.json({ results: [amap] });
+
       const [revSettled, nearby] = await Promise.allSettled([
         fetch(
           `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=17&accept-language=zh-CN`,
-          { headers: { 'User-Agent': ua }, signal: AbortSignal.timeout(8000) }
+          { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(8000) }
         ),
         nearbyOverpass(lat, lng),
       ]);
@@ -63,7 +90,7 @@ export async function onRequestGet(context) {
     if (q) {
       const res = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&limit=5&accept-language=zh-CN&q=${encodeURIComponent(q)}`,
-        { headers: { 'User-Agent': ua }, signal: AbortSignal.timeout(8000) }
+        { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(8000) }
       );
       if (!res.ok) return Response.json({ results: [] });
       const arr = await res.json();
