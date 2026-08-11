@@ -17,7 +17,7 @@ DELETE_PASS = "2026"
 # 高德开放平台 key(定位/地理编码;留空=纯浏览器定位+OSM 回退)
 # AMAP_KEY = Web端(JS API)key —— 前端定位(AMap.Geolocation),白名单 gugugaga-viw.pages.dev
 # AMAP_WEB_KEY = Web服务 key —— 服务端 regeo(restapi.amap.com),无需白名单
-AMAP_KEY = ""
+AMAP_KEY = "c89c48432f7c8a0f2408cffc4a535d15"
 AMAP_WEB_KEY = ""
 
 # 条目存储:D1(SQLite,强一致;KV 最终一致性曾导致上传后查不到)
