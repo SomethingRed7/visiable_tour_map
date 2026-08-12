@@ -69,6 +69,18 @@ body {
 
 #login-panel { max-width: 420px; }
 
+.login-hint {
+  margin: 6px 0 0;
+  font-size: 0.9rem;
+  color: var(--text-soft);
+}
+
+.login-hint a {
+  color: var(--brand);
+  font-weight: 600;
+  margin-left: 4px;
+}
+
 .site-subtitle {
   margin: 2px 0 0;
   font-size: 0.88rem;

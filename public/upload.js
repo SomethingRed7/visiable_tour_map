@@ -104,6 +104,17 @@ $('#lg-back').addEventListener('click', (e) => {
   $('#setup-status').textContent = '';
 });
 
+// 「初次使用?」显式入口:直接切到首次设置,用户名带过来,无需先触发 409
+$('#lg-to-setup').addEventListener('click', (e) => {
+  e.preventDefault();
+  $('#st-user').value = $('#lg-user').value;
+  $('#login-form').hidden = true;
+  $('#setup-form').hidden = false;
+  $('#setup-status').className = 'form-status';
+  $('#setup-status').textContent = '输入管理员发给你的一次性设置码,设置你的密码';
+  $('#st-code').focus();
+});
+
 $('#btn-logout').addEventListener('click', async () => {
   try { await fetch('/api/logout', { method: 'POST' }); } catch { /* 忽略 */ }
   setAuthed(null);
