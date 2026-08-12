@@ -11,3 +11,12 @@ CREATE TABLE IF NOT EXISTS entries (
   created_at TEXT,
   PRIMARY KEY (date, ts)
 );
+
+-- 登录账号(白名单见 wrangler.toml [vars] USERS;密码哈希运行时写入,
+-- 首次登录凭一次性设置码设置,salt/hash 均为 hex 字符串)
+CREATE TABLE IF NOT EXISTS users (
+  username TEXT PRIMARY KEY,
+  salt TEXT NOT NULL,
+  hash TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);

@@ -1,15 +1,21 @@
 // 上传 API:POST /api/upload(multipart)
-// 字段:date, title, text, album, author, location, lat, lng, photo_full[] / photo_thumb[]
-// 无口令(上传靠隐秘 URL 保护);删除才需口令(见 /api/delete)
+// 字段:date, title, text, album, location, lat, lng, photo_full[] / photo_thumb[]
+// 权限:需登录会话(author 一律取自登录身份,不接受客户端指定)
 // 照片 → R2 photos/<date>/<ts>-<n>.jpg(+ -thumb),条目 → D1(强一致)
 // 防重复:同一天同照片内容(SHA-256)拒绝;地点已带坐标则直存,否则服务端 Nominatim 编码
+// 加固:单文件 ≤10MB、单请求 ≤20 张、Content-Type image/* + 魔数嗅探(见 _lib/images.js)
+import { verifySession } from '../_lib/auth.js';
+import { imageError, MAX_PHOTOS, MAX_FILE_BYTES } from '../_lib/images.js';
+
 export async function onRequestPost(context) {
+  const user = await verifySession(context.env, context.request);
+  if (!user) return Response.json({ error: '请先登录' }, { status: 401 });
+
   const form = await context.request.formData();
   const date = (form.get('date') || '').trim();
   const title = (form.get('title') || '').trim();
   const text = (form.get('text') || '').trim();
   const album = (form.get('album') || '').trim() || null;
-  const author = (form.get('author') || '').trim() || '球';
   const locationName = (form.get('location') || '').trim() || null;
   const latRaw = parseFloat(form.get('lat'));
   const lngRaw = parseFloat(form.get('lng'));
@@ -22,6 +28,12 @@ export async function onRequestPost(context) {
   const thumbs = form.getAll('photo_thumb').filter((f) => typeof f !== 'string');
   if (!title && !text && fulls.length === 0) {
     return Response.json({ error: '内容为空:至少填标题/文字/照片之一' }, { status: 400 });
+  }
+  if (fulls.length > MAX_PHOTOS) {
+    return Response.json({ error: `一次最多 ${MAX_PHOTOS} 张照片` }, { status: 400 });
+  }
+  for (const t of thumbs) {
+    if (t.size > MAX_FILE_BYTES) return Response.json({ error: '单张照片不能超过 10MB' }, { status: 400 });
   }
 
   // 照片内容哈希:同一天去重(D1 强一致查询)
@@ -38,6 +50,8 @@ export async function onRequestPost(context) {
     } catch { /* DB 不可用则跳过去重 */ }
     for (const f of fulls) {
       const buf = await f.arrayBuffer();
+      const err = imageError(buf, f.type, f.size);
+      if (err) return Response.json({ error: err }, { status: 400 });
       const digest = await crypto.subtle.digest('SHA-256', buf);
       const hash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
       if (existingHashes.has(hash)) {
@@ -92,7 +106,7 @@ export async function onRequestPost(context) {
   }
 
   const entry = {
-    date, title, text, album, author, location,
+    date, title, text, album, author: user, location,
     ts,
     photos: photoPaths,
     photo_hashes: photoHashes,
@@ -101,7 +115,7 @@ export async function onRequestPost(context) {
   await context.env.DB.prepare(
     'INSERT OR REPLACE INTO entries (date, ts, title, text, album, author, location, photos, photo_hashes, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)'
   )
-    .bind(date, ts, title, text, album, author, JSON.stringify(location), JSON.stringify(photoPaths), JSON.stringify(photoHashes), entry.created_at)
+    .bind(date, ts, title, text, album, user, JSON.stringify(location), JSON.stringify(photoPaths), JSON.stringify(photoHashes), entry.created_at)
     .run();
   return Response.json({ ok: true, entry });
 }

@@ -1,17 +1,19 @@
 // 更新 API:POST /api/update(multipart)
-// 字段:pin, date, ts(定位条目), title, text, album, author, location, lat, lng,
+// 字段:date, ts(定位条目), title, text, album, location, lat, lng,
 //      photos_to_remove(JSON 数组:要删除的照片路径), photo_full[]/photo_thumb[](新增照片)
-// 权限:需 DELETE_PASS;文字全量替换,照片=删除指定+追加新增
+// 权限:需登录会话;author 不随编辑变更(保留原署名);新增照片同上传加固
+import { verifySession } from '../_lib/auth.js';
+import { imageError, MAX_PHOTOS, MAX_FILE_BYTES } from '../_lib/images.js';
+
 export async function onRequestPost(context) {
+  const user = await verifySession(context.env, context.request);
+  if (!user) return Response.json({ error: '请先登录' }, { status: 401 });
+
   const form = await context.request.formData();
-  const pin = (form.get('pin') || '').trim();
   const date = (form.get('date') || '').trim();
   const ts = (form.get('ts') || '').trim();
 
-  if (context.env.DELETE_PASS && pin !== context.env.DELETE_PASS) {
-    return Response.json({ error: '口令不对' }, { status: 401 });
-  }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{13}$/.test(ts)) {
+  if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(date) || !/^[0-9]{13}$/.test(ts)) {
     return Response.json({ error: '参数不对' }, { status: 400 });
   }
 
@@ -30,7 +32,8 @@ export async function onRequestPost(context) {
   const text = form.get('text') != null ? form.get('text').trim() : row.text;
   const albumRaw = form.get('album');
   const album = albumRaw != null ? (albumRaw.trim() || null) : row.album;
-  const author = form.get('author') != null ? (form.get('author').trim() || '球') : row.author;
+  // author 不随编辑变更:保留原署名(登录身份只决定"谁在操作",不重写历史)
+  const author = row.author;
   const locationNameRaw = form.get('location');
 
   // 地点:提交了 location 字段才更新
@@ -92,8 +95,15 @@ export async function onRequestPost(context) {
 
   // 新增照片(前端已压缩);去重只针对本条剩余照片(编辑时允许跨条目复用照片——
   // 用户整理/移动照片到别的同日条目是正常操作;防重复只适用于新上传,见 upload.js)
+  // 加固同上传:≤20 张、≤10MB、image/* + 魔数
   const fulls = form.getAll('photo_full').filter((f) => typeof f !== 'string');
   const thumbs = form.getAll('photo_thumb').filter((f) => typeof f !== 'string');
+  if (fulls.length > MAX_PHOTOS) {
+    return Response.json({ error: `一次最多 ${MAX_PHOTOS} 张照片` }, { status: 400 });
+  }
+  for (const t of thumbs) {
+    if (t.size > MAX_FILE_BYTES) return Response.json({ error: '单张照片不能超过 10MB' }, { status: 400 });
+  }
   if (fulls.length > 0) {
     const ownHashes = new Set(photoHashes);
     // 新照片编号:必须大于 现有+已删 的最大编号(路径复用会被 photos 路由的
@@ -102,6 +112,8 @@ export async function onRequestPost(context) {
     for (let i = 0; i < fulls.length; i++) {
       const f = fulls[i];
       const buf = await f.arrayBuffer();
+      const err = imageError(buf, f.type, f.size);
+      if (err) return Response.json({ error: err }, { status: 400 });
       const digest = await crypto.subtle.digest('SHA-256', buf);
       const hash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
       if (ownHashes.has(hash)) {

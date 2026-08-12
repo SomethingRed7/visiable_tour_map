@@ -55,6 +55,20 @@ body {
   text-decoration: none;
 }
 
+.user-area {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--brand);
+}
+
+#login-panel { max-width: 420px; }
+
 .site-subtitle {
   margin: 2px 0 0;
   font-size: 0.88rem;

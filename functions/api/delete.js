@@ -1,16 +1,17 @@
 // 删除 API:POST /api/delete(multipart)
-// 字段:pin(删除口令), date, ts(条目主键的一部分)
-// 校验 DELETE_PASS;删除 D1 条目 + R2 照片(大图+缩略图)
+// 字段:date, ts(条目主键的一部分)
+// 权限:需登录会话;删除 D1 条目 + R2 照片(大图+缩略图)
+import { verifySession } from '../_lib/auth.js';
+
 export async function onRequestPost(context) {
+  const user = await verifySession(context.env, context.request);
+  if (!user) return Response.json({ error: '请先登录' }, { status: 401 });
+
   const form = await context.request.formData();
-  const pin = (form.get('pin') || '').trim();
   const date = (form.get('date') || '').trim();
   const ts = (form.get('ts') || '').trim();
 
-  if (context.env.DELETE_PASS && pin !== context.env.DELETE_PASS) {
-    return Response.json({ error: '删除口令不对' }, { status: 401 });
-  }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{13}$/.test(ts)) {
+  if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(date) || !/^[0-9]{13}$/.test(ts)) {
     return Response.json({ error: '参数不对' }, { status: 400 });
   }
 

@@ -4,6 +4,112 @@
 const $ = (s) => document.querySelector(s);
 const form = $('#diary-form');
 
+/* ---------- 登录 / 会话 ---------- */
+function setAuthed(user) {
+  const loggedIn = !!user;
+  $('#login-panel').hidden = loggedIn;
+  $('#editor-area').hidden = !loggedIn;
+  $('#user-area').hidden = !loggedIn;
+  if (user) $('#current-user').textContent = user;
+}
+
+async function initAuth() {
+  try {
+    const res = await (await fetch('/api/auth')).json();
+    setAuthed(res.user || null);
+  } catch {
+    setAuthed(null);
+  }
+}
+
+// 写接口 401(会话过期)→ 弹回登录框
+function bounceOn401(res) {
+  if (res.status === 401) setAuthed(null);
+}
+
+$('#login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const st = $('#login-status');
+  st.className = 'form-status';
+  st.textContent = '登录中...';
+  try {
+    const fd = new FormData();
+    fd.append('username', $('#lg-user').value.trim());
+    fd.append('password', $('#lg-pass').value);
+    const res = await fetch('/api/login', { method: 'POST', body: fd });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 409 && data.needs_setup) {
+      // 账号还没设置密码 → 切到首次设置模式
+      $('#st-user').value = $('#lg-user').value;
+      $('#login-form').hidden = true;
+      $('#setup-form').hidden = false;
+      $('#setup-status').className = 'form-status';
+      $('#setup-status').textContent = '该账号还没有密码,请输入一次性设置码';
+      return;
+    }
+    if (!res.ok) {
+      st.className = 'form-status error';
+      st.textContent = data.error || `登录失败(HTTP ${res.status})`;
+      return;
+    }
+    setAuthed(data.user);
+    st.textContent = '';
+  } catch {
+    st.className = 'form-status error';
+    st.textContent = '网络错误,请重试';
+  }
+});
+
+$('#setup-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const st = $('#setup-status');
+  st.className = 'form-status';
+  const pass = $('#st-pass').value;
+  if (pass.length < 8) {
+    st.className = 'form-status error';
+    st.textContent = '密码至少 8 位';
+    return;
+  }
+  if (pass !== $('#st-pass2').value) {
+    st.className = 'form-status error';
+    st.textContent = '两次输入的密码不一致';
+    return;
+  }
+  st.textContent = '设置中...';
+  try {
+    const fd = new FormData();
+    fd.append('username', $('#st-user').value.trim());
+    fd.append('code', $('#st-code').value.trim());
+    fd.append('new_password', pass);
+    const res = await fetch('/api/login', { method: 'POST', body: fd });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      st.className = 'form-status error';
+      st.textContent = data.error || `设置失败(HTTP ${res.status})`;
+      return;
+    }
+    setAuthed(data.user);
+    st.textContent = '';
+  } catch {
+    st.className = 'form-status error';
+    st.textContent = '网络错误,请重试';
+  }
+});
+
+$('#lg-back').addEventListener('click', (e) => {
+  e.preventDefault();
+  $('#setup-form').hidden = true;
+  $('#login-form').hidden = false;
+  $('#setup-status').className = 'form-status';
+  $('#setup-status').textContent = '';
+});
+
+$('#btn-logout').addEventListener('click', async () => {
+  try { await fetch('/api/logout', { method: 'POST' }); } catch { /* 忽略 */ }
+  setAuthed(null);
+  $('#lg-pass').value = '';
+});
+
 function setStatus(msg, isErr) {
   const el = $('#form-status');
   el.textContent = msg;
@@ -419,7 +525,6 @@ async function doUpload() {
   const title = $('#f-title').value.trim();
   const text = $('#f-text').value.trim();
   const album = $('#f-album').value.trim() || null;
-  const author = $('#f-author').value || '球';
   const location = $('#f-location').value.trim() || null;
   const lat = $('#f-lat').value;
   const lng = $('#f-lng').value;
@@ -430,7 +535,6 @@ async function doUpload() {
 
   const fd = new FormData();
   fd.append('date', date);
-  fd.append('author', author);
   if (location) {
     fd.append('location', location);
     if (lat && lng) { fd.append('lat', lat); fd.append('lng', lng); }
@@ -453,7 +557,10 @@ async function doUpload() {
     setStatus('上传中...');
     const res = await fetch('/api/upload', { method: 'POST', body: fd });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) return setStatus(data.error || `上传失败(HTTP ${res.status})`, true);
+    if (!res.ok) {
+      bounceOn401(res);
+      return setStatus(data.error || `上传失败(HTTP ${res.status})`, true);
+    }
 
     // 成功:记住本次选择 + 横幅 + 清空表单
     rememberDefaults();
@@ -571,7 +678,6 @@ async function enterEdit(date, ts) {
   $('#f-title').value = e.title || '';
   $('#f-text').value = e.text || '';
   $('#f-album').value = e.album || '';
-  $('#f-author').value = e.author || '球';
   $('#f-location').value = (e.location && e.location.name) || '';
   $('#f-lat').value = $('#f-lng').value = '';
   picked = null;
@@ -625,23 +731,18 @@ $('#btn-cancel-edit').addEventListener('click', cancelEdit);
 
 /* ---- 保存修改 ---- */
 async function doUpdate() {
-  const pin = window.prompt('保存修改需要口令(4 位 PIN):');
-  if (pin === null) return;
   const date = editing.date;
   const title = $('#f-title').value.trim();
   const text = $('#f-text').value.trim();
   const album = $('#f-album').value.trim() || null;
-  const author = $('#f-author').value || '球';
   const location = $('#f-location').value.trim() || null;
   const lat = $('#f-lat').value;
   const lng = $('#f-lng').value;
   const files = [...$('#f-photos').files];
 
   const fd = new FormData();
-  fd.append('pin', pin.trim());
   fd.append('date', date);
   fd.append('ts', editing.ts);
-  fd.append('author', author);
   fd.append('title', title);
   fd.append('text', text);
   fd.append('album', album || '');
@@ -663,7 +764,10 @@ async function doUpdate() {
     setStatus('保存中...');
     const res = await fetch('/api/update', { method: 'POST', body: fd });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) return setStatus(data.error || `保存失败(HTTP ${res.status})`, true);
+    if (!res.ok) {
+      bounceOn401(res);
+      return setStatus(data.error || `保存失败(HTTP ${res.status})`, true);
+    }
     cancelEdit();
     setStatus('已保存 ✅', false);
     renderRecent();
@@ -675,22 +779,23 @@ async function doUpdate() {
   }
 }
 
-/* ---- 删除(需 PIN) ---- */
+/* ---- 删除(确认弹窗,不可恢复) ---- */
 function askDelete(btn) {
   const { date, ts } = btn.dataset;
-  const pin = window.prompt(`删除 ${date} 的这条?输入删除口令(4 位 PIN):`);
-  if (pin === null) return;
-  doDelete(date, ts, pin.trim());
+  if (!confirm(`确定删除 ${date} 的这条日记吗?\n照片会一起删除,无法恢复!`)) return;
+  doDelete(date, ts);
 }
 
-async function doDelete(date, ts, pin) {
+async function doDelete(date, ts) {
   const fd = new FormData();
   fd.append('date', date);
   fd.append('ts', ts);
-  fd.append('pin', pin);
   const res = await fetch('/api/delete', { method: 'POST', body: fd });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) return alert(data.error || `删除失败(HTTP ${res.status})`);
+  if (!res.ok) {
+    bounceOn401(res);
+    return alert(data.error || `删除失败(HTTP ${res.status})`);
+  }
   alert('已删除 ✅');
   renderRecent();
 }
@@ -712,14 +817,12 @@ function esc(s) {
 }
 
 /* ---------- 记住上次选择(快速打卡) ---------- */
-const LS_AUTHOR = 'gg_author';
 const LS_ALBUM = 'gg_album';
 const LS_LOC_NAME = 'gg_loc_name';
 const LS_LOC_LAT = 'gg_loc_lat';
 const LS_LOC_LNG = 'gg_loc_lng';
 
 function applyDefaults() {
-  $('#f-author').value = localStorage.getItem(LS_AUTHOR) || '球';
   $('#f-album').value = localStorage.getItem(LS_ALBUM) || '';
   const loc = localStorage.getItem(LS_LOC_NAME);
   if (loc) {
@@ -730,7 +833,6 @@ function applyDefaults() {
 }
 
 function rememberDefaults() {
-  localStorage.setItem(LS_AUTHOR, $('#f-author').value || '球');
   localStorage.setItem(LS_ALBUM, $('#f-album').value.trim() || '');
   const loc = $('#f-location').value.trim();
   if (loc) {
@@ -744,8 +846,9 @@ function rememberDefaults() {
   }
 }
 
-/* 默认日期 = 今天 */
+/* 默认日期 = 今天;先探测登录态,再初始化编辑器数据 */
 $('#f-date').value = new Date().toISOString().slice(0, 10);
 applyDefaults();
+initAuth();
 loadAlbums();
 renderRecent();
