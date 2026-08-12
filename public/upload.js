@@ -96,6 +96,7 @@ $('#login-form').addEventListener('submit', async (e) => {
       return;
     }
     setAuthed(data.user);
+    renderRecent(); // 登录后重拉列表(否则保留匿名可见的旧数据,私有条目不出现)
     st.textContent = '';
   } catch {
     st.className = 'form-status error';
@@ -132,6 +133,7 @@ $('#setup-form').addEventListener('submit', async (e) => {
       return;
     }
     setAuthed(data.user);
+    renderRecent(); // 首次设置成功后同样刷新列表
     st.textContent = '';
   } catch {
     st.className = 'form-status error';
@@ -589,6 +591,7 @@ async function doUpload() {
 
   const fd = new FormData();
   fd.append('date', date);
+  fd.append('visibility', $('#f-visibility').value === 'private' ? 'private' : 'public');
   if (location) {
     fd.append('location', location);
     if (lat && lng) { fd.append('lat', lat); fd.append('lng', lng); }
@@ -672,9 +675,10 @@ function entryCardHtml(e) {
   const authorTag = e.author ? `<span class="author-tag${e.author === '小红' ? ' rose' : ''}">${esc(e.author)}</span>` : '';
   const locTag = e.location && e.location.name ? `<span class="loc-tag">📍 ${esc(e.location.name)}</span>` : '';
   const timeTag = entryTs(e) ? `<span class="time-tag">${fmtTime(entryTs(e))}</span>` : '';
+  const visTag = e.visibility === 'private' ? '<span class="vis-tag">私有</span>' : '';
   const photos = (e.photos || []).map((p) => `<img src="${thumbUrl(p)}" data-full="${p}" alt="照片" loading="lazy" onerror="if(this.src!==this.dataset.full){this.src=this.dataset.full}else{this.style.display='none'}">`).join('');
   return `<article class="entry preview-entry">
-    <div class="entry-meta">${timeTag}${authorTag}${e.album ? `<span class="album-tag">${esc(e.album)}</span>` : ''}${locTag}</div>
+    <div class="entry-meta">${timeTag}${authorTag}${visTag}${e.album ? `<span class="album-tag">${esc(e.album)}</span>` : ''}${locTag}</div>
     ${e.title ? `<h3 class="entry-title">${esc(e.title)}</h3>` : ''}
     ${e.text ? `<div class="entry-text">${esc(e.text).replace(/\n/g, '<br>')}</div>` : ''}
     ${photos ? `<div class="photo-grid">${photos}</div>` : ''}
@@ -690,8 +694,9 @@ async function renderRecent() {
       .slice(0, 20);
     box.innerHTML = list.length
       ? list.map((e) => `<div class="recent-item">
-          <span class="recent-info">${esc(e.date)} <span class="time-tag">${fmtTime(entryTs(e))}</span> ${esc(e.title || '')} · ${esc(e.author || '')}</span>
+          <span class="recent-info">${esc(e.date)} <span class="time-tag">${fmtTime(entryTs(e))}</span> ${e.visibility === 'private' ? '<span class="vis-tag">私有</span>' : ''} ${esc(e.title || '')} · ${esc(e.author || '')}</span>
           <span class="recent-actions">
+            <button type="button" class="btn-small btn-vis" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}" data-vis="${e.visibility === 'private' ? 'private' : 'public'}">${e.visibility === 'private' ? '改公开' : '改私有'}</button>
             <button type="button" class="btn-small btn-prev" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}">预览</button>
             <button type="button" class="btn-small btn-edit" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}">编辑</button>
             <button type="button" class="btn-small btn-del" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}">删除</button>
@@ -701,7 +706,21 @@ async function renderRecent() {
     [...box.querySelectorAll('.btn-prev')].forEach((b) => b.addEventListener('click', () => openPreview(b.dataset.date, b.dataset.ts)));
     [...box.querySelectorAll('.btn-edit')].forEach((b) => b.addEventListener('click', () => enterEdit(b.dataset.date, b.dataset.ts)));
     [...box.querySelectorAll('.btn-del')].forEach((b) => b.addEventListener('click', () => askDelete(b)));
+    [...box.querySelectorAll('.btn-vis')].forEach((b) => b.addEventListener('click', () => toggleVisibility(b)));
   } catch { /* 忽略 */ }
+}
+
+/* 管理列表:公开/私有切换(轻量 update,仅改可见性) */
+async function toggleVisibility(b) {
+  const fd = new FormData();
+  fd.append('date', b.dataset.date);
+  fd.append('ts', b.dataset.ts);
+  fd.append('visibility', b.dataset.vis === 'private' ? 'public' : 'private');
+  try {
+    const res = await (await fetch('/api/update', { method: 'POST', body: fd })).json();
+    if (res.ok) renderRecent();
+    else alert(res.error || '切换失败');
+  } catch { alert('网络异常,请重试'); }
 }
 
 /* ---- 预览(只读弹层,portal 同款卡片) ---- */
@@ -732,6 +751,7 @@ async function enterEdit(date, ts) {
   $('#f-title').value = e.title || '';
   $('#f-text').value = e.text || '';
   $('#f-album').value = e.album || '';
+  $('#f-visibility').value = e.visibility === 'private' ? 'private' : 'public'; // 仅展示,保存走 doUpdate(不提交可见性)
   $('#f-location').value = (e.location && e.location.name) || '';
   $('#f-lat').value = $('#f-lng').value = '';
   picked = null;
