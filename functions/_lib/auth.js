@@ -133,6 +133,19 @@ export async function rateLimitReset(env, username) {
   await env.ENTRIES.delete(`rl:lock:${username}`);
 }
 
+/* ---------- 上传/更新频率限流(KV,与登录限流分开计数) ---------- */
+export const MAX_UPLOADS = 30; // 每用户 15 分钟最多 30 次写请求
+const UPLOAD_TTL = 900;
+
+// 调用即计数(无论后续校验成败——限流的是"尝试次数");超限返回 allowed:false
+export async function rateLimitUpload(env, username) {
+  const key = `rl:up:${username}`;
+  const cur = Number((await env.ENTRIES.get(key)) || '0');
+  if (cur >= MAX_UPLOADS) return { allowed: false };
+  await env.ENTRIES.put(key, String(cur + 1), { expirationTtl: UPLOAD_TTL });
+  return { allowed: true };
+}
+
 /* ---------- 一次性设置码(KV) ---------- */
 export async function getSetupCode(env, username) {
   return env.ENTRIES.get(`setup:${username}`);

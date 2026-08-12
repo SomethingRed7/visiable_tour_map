@@ -32,6 +32,7 @@ export async function onRequestPost(context) {
     if (!code) return Response.json({ error: '缺少一次性设置码' }, { status: 400 });
     if (!newPassword) return Response.json({ error: '请设置新密码' }, { status: 400 });
     if (newPassword.length < 8) return Response.json({ error: '密码至少 8 位' }, { status: 400 });
+    if (newPassword.length > 128) return Response.json({ error: '密码最长 128 位' }, { status: 400 });
 
     const stored = await getSetupCode(context.env, username);
     if (!stored || !timingSafeEqual(stored, code)) {
@@ -57,6 +58,10 @@ export async function onRequestPost(context) {
 
   // ---- 模式② 正常登录 ----
   if (!password) return Response.json({ error: '请输入密码' }, { status: 400 });
+  if (password.length > 128) {
+    // 超长口令直接拒绝,省 PBKDF2(正常密码不会超过 128 位)
+    return Response.json({ error: '用户名或密码不对' }, { status: 401 });
+  }
   const row = await context.env.DB.prepare('SELECT salt, hash FROM users WHERE username = ?1')
     .bind(username).first();
   if (!row || !row.hash) {

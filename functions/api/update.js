@@ -2,12 +2,21 @@
 // 字段:date, ts(定位条目), title, text, album, location, lat, lng,
 //      photos_to_remove(JSON 数组:要删除的照片路径), photo_full[]/photo_thumb[](新增照片)
 // 权限:需登录会话;author 不随编辑变更(保留原署名);新增照片同上传加固
-import { verifySession } from '../_lib/auth.js';
+import { verifySession, rateLimitUpload } from '../_lib/auth.js';
 import { imageError, MAX_PHOTOS, MAX_FILE_BYTES } from '../_lib/images.js';
+
+// 文本字段长度上限(与 upload.js 一致)
+const MAX_TITLE = 200;
+const MAX_TEXT = 5000;
 
 export async function onRequestPost(context) {
   const user = await verifySession(context.env, context.request);
   if (!user) return Response.json({ error: '请先登录' }, { status: 401 });
+
+  const rl = await rateLimitUpload(context.env, user);
+  if (!rl.allowed) {
+    return Response.json({ error: '操作太频繁了,休息 15 分钟再试' }, { status: 429 });
+  }
 
   const form = await context.request.formData();
   const date = (form.get('date') || '').trim();
@@ -30,6 +39,8 @@ export async function onRequestPost(context) {
   // 文字字段(未提交的保留原值)
   const title = form.get('title') != null ? form.get('title').trim() : row.title;
   const text = form.get('text') != null ? form.get('text').trim() : row.text;
+  if (title.length > MAX_TITLE) return Response.json({ error: `标题最多 ${MAX_TITLE} 字` }, { status: 400 });
+  if (text.length > MAX_TEXT) return Response.json({ error: `正文最多 ${MAX_TEXT} 字` }, { status: 400 });
   const albumRaw = form.get('album');
   const album = albumRaw != null ? (albumRaw.trim() || null) : row.album;
   // 可见性:提交了才改(管理列表切换 = 仅 date+ts+visibility 的轻量更新);非法值按公开
