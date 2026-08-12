@@ -80,6 +80,7 @@ async function init() {
 
   const data = await (await fetch('/api/entries')).json();
   const list = (data.entries || [])
+    .filter((e) => e.visibility !== 'private') // 导出页永远排除私有(链接给家人)
     .filter((e) => e.date >= from && e.date <= to)
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (a.ts || 0) - (b.ts || 0)));
 
