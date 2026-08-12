@@ -20,3 +20,14 @@ CREATE TABLE IF NOT EXISTS users (
   hash TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
+
+-- 规划待办(私有,仅登录用户可见/可写;date=YYYY-MM-DD,done=0/1)
+CREATE TABLE IF NOT EXISTS todos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  date TEXT NOT NULL,
+  text TEXT NOT NULL,
+  done INTEGER NOT NULL DEFAULT 0,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_todos_date ON todos (date);
