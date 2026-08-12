@@ -173,7 +173,8 @@ async function initPortalUser() {
   } catch { currentUser = null; }
   if (currentUser) {
     box.hidden = false;
-    box.innerHTML = `<span class="user-name">${esc(currentUser)}</span><a class="btn-small" href="/write">管理</a>`;
+    // 登录态:用户名 + 管理按钮(btn-write 样式,同原「写日记」入口)
+    box.innerHTML = `<span class="user-name">${esc(currentUser)}</span><a class="btn-write" href="/write">管理</a>`;
     try {
       const d = await (await fetch('/api/todos')).json();
       allTodos = d.todos || [];
@@ -182,7 +183,8 @@ async function initPortalUser() {
     if (selectedDate) renderDayTodos(selectedDate);
   } else {
     box.hidden = false;
-    box.innerHTML = '<a class="btn-small" href="/write">登录</a>';
+    // 未登录:仅一个醒目的「登录」按钮(btn-write 样式)
+    box.innerHTML = '<a class="btn-write" href="/write">登录</a>';
   }
 }
 
