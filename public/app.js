@@ -135,6 +135,7 @@ function selectDate(ds) {
   activeAlbum = null;
   renderAlbums();
   renderCalendar();
+  renderStream(); // 专辑面板同步回占位态(否则残留上一次的专辑列表/地图)
   const dayEntries = allEntries
     .filter((e) => e.date === ds)
     .sort((a, b) => ((a.created_at || '') < (b.created_at || '') ? -1 : 1));
@@ -226,7 +227,8 @@ function renderAlbums() {
     const b = document.createElement('button');
     b.className = 'chip' + (active ? ' active' : '');
     b.textContent = label;
-    b.addEventListener('click', () => setAlbum(album));
+    // 反选:再点已选中的专辑 → 收起详情(置空回占位态)
+    b.addEventListener('click', () => setAlbum(activeAlbum === album ? null : album));
     chips.appendChild(b);
   };
   if (SHOW_RECENT_FEED) mk('全部', null, activeAlbum === null);
