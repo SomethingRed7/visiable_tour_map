@@ -90,15 +90,6 @@ $('#login-form').addEventListener('submit', async (e) => {
     fd.append('password', $('#lg-pass').value);
     const res = await fetch('/api/login', { method: 'POST', body: fd });
     const data = await res.json().catch(() => ({}));
-    if (res.status === 409 && data.needs_setup) {
-      // 账号还没设置密码 → 切到首次设置模式
-      $('#st-user').value = pendingUser;
-      $('#login-form').hidden = true;
-      $('#setup-form').hidden = false;
-      $('#setup-status').className = 'form-status';
-      $('#setup-status').textContent = '该账号还没有密码,请输入一次性设置码';
-      return;
-    }
     if (!res.ok) {
       st.className = 'form-status error';
       st.textContent = data.error || `登录失败(HTTP ${res.status})`;
@@ -156,7 +147,7 @@ $('#lg-back').addEventListener('click', (e) => {
   $('#setup-status').textContent = '';
 });
 
-// 「初次使用?」显式入口:直接切到首次设置,用户名带过来,无需先触发 409
+// 「初次使用?」显式入口:切到首次设置,用户名带过来(唯一入口,登录不自动跳转)
 $('#lg-to-setup').addEventListener('click', (e) => {
   e.preventDefault();
   $('#st-user').value = pendingUser || $('#who-user').value;

@@ -60,8 +60,10 @@ export async function onRequestPost(context) {
   const row = await context.env.DB.prepare('SELECT salt, hash FROM users WHERE username = ?1')
     .bind(username).first();
   if (!row || !row.hash) {
-    // 白名单账号还没设置密码:前端据此切到首次设置模式
-    return Response.json({ error: '该账号还没有设置密码,请用「首次设置」', needs_setup: true }, { status: 409 });
+    // 白名单账号还没设置密码:与错密码同样处理(不暴露账号状态、计入限流);
+    // 首次设置入口在前端「初次使用?」链接,不自动跳转
+    await rateLimitFail(context.env, username);
+    return Response.json({ error: '密码不正确' }, { status: 401 });
   }
   const ok = await verifyPassword(password, row.salt, row.hash);
   if (!ok) {
