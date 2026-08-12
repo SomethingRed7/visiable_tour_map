@@ -183,19 +183,54 @@ function renderDayTodos(ds) {
   box.hidden = false;
   const list = allTodos.filter((t) => t.date === ds);
   const done = list.filter((t) => t.done).length;
-  const head = `<div class="todo-head"><span>当天待办</span><span class="todo-progress">已勾 ${done}/${list.length}</span></div>`;
-  if (!list.length) {
-    box.innerHTML = head + '<p class="todo-empty">这天还没有待办</p>';
-    return;
-  }
-  box.innerHTML = head + list.map((t) => `
-    <div class="todo-item${t.done ? ' done' : ''}" data-id="${t.id}">
-      <span class="todo-check">${t.done ? '✅' : '○'}</span>
-      <span class="todo-text">${esc(t.text)}</span>
-    </div>`).join('');
+  const items = list.length
+    ? list.map((t) => `
+      <div class="todo-item${t.done ? ' done' : ''}" data-id="${t.id}">
+        <span class="todo-check">${t.done ? '✅' : '○'}</span>
+        <span class="todo-text">${esc(t.text)}</span>
+        <button type="button" class="todo-del" data-id="${t.id}" aria-label="删除">✕</button>
+      </div>`).join('')
+    : '<p class="todo-empty">这天还没有待办,添加一条开始打卡</p>';
+  box.innerHTML = `
+    <div class="todo-head"><span>当天待办</span><span class="todo-progress">已勾 ${done}/${list.length}</span></div>
+    ${items}
+    <form class="todo-add"><input type="text" maxlength="200" placeholder="添加一条待办…" required><button type="submit" class="btn-small">添加</button></form>`;
   box.querySelectorAll('.todo-item').forEach((el) => {
-    el.addEventListener('click', () => toggleTodo(Number(el.dataset.id), ds));
+    el.addEventListener('click', (ev) => {
+      if (ev.target.closest('.todo-del')) return; // 删除按钮不触发勾选
+      toggleTodo(Number(el.dataset.id), ds);
+    });
   });
+  box.querySelectorAll('.todo-del').forEach((b) => {
+    b.addEventListener('click', () => deleteTodo(Number(b.dataset.id), ds));
+  });
+  const form = box.querySelector('.todo-add');
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const input = form.querySelector('input');
+    const text = input.value.trim();
+    if (!text) return;
+    const fd = new FormData();
+    fd.append('date', ds);
+    fd.append('text', text);
+    try {
+      const res = await (await fetch('/api/todos', { method: 'POST', body: fd })).json();
+      if (res.ok && res.todo) {
+        allTodos.push(res.todo);
+        renderDayTodos(ds);
+      } else if (res.error) input.placeholder = res.error;
+    } catch { /* 忽略 */ }
+  });
+}
+
+async function deleteTodo(id, ds) {
+  try {
+    const res = await fetch(`/api/todos?id=${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      allTodos = allTodos.filter((t) => t.id !== id);
+      renderDayTodos(ds);
+    }
+  } catch { /* 忽略 */ }
 }
 
 async function toggleTodo(id, ds) {

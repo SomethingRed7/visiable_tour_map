@@ -274,6 +274,38 @@ body {
   margin: 4px 0;
 }
 
+.todo-del {
+  margin-left: auto;
+  border: none;
+  background: none;
+  color: var(--text-soft);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 2px 6px;
+  flex-shrink: 0;
+}
+
+.todo-del:active { opacity: 0.6; }
+
+.todo-add {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.todo-add input {
+  flex: 1;
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--text);
+}
+
+.todo-add .btn-small { flex-shrink: 0; }
+
 /* ---------- 条目 ---------- */
 .entries { display: flex; flex-direction: column; gap: 14px; }
 
