@@ -200,21 +200,28 @@ body {
 
 .cal-num { font-size: 0.95rem; font-weight: 600; }
 
+/* 日记蓝点(2026-08 修正:原用 --brand 橙色,用户指出"日记不是蓝点") */
 .cal-dot {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: var(--brand);
+  background: #3b82f6;
   margin-top: 2px;
 }
 
-/* 待办橙点(仅登录可见;与日记蓝点可共存) */
+/* 待办橙圈(仅登录可见;与日记蓝点可共存):空心=当天有待办未勾完,实心=全部完成 */
 .cal-todo-dot {
-  width: 5px;
-  height: 5px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: #f59e0b;
+  border: 1.5px solid #f59e0b;
+  background: transparent;
   margin-top: 2px;
+}
+
+.cal-todo-dot.done {
+  background: #f59e0b;
+  border: none;
 }
 
 /* 当天待办区(私有,仅登录渲染) */

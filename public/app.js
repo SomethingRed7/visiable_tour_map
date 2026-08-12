@@ -112,10 +112,19 @@ function renderCalendar() {
   const startWd = new Date(y, m - 1, 1).getDay();
   const daysInMonth = new Date(y, m, 0).getDate();
   const entrySet = new Set(allEntries.filter((e) => e.date.startsWith(currentMonth)).map((e) => e.date));
-  // 待办橙点:仅登录用户可见(隐私:未登录日历与以前完全一致)
-  const todoSet = currentUser
-    ? new Set(allTodos.filter((t) => t.date.startsWith(currentMonth)).map((t) => t.date))
-    : new Set();
+  // 待办橙圈:仅登录用户可见(隐私:未登录日历与以前完全一致)
+  // 状态:当天待办全部完成 → 实心(done);有待办未勾完 → 空心
+  let todoSet = new Set();
+  let todoDoneSet = new Set();
+  if (currentUser) {
+    const monthTodos = allTodos.filter((t) => t.date.startsWith(currentMonth));
+    todoSet = new Set(monthTodos.map((t) => t.date));
+    const byDate = {};
+    monthTodos.forEach((t) => { (byDate[t.date] = byDate[t.date] || []).push(t.done); });
+    Object.keys(byDate).forEach((ds) => {
+      if (byDate[ds].every((v) => v === 1)) todoDoneSet.add(ds);
+    });
+  }
 
   const grid = $('#cal-grid');
   grid.innerHTML = '';
@@ -131,7 +140,7 @@ function renderCalendar() {
       + (entrySet.has(ds) ? ' has-entry' : '')
       + (todoSet.has(ds) ? ' has-todo' : '')
       + (ds === selectedDate ? ' selected' : '');
-    cell.innerHTML = `<span class="cal-num">${d}</span>${entrySet.has(ds) ? '<span class="cal-dot"></span>' : ''}${todoSet.has(ds) ? '<span class="cal-todo-dot"></span>' : ''}`;
+    cell.innerHTML = `<span class="cal-num">${d}</span>${entrySet.has(ds) ? '<span class="cal-dot"></span>' : ''}${todoSet.has(ds) ? `<span class="cal-todo-dot${todoDoneSet.has(ds) ? ' done' : ''}"></span>` : ''}`;
     cell.addEventListener('click', () => selectDate(ds));
     grid.appendChild(cell);
   }
@@ -218,6 +227,7 @@ function renderDayTodos(ds) {
       if (res.ok && res.todo) {
         allTodos.push(res.todo);
         renderDayTodos(ds);
+        renderCalendar(); // 日历圈同步(新增待办 → 空心圈)
       } else if (res.error) input.placeholder = res.error;
     } catch { /* 忽略 */ }
   });
@@ -229,6 +239,7 @@ async function deleteTodo(id, ds) {
     if (res.ok) {
       allTodos = allTodos.filter((t) => t.id !== id);
       renderDayTodos(ds);
+      renderCalendar(); // 日历圈同步(删除可能改变完成态/移除标记)
     }
   } catch { /* 忽略 */ }
 }
@@ -242,6 +253,7 @@ async function toggleTodo(id, ds) {
     const t = allTodos.find((x) => x.id === id);
     if (t) t.done = res.todo.done;
     renderDayTodos(ds);
+    renderCalendar(); // 日历圈同步:全部勾完 → 实心
   } catch { /* 忽略 */ }
 }
 
