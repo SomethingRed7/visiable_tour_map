@@ -208,6 +208,72 @@ body {
   margin-top: 2px;
 }
 
+/* 待办橙点(仅登录可见;与日记蓝点可共存) */
+.cal-todo-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #f59e0b;
+  margin-top: 2px;
+}
+
+/* 当天待办区(私有,仅登录渲染) */
+.todo-section {
+  margin-top: 14px;
+  border-top: 1px dashed var(--line);
+  padding-top: 10px;
+}
+
+.todo-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.todo-progress {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-soft);
+}
+
+.todo-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  background: var(--card);
+}
+
+.todo-item:active { opacity: 0.75; }
+
+.todo-check {
+  font-size: 1rem;
+  color: var(--text-soft);
+  flex-shrink: 0;
+}
+
+.todo-item.done .todo-check { color: #16a34a; }
+
+.todo-item.done .todo-text {
+  color: var(--text-soft);
+  text-decoration: line-through;
+}
+
+.todo-empty {
+  font-size: 0.85rem;
+  color: var(--text-soft);
+  margin: 4px 0;
+}
+
 /* ---------- 条目 ---------- */
 .entries { display: flex; flex-direction: column; gap: 14px; }
 

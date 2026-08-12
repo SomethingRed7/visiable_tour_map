@@ -7,6 +7,8 @@ let allEntries = [];
 let currentMonth = null;   // 'YYYY-MM'
 let selectedDate = null;
 let activeAlbum = null;
+let currentUser = null;    // 登录用户;null=未登录(待办完全不可见)
+let allTodos = [];         // 私有待办(仅登录后拉取)
 // 暂不显示「最近动态」流:默认只保留专辑入口;true = 恢复(含「全部」chip)
 const SHOW_RECENT_FEED = false;
 
@@ -110,6 +112,10 @@ function renderCalendar() {
   const startWd = new Date(y, m - 1, 1).getDay();
   const daysInMonth = new Date(y, m, 0).getDate();
   const entrySet = new Set(allEntries.filter((e) => e.date.startsWith(currentMonth)).map((e) => e.date));
+  // 待办橙点:仅登录用户可见(隐私:未登录日历与以前完全一致)
+  const todoSet = currentUser
+    ? new Set(allTodos.filter((t) => t.date.startsWith(currentMonth)).map((t) => t.date))
+    : new Set();
 
   const grid = $('#cal-grid');
   grid.innerHTML = '';
@@ -123,8 +129,9 @@ function renderCalendar() {
     const cell = document.createElement('div');
     cell.className = 'cal-day'
       + (entrySet.has(ds) ? ' has-entry' : '')
+      + (todoSet.has(ds) ? ' has-todo' : '')
       + (ds === selectedDate ? ' selected' : '');
-    cell.innerHTML = `<span class="cal-num">${d}</span>${entrySet.has(ds) ? '<span class="cal-dot"></span>' : ''}`;
+    cell.innerHTML = `<span class="cal-num">${d}</span>${entrySet.has(ds) ? '<span class="cal-dot"></span>' : ''}${todoSet.has(ds) ? '<span class="cal-todo-dot"></span>' : ''}`;
     cell.addEventListener('click', () => selectDate(ds));
     grid.appendChild(cell);
   }
@@ -144,6 +151,63 @@ function selectDate(ds) {
   $('#day-entries').innerHTML = dayEntries.length
     ? dayEntries.map(entryCard).join('')
     : '<p class="empty">这天还没有日记</p>';
+  renderDayTodos(ds);
+}
+
+/* ---------- 私有待办(规划打卡;仅登录用户可见) ---------- */
+async function initPortalUser() {
+  const box = $('#portal-user');
+  if (!box) return;
+  try {
+    const res = await (await fetch('/api/auth')).json();
+    currentUser = res.user || null;
+  } catch { currentUser = null; }
+  if (currentUser) {
+    box.hidden = false;
+    box.innerHTML = `<span class="user-name">${esc(currentUser)}</span><a class="btn-small" href="/write">管理</a>`;
+    try {
+      const d = await (await fetch('/api/todos')).json();
+      allTodos = d.todos || [];
+    } catch { allTodos = []; }
+    renderCalendar();
+    if (selectedDate) renderDayTodos(selectedDate);
+  } else {
+    box.hidden = false;
+    box.innerHTML = '<a class="btn-small" href="/write">登录</a>';
+  }
+}
+
+function renderDayTodos(ds) {
+  const box = $('#day-todos');
+  if (!currentUser) { box.hidden = true; box.innerHTML = ''; return; }
+  box.hidden = false;
+  const list = allTodos.filter((t) => t.date === ds);
+  const done = list.filter((t) => t.done).length;
+  const head = `<div class="todo-head"><span>当天待办</span><span class="todo-progress">已勾 ${done}/${list.length}</span></div>`;
+  if (!list.length) {
+    box.innerHTML = head + '<p class="todo-empty">这天还没有待办</p>';
+    return;
+  }
+  box.innerHTML = head + list.map((t) => `
+    <div class="todo-item${t.done ? ' done' : ''}" data-id="${t.id}">
+      <span class="todo-check">${t.done ? '✅' : '○'}</span>
+      <span class="todo-text">${esc(t.text)}</span>
+    </div>`).join('');
+  box.querySelectorAll('.todo-item').forEach((el) => {
+    el.addEventListener('click', () => toggleTodo(Number(el.dataset.id), ds));
+  });
+}
+
+async function toggleTodo(id, ds) {
+  const fd = new FormData();
+  fd.append('id', String(id));
+  try {
+    const res = await (await fetch('/api/todos/toggle', { method: 'POST', body: fd })).json();
+    if (!res.ok) return;
+    const t = allTodos.find((x) => x.id === id);
+    if (t) t.done = res.todo.done;
+    renderDayTodos(ds);
+  } catch { /* 忽略 */ }
 }
 
 /* ---------- 专辑地图(Leaflet + 高德瓦片,懒加载) ---------- */
@@ -292,6 +356,7 @@ async function init() {
   initCalendar();
   renderAlbums();
   renderStream();
+  initPortalUser(); // 探测登录态 + 拉私有待办(待办橙点/待办区仅登录可见)
 
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
