@@ -19,14 +19,19 @@
   </header>
 
   <main class="layout">
-    <!-- 登录(未登录时显示) -->
+    <!-- 登录(未登录时显示;两步:你是谁 → 密码) -->
     <section id="login-panel" class="panel">
       <h2 class="panel-heading">登录</h2>
-      <form id="login-form" class="upload-form">
+      <form id="who-form" class="upload-form">
         <label>
-          用户名
-          <input type="text" id="lg-user" autocomplete="username" required>
+          你是?
+          <input type="text" id="who-user" autocomplete="username" placeholder="输入你的名字" required>
         </label>
+        <p id="who-status" class="form-status"></p>
+        <button type="submit" class="btn-submit">下一步</button>
+      </form>
+      <form id="login-form" class="upload-form" hidden>
+        <p class="who-echo">你是 <strong id="lg-echo"></strong><a href="#" id="lg-change">(换个人)</a></p>
         <label>
           密码
           <input type="password" id="lg-pass" autocomplete="current-password" required>

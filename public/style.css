@@ -81,6 +81,21 @@ body {
   margin-left: 4px;
 }
 
+.who-echo {
+  margin: 0 0 4px;
+  font-size: 0.95rem;
+  color: var(--text-soft);
+}
+
+.who-echo strong { color: var(--brand); }
+
+.who-echo a {
+  color: var(--text-soft);
+  margin-left: 8px;
+  font-size: 0.85rem;
+  text-decoration: underline;
+}
+
 .site-subtitle {
   margin: 2px 0 0;
   font-size: 0.88rem;

@@ -5,22 +5,73 @@ const $ = (s) => document.querySelector(s);
 const form = $('#diary-form');
 
 /* ---------- 登录 / 会话 ---------- */
+let pendingUser = ''; // 第二步(密码)所属的已确认用户名
+let whitelist = [];   // 公开白名单(来自 /api/config,供「你是?」本地校验)
+
+function showLoginPanel() {
+  $('#who-form').hidden = false;
+  $('#login-form').hidden = true;
+  $('#setup-form').hidden = true;
+}
+
 function setAuthed(user) {
   const loggedIn = !!user;
   $('#login-panel').hidden = loggedIn;
   $('#editor-area').hidden = !loggedIn;
   $('#user-area').hidden = !loggedIn;
   if (user) $('#current-user').textContent = user;
+  else showLoginPanel();
 }
 
 async function initAuth() {
   try {
-    const res = await (await fetch('/api/auth')).json();
-    setAuthed(res.user || null);
+    const [auth, cfg] = await Promise.all([
+      fetch('/api/auth').then((r) => r.json()),
+      fetch('/api/config').then((r) => r.json()),
+    ]);
+    whitelist = cfg.users || [];
+    setAuthed(auth.user || null);
   } catch {
+    whitelist = [];
     setAuthed(null);
   }
 }
+
+// 第一步「你是?」:白名单内 → 密码步骤;否则「不认识」
+$('#who-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const st = $('#who-status');
+  st.className = 'form-status';
+  const name = $('#who-user').value.trim();
+  if (!name) {
+    st.className = 'form-status error';
+    st.textContent = '请输入你的名字';
+    return;
+  }
+  if (!whitelist.includes(name)) {
+    st.className = 'form-status error';
+    st.textContent = `不认识 "${name}"`;
+    return;
+  }
+  pendingUser = name;
+  $('#lg-echo').textContent = name;
+  $('#lg-pass').value = '';
+  $('#login-status').className = 'form-status';
+  $('#login-status').textContent = '';
+  $('#who-form').hidden = true;
+  $('#login-form').hidden = false;
+  $('#lg-pass').focus();
+});
+
+$('#lg-change').addEventListener('click', (e) => {
+  e.preventDefault();
+  pendingUser = '';
+  $('#login-form').hidden = true;
+  $('#who-form').hidden = false;
+  $('#who-status').className = 'form-status';
+  $('#who-status').textContent = '';
+  $('#who-user').focus();
+});
 
 // 写接口 401(会话过期)→ 弹回登录框
 function bounceOn401(res) {
@@ -29,18 +80,19 @@ function bounceOn401(res) {
 
 $('#login-form').addEventListener('submit', async (e) => {
   e.preventDefault();
+  if (!pendingUser) { showLoginPanel(); return; } // 防御:未经过第一步
   const st = $('#login-status');
   st.className = 'form-status';
   st.textContent = '登录中...';
   try {
     const fd = new FormData();
-    fd.append('username', $('#lg-user').value.trim());
+    fd.append('username', pendingUser);
     fd.append('password', $('#lg-pass').value);
     const res = await fetch('/api/login', { method: 'POST', body: fd });
     const data = await res.json().catch(() => ({}));
     if (res.status === 409 && data.needs_setup) {
       // 账号还没设置密码 → 切到首次设置模式
-      $('#st-user').value = $('#lg-user').value;
+      $('#st-user').value = pendingUser;
       $('#login-form').hidden = true;
       $('#setup-form').hidden = false;
       $('#setup-status').className = 'form-status';
@@ -107,7 +159,7 @@ $('#lg-back').addEventListener('click', (e) => {
 // 「初次使用?」显式入口:直接切到首次设置,用户名带过来,无需先触发 409
 $('#lg-to-setup').addEventListener('click', (e) => {
   e.preventDefault();
-  $('#st-user').value = $('#lg-user').value;
+  $('#st-user').value = pendingUser || $('#who-user').value;
   $('#login-form').hidden = true;
   $('#setup-form').hidden = false;
   $('#setup-status').className = 'form-status';
