@@ -33,6 +33,38 @@ function fmtTime(ts) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+/* 坐标系统:存储=GCJ-02(高德瓦片系),OSRM 要 WGS-84,互转 */
+function transformLat(x, y) {
+  let ret = -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
+  ret += ((20.0 * Math.sin(6.0 * x * Math.PI) + 20.0 * Math.sin(2.0 * x * Math.PI)) * 2.0) / 3.0;
+  ret += ((20.0 * Math.sin(y * Math.PI) + 40.0 * Math.sin((y / 3.0) * Math.PI)) * 2.0) / 3.0;
+  ret += ((160.0 * Math.sin((y / 12.0) * Math.PI) + 320.0 * Math.sin((y * Math.PI) / 30.0)) * 2.0) / 3.0;
+  return ret;
+}
+function transformLng(x, y) {
+  let ret = 300.0 + x + 2.0 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
+  ret += ((20.0 * Math.sin(6.0 * x * Math.PI) + 20.0 * Math.sin(2.0 * x * Math.PI)) * 2.0) / 3.0;
+  ret += ((20.0 * Math.sin(x * Math.PI) + 40.0 * Math.sin((x / 3.0) * Math.PI)) * 2.0) / 3.0;
+  ret += ((150.0 * Math.sin((x / 12.0) * Math.PI) + 300.0 * Math.sin((x / 30.0) * Math.PI)) * 2.0) / 3.0;
+  return ret;
+}
+function wgs2gcj(lat, lng) {
+  const a = 6378245.0, ee = 0.00669342162296594323;
+  let dLat = transformLat(lng - 105.0, lat - 35.0);
+  let dLng = transformLng(lng - 105.0, lat - 35.0);
+  const radLat = (lat / 180.0) * Math.PI;
+  let magic = Math.sin(radLat);
+  magic = 1 - ee * magic * magic;
+  const sqrtMagic = Math.sqrt(magic);
+  dLat = (dLat * 180.0) / (((a * (1 - ee)) / (magic * sqrtMagic)) * Math.PI);
+  dLng = (dLng * 180.0) / ((a / sqrtMagic) * Math.cos(radLat) * Math.PI);
+  return { lat: lat + dLat, lng: lng + dLng };
+}
+function gcj2wgs(lat, lng) {
+  const g = wgs2gcj(lat, lng);
+  return { lat: lat * 2 - g.lat, lng: lng * 2 - g.lng };
+}
+
 function entryCard(e) {
   const authorTag = e.author
     ? `<span class="author-tag${e.author === '小红' ? ' rose' : ''}">${esc(e.author)}</span>`
@@ -159,11 +191,19 @@ async function renderAlbumMap(list) {
   } else if (bounds.length > 1) {
     // 沿路规划(CF 边缘 OSRM 代理,失败回退直线),按日期排序连线
     const ordered = withLoc.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    // 存储坐标=GCJ-02(高德系),OSRM 要 WGS-84,请求前转换
+    const wgsPts = ordered.map((e) => gcj2wgs(e.location.lat, e.location.lng));
     let line = ordered.map((e) => [e.location.lat, e.location.lng]);
     try {
-      const ptsStr = ordered.map((e) => `${e.location.lat},${e.location.lng}`).join('|');
+      const ptsStr = wgsPts.map((p) => `${p.lat},${p.lng}`).join('|');
       const route = await (await fetch(`/api/route?pts=${encodeURIComponent(ptsStr)}`)).json();
-      if (route.coordinates && route.coordinates.length > 1) line = route.coordinates;
+      if (route.coordinates && route.coordinates.length > 1) {
+        // 响应几何是 WGS-84,转回 GCJ-02 才与瓦片/图钉对齐
+        line = route.coordinates.map(([lat, lng]) => {
+          const g = wgs2gcj(lat, lng);
+          return [g.lat, g.lng];
+        });
+      }
     } catch { /* 直线 */ }
     L.polyline(line, { color: '#d97706', weight: 3, opacity: 0.8 }).addTo(map);
     map.fitBounds(line, { padding: [30, 30] });
