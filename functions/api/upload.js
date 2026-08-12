@@ -19,6 +19,8 @@ export async function onRequestPost(context) {
   const locationName = (form.get('location') || '').trim() || null;
   const latRaw = parseFloat(form.get('lat'));
   const lngRaw = parseFloat(form.get('lng'));
+  // 可见性:公开(默认)/私有(仅登录可见);非法值一律按公开
+  const visibility = form.get('visibility') === 'private' ? 'private' : 'public';
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return Response.json({ error: '日期格式不对,应为 YYYY-MM-DD' }, { status: 400 });
@@ -110,12 +112,13 @@ export async function onRequestPost(context) {
     ts,
     photos: photoPaths,
     photo_hashes: photoHashes,
+    visibility,
     created_at: new Date().toISOString(),
   };
   await context.env.DB.prepare(
-    'INSERT OR REPLACE INTO entries (date, ts, title, text, album, author, location, photos, photo_hashes, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)'
+    'INSERT OR REPLACE INTO entries (date, ts, title, text, album, author, location, photos, photo_hashes, visibility, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)'
   )
-    .bind(date, ts, title, text, album, user, JSON.stringify(location), JSON.stringify(photoPaths), JSON.stringify(photoHashes), entry.created_at)
+    .bind(date, ts, title, text, album, user, JSON.stringify(location), JSON.stringify(photoPaths), JSON.stringify(photoHashes), visibility, entry.created_at)
     .run();
   return Response.json({ ok: true, entry });
 }

@@ -32,6 +32,11 @@ export async function onRequestPost(context) {
   const text = form.get('text') != null ? form.get('text').trim() : row.text;
   const albumRaw = form.get('album');
   const album = albumRaw != null ? (albumRaw.trim() || null) : row.album;
+  // 可见性:提交了才改(管理列表切换 = 仅 date+ts+visibility 的轻量更新);非法值按公开
+  const visibilityRaw = form.get('visibility');
+  const visibility = visibilityRaw != null
+    ? (visibilityRaw === 'private' ? 'private' : 'public')
+    : (row.visibility || 'public');
   // author 不随编辑变更:保留原署名(登录身份只决定"谁在操作",不重写历史)
   const author = row.author;
   const locationNameRaw = form.get('location');
@@ -130,11 +135,11 @@ export async function onRequestPost(context) {
   }
 
   await context.env.DB.prepare(
-    'INSERT OR REPLACE INTO entries (date, ts, title, text, album, author, location, photos, photo_hashes, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)'
+    'INSERT OR REPLACE INTO entries (date, ts, title, text, album, author, location, photos, photo_hashes, visibility, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)'
   )
-    .bind(date, Number(ts), title, text, album, author, JSON.stringify(location), JSON.stringify(photos), JSON.stringify(photoHashes), row.created_at)
+    .bind(date, Number(ts), title, text, album, author, JSON.stringify(location), JSON.stringify(photos), JSON.stringify(photoHashes), visibility, row.created_at)
     .run();
 
-  const entry = { date, title, text, album, author, location, ts: Number(ts), photos, created_at: row.created_at };
+  const entry = { date, title, text, album, author, location, ts: Number(ts), photos, visibility, created_at: row.created_at };
   return Response.json({ ok: true, entry });
 }

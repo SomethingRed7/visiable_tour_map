@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS entries (
   location TEXT,
   photos TEXT NOT NULL DEFAULT '[]',
   photo_hashes TEXT NOT NULL DEFAULT '[]',
+  visibility TEXT NOT NULL DEFAULT 'public',
   created_at TEXT,
   PRIMARY KEY (date, ts)
 );

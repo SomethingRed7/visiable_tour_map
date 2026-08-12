@@ -1,6 +1,7 @@
 // 条目查询 API:GET /api/entries?date=|?month=|?album=|(空=最近)
 // 数据源:D1(SQLite,强一致);seed(预置条目)与 D1 合并,按日期排序。
 import { SEED } from '../seed.js';
+import { verifySession } from '../_lib/auth.js';
 
 function norm(e) {
   let location = null;
@@ -16,11 +17,14 @@ function norm(e) {
     location,
     ts: e.ts ?? null,
     photos,
+    visibility: e.visibility || 'public',
     created_at: e.created_at || null,
   };
 }
 
 export async function onRequestGet(context) {
+  // 可见性过滤:未登录只见公开(私有条目"像素级不存在");登录见全部
+  const user = await verifySession(context.env, context.request);
   const url = new URL(context.request.url);
   const date = url.searchParams.get('date');
   const month = url.searchParams.get('month');
@@ -48,6 +52,7 @@ export async function onRequestGet(context) {
   }
 
   let merged = [...SEED, ...kvEntries];
+  if (!user) merged = merged.filter((e) => e.visibility !== 'private'); // 未登录藏私有
   if (date) merged = merged.filter((e) => e.date === date);
   if (month) merged = merged.filter((e) => e.date.startsWith(month));
   if (album) merged = merged.filter((e) => e.album === album);
