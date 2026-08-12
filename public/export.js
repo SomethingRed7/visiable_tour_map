@@ -53,6 +53,13 @@ function gcj2wgs(lat, lng) {
   return { lat: lat * 2 - g.lat, lng: lng * 2 - g.lng };
 }
 
+/* 泪滴形图钉(内联 SVG,无外部依赖) */
+function ggPinSvg() {
+  return '<svg viewBox="0 0 24 24" width="28" height="28" style="display:block;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))">'
+    + '<path d="M12 1.8C7.4 1.8 3.7 5.5 3.7 10.1c0 5.6 6.8 12.6 7.4 13.3.5.5 1.3.5 1.8 0 .6-.7 7.4-7.7 7.4-13.3C20.3 5.5 16.6 1.8 12 1.8z" fill="#e11d48"/>'
+    + '<circle cx="12" cy="10" r="3.1" fill="#fff"/></svg>';
+}
+
 async function init() {
   const params = new URLSearchParams(location.search);
   const from = params.get('from') || '';
@@ -133,7 +140,7 @@ async function renderMap(list, box, noteEl) {
 
   const latlngs = pts.map((p) => [p.lat, p.lng]);
   pts.forEach((p, i) => {
-    const mk = L.marker([p.lat, p.lng], { icon: L.divIcon({ className: 'gg-marker', html: '📍', iconSize: [24, 24], iconAnchor: [12, 24] }) }).addTo(map);
+    const mk = L.marker([p.lat, p.lng], { icon: L.divIcon({ className: 'gg-marker', html: ggPinSvg(), iconSize: [28, 28], iconAnchor: [14, 27] }) }).addTo(map);
     mk.bindPopup(`<b>${esc(p.date)} ${fmtTime(p.ts)}</b> ${esc(p.title)}<br>${esc(p.name)}`);
     mk.on('click', () => map.setView([p.lat, p.lng], Math.max(map.getZoom(), 12)));
   });

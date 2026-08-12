@@ -238,6 +238,11 @@ body {
   overflow: hidden;
 }
 
+/* 移动端地图降高:40vh 自适应(≤600px),桌面保持 320px;打印页单独 400px */
+@media (max-width: 600px) {
+  .album-map { height: 40vh; min-height: 200px; max-height: 320px; }
+}
+
 .album-map .leaflet-container { font: inherit; }
 
 .empty { color: var(--text-soft); font-size: 0.9rem; }

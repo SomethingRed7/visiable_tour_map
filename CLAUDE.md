@@ -8,10 +8,10 @@ This file provides guidance to Claude Code (and other coding agents) when workin
 - 用户数据(真实日记)勿删;测试条目用完即清
 
 
-## grill 使用规范
+## grill-me 使用规范
 - **一次仅问一个问题**
 - 歧义问题必须问清楚
-- grill会话完成以后，提示用户调用 /to-spec 归档
+- grilling 会话完成以后，提示用户调用 /to-spec 归档
 
 ## Project overview
 
