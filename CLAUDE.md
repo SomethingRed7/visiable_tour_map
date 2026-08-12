@@ -18,9 +18,9 @@ This file provides guidance to Claude Code (and other coding agents) when workin
 通用旅行日记 portal「咕咕嘎嘎」:纯静态前端 + Cloudflare Pages Functions(R2 存照片、D1 存条目),上传即时可见零重建。用户自行网页上传,公开查看,家人随时可看。仓库 `SomethingRed7/visiable_tour_map`(**private**)。线上 https://gugugaga-viw.pages.dev/。
 
 - 架构/运维/数据维护:见 skill `tour-map-site`(权威);Cloudflare 平台细节见 skill `cloudflare-pages`
-- 本仓库实现:前端 `public/`(index.html 门户 / write-6e1645f2.html 写日记页 / export.html 导出分享页)+ `functions/`(API)+ `wrangler.toml`(D1/R2 绑定 + `[vars] DELETE_PASS`)+ `schema.sql`(D1 建表)
+- 本仓库实现:前端 `public/`(index.html 门户 / write.html 写日记页 / export.html 导出分享页)+ `functions/`(API)+ `wrangler.toml`(D1/R2 绑定 + `[vars]` USERS/SESSION_SECRET)+ `schema.sql`(D1 建表,含 users 表)+ `public/_redirects`(旧写日记链 301)
 - 数据模型:{date, ts, title, text, album, author(球|小红), location{name,lat,lng,display}, photos[], photo_hashes[], created_at};照片存 R2(路径不带 photos/ 前缀),条目存 D1(强一致)
-- 权限:上传无口令(隐秘 URL 保护);编辑/删除需 4 位 PIN(2026,wrangler.toml [vars])
+- 权限:写日记页(/write)需登录,白名单「球」「小红」(无注册);首次登录凭一次性设置码设密码;上传/编辑/删除走会话认证(author=登录者,无 PIN)
 - 开发循环:`npm run dev`(wrangler pages dev public,本地 miniflare 模拟 D1/R2)/ `npm run deploy`;测试接缝=API 契约(curl),部署后等 ~60s 传播期再验收
 - 关键经验:条目存储用 D1 不用 KV(最终一致性);删除/编辑按条目内嵌 ts 定位;国内网络 OSM/Nominatim/OSRM 直连不可达 → 走 CF 边缘代理(functions 内已实现,失败回退);照片删除不可逆,误删 D1 行可从遗留 KV 备份恢复;github.com 间歇被墙 → push 失败用后台循环重试
 
