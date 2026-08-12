@@ -264,9 +264,9 @@ body {
   overflow: hidden;
 }
 
-/* 移动端地图降高:40vh 自适应(≤600px),桌面保持 320px;打印页单独 400px */
+/* 移动端地图扁化:16:9 宽高比(≤600px),窄屏下限 180px;桌面保持 320px;打印页单独 400px */
 @media (max-width: 600px) {
-  .album-map { height: 40vh; min-height: 200px; max-height: 320px; }
+  .album-map { height: auto; aspect-ratio: 16 / 9; min-height: 180px; max-height: 320px; }
 }
 
 .album-map .leaflet-container { font: inherit; }
