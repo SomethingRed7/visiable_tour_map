@@ -676,13 +676,25 @@ function entryCardHtml(e) {
   const locTag = e.location && e.location.name ? `<span class="loc-tag">📍 ${esc(e.location.name)}</span>` : '';
   const timeTag = entryTs(e) ? `<span class="time-tag">${fmtTime(entryTs(e))}</span>` : '';
   const visTag = e.visibility === 'private' ? '<span class="vis-tag">私有</span>' : '';
-  const photos = (e.photos || []).map((p) => `<img src="${thumbUrl(p)}" data-full="${p}" alt="照片" loading="lazy" onerror="if(this.src!==this.dataset.full){this.src=this.dataset.full}else{this.style.display='none'}">`).join('');
+  const photos = (e.photos || []).map((p) => `<img src="${thumbUrl(p)}" data-full="${p}" alt="照片" loading="lazy">`).join('');
   return `<article class="entry preview-entry">
     <div class="entry-meta">${timeTag}${authorTag}${visTag}${e.album ? `<span class="album-tag">${esc(e.album)}</span>` : ''}${locTag}</div>
     ${e.title ? `<h3 class="entry-title">${esc(e.title)}</h3>` : ''}
     ${e.text ? `<div class="entry-text">${esc(e.text).replace(/\n/g, '<br>')}</div>` : ''}
     ${photos ? `<div class="photo-grid">${photos}</div>` : ''}
   </article>`;
+}
+
+// 照片兜底:缩略图 404 → 回退全图;全图也挂 → 隐藏(CSP 禁内联 onerror,必须 addEventListener)
+function bindPhotoGridFallback(container) {
+  container.querySelectorAll('.photo-grid img').forEach((img) => {
+    const fb = () => {
+      if (img.src !== img.dataset.full) img.src = img.dataset.full;
+      else img.style.display = 'none';
+    };
+    img.addEventListener('error', fb);
+    if (img.complete && img.naturalWidth === 0) fb();
+  });
 }
 
 async function renderRecent() {
@@ -703,6 +715,7 @@ async function renderRecent() {
           </span>
         </div>`).join('')
       : '<p class="empty">还没有条目</p>';
+    bindPhotoGridFallback(box);
     [...box.querySelectorAll('.btn-prev')].forEach((b) => b.addEventListener('click', () => openPreview(b.dataset.date, b.dataset.ts)));
     [...box.querySelectorAll('.btn-edit')].forEach((b) => b.addEventListener('click', () => enterEdit(b.dataset.date, b.dataset.ts)));
     [...box.querySelectorAll('.btn-del')].forEach((b) => b.addEventListener('click', () => askDelete(b)));
@@ -730,6 +743,7 @@ async function openPreview(date, ts) {
   if (!e) return alert('条目不存在');
   $('#preview-body').innerHTML = `<div class="preview-date">${esc(e.date)}</div>` + entryCardHtml(e);
   $('#preview-modal').hidden = false;
+  bindPhotoGridFallback($('#preview-body'));
   $('#preview-body').querySelectorAll('.photo-grid img').forEach((img) => {
     img.addEventListener('click', () => window.open(img.dataset.full || img.src, '_blank'));
   });

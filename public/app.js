@@ -23,9 +23,22 @@ function thumbUrl(p) {
 function photoGridHtml(photos, altPrefix) {
   if (!photos || photos.length === 0) return '';
   const imgs = photos
-    .map((p, i) => `<img src="${thumbUrl(p)}" data-full="${p}" alt="${altPrefix} ${i + 1}" loading="lazy" onerror="if(this.src!==this.dataset.full){this.src=this.dataset.full}else{this.style.display='none'}">`)
+    .map((p, i) => `<img src="${thumbUrl(p)}" data-full="${p}" alt="${altPrefix} ${i + 1}" loading="lazy">`)
     .join('');
   return `<div class="photo-grid">${imgs}</div>`;
+}
+
+// 照片兜底:缩略图 404 → 回退全图;全图也挂 → 隐藏。
+// 必须 addEventListener 绑定(CSP script-src 无 unsafe-inline,内联 onerror 会被浏览器拒绝执行)
+function bindPhotoGridFallback(container) {
+  container.querySelectorAll('.photo-grid img').forEach((img) => {
+    const fb = () => {
+      if (img.src !== img.dataset.full) img.src = img.dataset.full;
+      else img.style.display = 'none';
+    };
+    img.addEventListener('error', fb);
+    if (img.complete && img.naturalWidth === 0) fb(); // 已 404 过(innerHTML 重建后)
+  });
 }
 
 function fmtTime(ts) {
@@ -161,6 +174,7 @@ function selectDate(ds) {
   $('#day-entries').innerHTML = dayEntries.length
     ? dayEntries.map(entryCard).join('')
     : '<p class="empty">当日无事发生</p>';
+  bindPhotoGridFallback($('#day-entries'));
   renderDayNote(ds);
   renderDayTodos(ds);
 }
@@ -410,6 +424,7 @@ async function renderStream() {
     .map((e) => `<article class="entry stream-entry"><div class="stream-date">${esc(e.date)}</div>${entryCard(e)}</article>`)
     .join('')
     || '<p class="empty">还没有日记 ✏️</p>';
+  bindPhotoGridFallback($('#stream'));
   // 地图仅在选中专辑时显示
   if (activeAlbum) await renderAlbumMap(list);
   else $('#album-map').style.display = 'none';
