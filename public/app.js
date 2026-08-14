@@ -536,7 +536,7 @@ async function handleCkinFiles(ev) {
   if (ckinFulls.length >= 9 && add) add.remove();
 }
 
-async function submitCheckin(mode) {
+async function submitCheckin() {
   const t = ckinTodo;
   const ds = ckinDs;
   if (!t) return;
@@ -545,12 +545,10 @@ async function submitCheckin(mode) {
   const album = $('#ckin-album').value.trim();
   const vis = $('#ckin-vis').value === 'private' ? 'private' : 'public';
   const st = $('#ckin-status');
-  if (mode === 'save' && !note && !location && ckinFulls.length === 0 && !album && vis === 'public') {
-    st.textContent = '没有内容,点「直接打卡」即可';
-    return;
-  }
   st.textContent = '提交中…';
-  const r = await toggleTodo(t.id, ds, { note, location, album, vis, lat: ckinLat, lng: ckinLng, fulls: ckinFulls, thumbs: ckinThumbs });
+  // 无内容(公开+空)→ 仅勾选完成;有内容 → 生成打卡记录
+  const hasContent = Boolean(note || location || ckinFulls.length || album || vis === 'private');
+  const r = await toggleTodo(t.id, ds, hasContent ? { note, location, album, vis, lat: ckinLat, lng: ckinLng, fulls: ckinFulls, thumbs: ckinThumbs } : {});
   if (r.ok) closeCheckinModal();
   else st.textContent = r.error || '打卡失败';
 }
@@ -911,9 +909,7 @@ async function init() {
   await loadEntries();
   setupLightbox();
   // 打卡弹窗按钮(静态元素,只绑一次)
-  $('#ckin-cancel').addEventListener('click', closeCheckinModal);
-  $('#ckin-quick').addEventListener('click', () => submitCheckin('quick'));
-  $('#ckin-save').addEventListener('click', () => submitCheckin('save'));
+  $('#ckin-save').addEventListener('click', () => submitCheckin());
   $('#ckin-locate').addEventListener('click', locateCheckin);
   // 点击阴影区关闭(e.target 是遮罩本身,弹窗内部点击不触发)
   $('#ckin-modal').addEventListener('click', (e) => {
