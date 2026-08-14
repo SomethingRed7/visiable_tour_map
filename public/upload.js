@@ -664,7 +664,9 @@ async function locateCurrent() {
     })();
     st.textContent = '已定位,确认后点「确定选这个点」';
   };
-  const fail = () => st.textContent = '定位失败:检查位置权限/系统定位后重试,或直接搜索/点地图选';
+  const fail = () => st.textContent = /MicroMessenger/i.test(navigator.userAgent)
+    ? '微信内无法定位,请点右上角 ⋯ 选「在浏览器打开」后重试,或直接搜索/点地图选'
+    : '定位失败:检查位置权限/系统定位后重试,或直接搜索/点地图选';
 
   const pos = await getPositionWithFallback();
   if (pos) done(pos.lat, pos.lng);

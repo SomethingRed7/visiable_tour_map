@@ -626,13 +626,36 @@ async function firstCkinSuccess(promises) {
   }
   return null;
 }
+// 微信内置浏览器判定:微信 WebView 禁用 H5 geolocation(高德定位也依赖它)→ 定位必然失败
+function isWechatBrowser() {
+  return /MicroMessenger/i.test(navigator.userAgent);
+}
+// 定位失败原因探测:Chrome 拒绝过权限后 getCurrentPosition 直接失败不再弹框,
+// 用 permissions.query 区分「被拒/待授权」给出精确指引
+async function geolocDeniedReason() {
+  try {
+    if (navigator.permissions && navigator.permissions.query) {
+      const st = await navigator.permissions.query({ name: 'geolocation' });
+      if (st.state === 'denied') return 'denied';
+      if (st.state === 'prompt') return 'prompt';
+    }
+  } catch { /* 老浏览器无 permissions API */ }
+  return 'unknown';
+}
 function locateCheckin() {
   const st = $('#ckin-status');
   const input = $('#ckin-loc');
   st.textContent = '定位中…';
   ckinGetPosition().then(async (pos) => {
     if (!pos) {
-      st.textContent = '定位失败:请允许位置权限后重试,或手动输入地点';
+      if (isWechatBrowser()) {
+        st.textContent = '微信内无法定位,请点右上角 ⋯ 选「在浏览器打开」后重试';
+      } else {
+        const denied = await geolocDeniedReason();
+        st.textContent = denied === 'denied'
+          ? '定位被拒绝:点地址栏左侧图标 → 网站设置 → 允许位置,再试'
+          : '定位失败:请允许位置权限后重试,或手动输入地点';
+      }
       ckinLat = null;
       ckinLng = null;
       return;
