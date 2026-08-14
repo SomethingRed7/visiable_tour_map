@@ -816,6 +816,10 @@ function bindPhotoGridFallback(container) {
     };
     img.addEventListener('error', fb);
     if (img.complete && img.naturalWidth === 0) fb();
+    // 横图(宽>高)加 landscape 类 → 单列占满整行(竖图保持双列)
+    const mark = () => { if (img.naturalWidth > img.naturalHeight) img.classList.add('landscape'); };
+    if (img.complete) mark();
+    else img.addEventListener('load', mark);
   });
 }
 

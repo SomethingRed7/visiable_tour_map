@@ -568,6 +568,9 @@ body {
   margin-top: 10px;
 }
 
+/* 横图(宽>高)单列占满整行,竖图保持双列;混合时横图独占一行 */
+.photo-grid img.landscape { grid-column: 1 / -1; }
+
 /* 照片按原图比例缩放,不裁切(长图/截图完整可见;曾用固定 4:3 cover 导致车票等竖长图糊) */
 .photo-grid img {
   width: 100%;
