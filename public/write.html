@@ -143,7 +143,10 @@
 
         <label>
           照片
-          <input type="file" id="f-photos" accept="image/*" multiple>
+          <div class="ckin-photos" id="photo-area">
+            <label class="ckin-add" for="f-photos">+ 照片</label>
+            <input type="file" id="f-photos" accept="image/*" multiple hidden>
+          </div>
         </label>
 
         <div id="edit-photos" class="edit-photos" hidden></div>

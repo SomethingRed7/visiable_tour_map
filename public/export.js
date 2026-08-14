@@ -7,6 +7,12 @@ function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+/* 地点名截短:只显示第一段短名(如「杭州东站」,忽略完整地址逗号串) */
+function shortLoc(name) {
+  const s = String(name || '').split(/[,，]/)[0].trim();
+  return (s || String(name || '')).slice(0, 30);
+}
+
 function thumbUrl(p) { return p.replace(/\.(jpg|jpeg|png)$/i, '-thumb.$1'); }
 
 function fmt(d) {
@@ -170,7 +176,7 @@ async function renderExport() {
       ${e.author ? `<span class="author-tag${e.author === '小红' ? ' rose' : ''}">${esc(e.author)}</span>` : ''}
       ${e.visibility === 'private' ? '<span class="vis-tag">私有</span>' : ''}
       ${e.album ? `<span class="album-tag">${esc(e.album)}</span>` : ''}
-      ${e.location && e.location.name ? `<span class="loc-tag">📍 ${esc(e.location.name)}</span>` : ''}
+      ${e.location && e.location.name ? `<span class="loc-tag">📍 ${esc(shortLoc(e.location.name))}</span>` : ''}
     </div>
     ${e.title ? `<h3 class="entry-title">${esc(e.title)}</h3>` : ''}
     ${e.text ? `<div class="entry-text">${esc(e.text).replace(/\n/g, '<br>')}</div>` : ''}

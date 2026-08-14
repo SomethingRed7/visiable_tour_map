@@ -3,6 +3,13 @@
 // 否则回退 Nominatim(反查)+ Overpass(nearby)——两者都是 OSM 数据,与高德瓦片不一致
 const UA = 'gugugaga-travel-diary/1.0 (personal use)';
 
+// 地点名截短:Nominatim 返回完整地址(逗号串),只保留第一段短名(如「杭州东站」)
+function shortName(display) {
+  const first = String(display || '').split(/[,，]/)[0].trim();
+  if (first) return first.slice(0, 40);
+  return String(display || '').slice(0, 40);
+}
+
 async function amapRegeo(env, lat, lng) {
   const key = env.AMAP_WEB_KEY || '';
   if (!key) return null;
@@ -81,7 +88,7 @@ export async function onRequestGet(context) {
       let name = '自定义位置';
       if (revSettled.status === 'fulfilled' && revSettled.value.ok) {
         const d = await revSettled.value.json();
-        if (d && d.display_name) name = d.display_name.slice(0, 80);
+        if (d && d.display_name) name = shortName(d.display_name);
       }
       const nearbyList = nearby.status === 'fulfilled' ? nearby.value : [];
       return Response.json({ results: [{ name, lat: parseFloat(lat), lng: parseFloat(lng), nearby: nearbyList }] });

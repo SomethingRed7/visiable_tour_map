@@ -87,12 +87,18 @@ function ggPinSvg() {
     + '<circle cx="12" cy="10" r="3.1" fill="#fff"/></svg>';
 }
 
+/* 地点名截短:只显示第一段短名(如「杭州东站」,忽略完整地址逗号串) */
+function shortLoc(name) {
+  const s = String(name || '').split(/[,，]/)[0].trim();
+  return (s || String(name || '')).slice(0, 30);
+}
+
 function entryCard(e) {
   const authorTag = e.author
     ? `<span class="author-tag${e.author === '小红' ? ' rose' : ''}">${esc(e.author)}</span>`
     : '';
   const locTag = e.location && e.location.name
-    ? `<span class="loc-tag">📍 ${esc(e.location.name)}</span>`
+    ? `<span class="loc-tag">📍 ${esc(shortLoc(e.location.name))}</span>`
     : '';
   const timeTag = e.ts ? `<span class="time-tag">${fmtTime(e.ts)}</span>` : '';
   const visTag = e.visibility === 'private' ? '<span class="vis-tag">私有</span>' : '';
@@ -224,7 +230,7 @@ function renderDayTodos(ds) {
         const extra = ck
           ? `<div class="ckin-extra">${
               (ck.photos || []).slice(0, 9).map((p) => `<img src="${thumbUrl(p)}" data-full="${p}" alt="打卡照片" loading="lazy" draggable="false">`).join('')
-            }${ck.location && ck.location.name ? `<span class="ckin-loc">📍 ${esc(ck.location.name)}</span>` : ''}</div>`
+            }${ck.location && ck.location.name ? `<span class="ckin-loc">📍 ${esc(shortLoc(ck.location.name))}</span>` : ''}</div>`
           : '';
         return `
       <div class="todo-item${t.done ? ' done' : ''}" data-id="${t.id}" draggable="true">

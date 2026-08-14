@@ -350,8 +350,8 @@ body {
 }
 .ckin-extra img {
   width: 56px;
-  height: 56px;
-  object-fit: cover;
+  height: auto;
+  max-height: 112px;
   border-radius: 8px;
   cursor: zoom-in;
 }
@@ -398,8 +398,8 @@ body {
 }
 .ckin-photos img {
   width: 64px;
-  height: 64px;
-  object-fit: cover;
+  height: auto;
+  max-height: 128px;
   border-radius: 8px;
 }
 .ckin-actions { display: flex; gap: 8px; justify-content: flex-end; }
@@ -567,10 +567,10 @@ body {
   margin-top: 10px;
 }
 
+/* 照片按原图比例缩放,不裁切(长图/截图完整可见;曾用固定 4:3 cover 导致车票等竖长图糊) */
 .photo-grid img {
   width: 100%;
-  aspect-ratio: 4 / 3;
-  object-fit: cover;
+  height: auto;
   border-radius: 8px;
   cursor: zoom-in;
   box-shadow: var(--shadow);
@@ -642,11 +642,11 @@ body {
   color: var(--text-soft);
 }
 
-/* 与打卡弹窗一致:方形缩略图 */
+/* 与打卡弹窗一致:按原比例缩略图,不裁切 */
 .preview-item img {
   width: 64px;
-  height: 64px;
-  object-fit: cover;
+  height: auto;
+  max-height: 128px;
   border-radius: 8px;
 }
 
@@ -906,9 +906,10 @@ body {
 
 .edit-photo img {
   width: 100%;
-  aspect-ratio: 4 / 3;
-  object-fit: cover;
+  height: auto;
+  max-height: 200px;
   display: block;
+  border-radius: 8px;
 }
 
 .edit-photo.removed { opacity: 0.45; }

@@ -774,9 +774,15 @@ function fmtTime(ts) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+/* 地点名截短:只显示第一段短名(如「杭州东站」,忽略完整地址逗号串) */
+function shortLoc(name) {
+  const s = String(name || '').split(/[,，]/)[0].trim();
+  return (s || String(name || '')).slice(0, 30);
+}
+
 function entryCardHtml(e) {
   const authorTag = e.author ? `<span class="author-tag${e.author === '小红' ? ' rose' : ''}">${esc(e.author)}</span>` : '';
-  const locTag = e.location && e.location.name ? `<span class="loc-tag">📍 ${esc(e.location.name)}</span>` : '';
+  const locTag = e.location && e.location.name ? `<span class="loc-tag">📍 ${esc(shortLoc(e.location.name))}</span>` : '';
   const timeTag = entryTs(e) ? `<span class="time-tag">${fmtTime(entryTs(e))}</span>` : '';
   const visTag = e.visibility === 'private' ? '<span class="vis-tag">私有</span>' : '';
   const photos = (e.photos || []).map((p) => `<img src="${thumbUrl(p)}" data-full="${p}" alt="照片" loading="lazy">`).join('');
@@ -1018,34 +1024,20 @@ function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-/* ---------- 记住上次选择(快速打卡) ---------- */
+/* ---------- 记住上次选择(仅专辑;地点不再自动恢复,避免自动定位失败时残留旧地点误导) ---------- */
 const LS_ALBUM = 'gg_album';
-const LS_LOC_NAME = 'gg_loc_name';
-const LS_LOC_LAT = 'gg_loc_lat';
-const LS_LOC_LNG = 'gg_loc_lng';
+// 地点不再记住/恢复:进入界面一律走自动定位,失败留空由用户手动选(2026-08-14 用户反馈)
 
 function applyDefaults() {
   $('#f-album').value = localStorage.getItem(LS_ALBUM) || '';
-  const loc = localStorage.getItem(LS_LOC_NAME);
-  if (loc) {
-    $('#f-location').value = loc;
-    $('#f-lat').value = localStorage.getItem(LS_LOC_LAT) || '';
-    $('#f-lng').value = localStorage.getItem(LS_LOC_LNG) || '';
-  }
 }
 
 function rememberDefaults() {
   localStorage.setItem(LS_ALBUM, $('#f-album').value.trim() || '');
-  const loc = $('#f-location').value.trim();
-  if (loc) {
-    localStorage.setItem(LS_LOC_NAME, loc);
-    localStorage.setItem(LS_LOC_LAT, $('#f-lat').value);
-    localStorage.setItem(LS_LOC_LNG, $('#f-lng').value);
-  } else {
-    localStorage.removeItem(LS_LOC_NAME);
-    localStorage.removeItem(LS_LOC_LAT);
-    localStorage.removeItem(LS_LOC_LNG);
-  }
+  // 旧版残留的地点键清掉,防历史数据回灌
+  localStorage.removeItem('gg_loc_name');
+  localStorage.removeItem('gg_loc_lat');
+  localStorage.removeItem('gg_loc_lng');
 }
 
 /* 默认日期 = 今天;先探测登录态,再初始化编辑器数据 */
