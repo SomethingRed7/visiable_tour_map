@@ -26,6 +26,7 @@ export async function onRequestPost(context) {
 
   const note = (form.get('note') || '').trim();
   const album = (form.get('album') || '').trim().slice(0, 50);
+  const visibility = form.get('visibility') === 'private' ? 'private' : 'public';
   const locationName = (form.get('location') || '').trim();
   const latRaw = parseFloat(form.get('lat'));
   const lngRaw = parseFloat(form.get('lng'));
@@ -66,7 +67,7 @@ export async function onRequestPost(context) {
         location,
         photos: photoPaths,
         photo_hashes: photoHashes,
-        visibility: 'private',
+        visibility,
         created_at: new Date().toISOString(),
       };
       await insertEntry(context.env, entry);

@@ -360,6 +360,7 @@ async function toggleTodo(id, ds, extra = {}) {
   fd.append('id', String(id));
   if (extra.note) fd.append('note', extra.note);
   if (extra.album) fd.append('album', extra.album);
+  if (extra.vis) fd.append('visibility', extra.vis);
   if (extra.location) fd.append('location', extra.location);
   if (extra.lat != null) fd.append('lat', String(extra.lat));
   if (extra.lng != null) fd.append('lng', String(extra.lng));
@@ -438,6 +439,7 @@ function openCheckinModal(t, ds) {
   ckinLng = null;
   $('#ckin-todo').textContent = `「${t.text}」`;
   loadCkinAlbums(); // 专辑下拉(已有专辑+新建)
+  $('#ckin-vis').value = 'public'; // 打卡默认公开,可改私有
   $('#ckin-note').value = '';
   $('#ckin-loc').value = '';
   $('#ckin-status').textContent = '';
@@ -541,13 +543,14 @@ async function submitCheckin(mode) {
   const note = $('#ckin-note').value.trim();
   const location = $('#ckin-loc').value.trim();
   const album = $('#ckin-album').value.trim();
+  const vis = $('#ckin-vis').value === 'private' ? 'private' : 'public';
   const st = $('#ckin-status');
-  if (mode === 'save' && !note && !location && ckinFulls.length === 0 && !album) {
+  if (mode === 'save' && !note && !location && ckinFulls.length === 0 && !album && vis === 'public') {
     st.textContent = '没有内容,点「直接打卡」即可';
     return;
   }
   st.textContent = '提交中…';
-  const r = await toggleTodo(t.id, ds, { note, location, album, lat: ckinLat, lng: ckinLng, fulls: ckinFulls, thumbs: ckinThumbs });
+  const r = await toggleTodo(t.id, ds, { note, location, album, vis, lat: ckinLat, lng: ckinLng, fulls: ckinFulls, thumbs: ckinThumbs });
   if (r.ok) closeCheckinModal();
   else st.textContent = r.error || '打卡失败';
 }
