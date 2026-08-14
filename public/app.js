@@ -223,7 +223,7 @@ function renderDayTodos(ds) {
           : null;
         const extra = ck
           ? `<div class="ckin-extra">${
-              (ck.photos || []).slice(0, 9).map((p) => `<img src="${thumbUrl(p)}" data-full="${p}" alt="打卡照片" loading="lazy">`).join('')
+              (ck.photos || []).slice(0, 9).map((p) => `<img src="${thumbUrl(p)}" data-full="${p}" alt="打卡照片" loading="lazy" draggable="false">`).join('')
             }${ck.location && ck.location.name ? `<span class="ckin-loc">📍 ${esc(ck.location.name)}</span>` : ''}</div>`
           : '';
         return `
@@ -507,30 +507,62 @@ function locateCheckin() {
 /* ---------- 待办拖拽排序(桌面 HTML5 DnD + 触屏长按) ---------- */
 function setupTodoDrag(box, ds) {
   let dragId = null;
-  // 桌面
-  box.querySelectorAll('.todo-item').forEach((el) => {
-    el.addEventListener('dragstart', (e) => {
-      dragId = Number(el.dataset.id);
-      el.classList.add('dragging');
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', String(dragId));
-    });
-    el.addEventListener('dragend', () => { el.classList.remove('dragging'); dragId = null; });
-    el.addEventListener('dragover', (e) => { e.preventDefault(); el.classList.add('drag-over'); });
-    el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
-    el.addEventListener('drop', (e) => {
-      e.preventDefault();
-      el.classList.remove('drag-over');
-      if (dragId && dragId !== Number(el.dataset.id)) commitTodoMove(ds, dragId, Number(el.dataset.id));
-      dragId = null;
-    });
+
+  // 按指针 Y 计算插入位置:返回 before_id(插到该 id 前面);null=末尾
+  function computeBeforeId(clientY) {
+    const items = [...box.querySelectorAll('.todo-item')].filter((el) => Number(el.dataset.id) !== dragId);
+    for (const s of items) {
+      const r = s.getBoundingClientRect();
+      if (clientY < r.top + r.height / 2) return Number(s.dataset.id);
+    }
+    return null;
+  }
+  function setOver(beforeId) {
+    box.querySelectorAll('.todo-item.drag-over').forEach((x) => x.classList.remove('drag-over'));
+    if (beforeId != null) {
+      const t = box.querySelector(`.todo-item[data-id="${beforeId}"]`);
+      if (t) t.classList.add('drag-over');
+    }
+  }
+
+  // 桌面:容器级 DnD —— 空隙/末尾都能放,按 Y 上下半决定插前/插后
+  box.addEventListener('dragstart', (e) => {
+    const el = e.target.closest('.todo-item');
+    if (!el) return;
+    dragId = Number(el.dataset.id);
+    el.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(dragId));
   });
-  // 触屏:长按 400ms 进入拖动,松手提交
+  box.addEventListener('dragover', (e) => {
+    if (dragId == null) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setOver(computeBeforeId(e.clientY));
+  });
+  box.addEventListener('drop', (e) => {
+    e.preventDefault();
+    if (dragId == null) return;
+    const id = dragId;
+    const beforeId = computeBeforeId(e.clientY);
+    setOver(null);
+    dragId = null;
+    commitTodoMove(ds, id, beforeId);
+  });
+  box.addEventListener('dragleave', (e) => {
+    if (!box.contains(e.relatedTarget)) setOver(null);
+  });
+  box.addEventListener('dragend', () => {
+    box.querySelectorAll('.todo-item').forEach((x) => x.classList.remove('dragging', 'drag-over'));
+    dragId = null;
+  });
+
+  // 触屏:长按 400ms 进入拖动,松手提交(拖动期间禁止滚动)
   let longPress = null;
   box.querySelectorAll('.todo-item').forEach((el) => {
     el.addEventListener('pointerdown', (e) => {
       if (e.pointerType === 'mouse') return; // 桌面走 HTML5 DnD
-      if (e.target.closest('.todo-del')) return;
+      if (e.target.closest('.todo-del') || e.target.closest('.todo-edit')) return;
       clearTimeout(longPress);
       longPress = setTimeout(() => {
         dragId = Number(el.dataset.id);
@@ -538,31 +570,22 @@ function setupTodoDrag(box, ds) {
         ckinDragJustDone = true; // 拖动结束后吞掉 click
       }, 400);
       const onMove = (ev) => {
-        if (!dragId) return;
-        const siblings = [...box.querySelectorAll('.todo-item:not(.dragging)')];
-        box.querySelectorAll('.todo-item.drag-over').forEach((x) => x.classList.remove('drag-over'));
-        for (const s of siblings) {
-          const r = s.getBoundingClientRect();
-          if (ev.clientY < r.top + r.height / 2) { s.classList.add('drag-over'); break; }
-        }
+        if (dragId == null) return;
+        setOver(computeBeforeId(ev.clientY));
       };
       const onUp = (ev) => {
         clearTimeout(longPress);
         el.removeEventListener('pointermove', onMove);
         el.removeEventListener('pointerup', onUp);
         el.removeEventListener('pointercancel', onUp);
-        if (!dragId) return;
-        const siblings = [...box.querySelectorAll('.todo-item:not(.dragging)')];
-        let beforeId = null;
-        for (const s of siblings) {
-          const r = s.getBoundingClientRect();
-          if (ev.clientY < r.top + r.height / 2) { beforeId = Number(s.dataset.id); break; }
-        }
-        const movedId = dragId;
+        if (dragId == null) return;
+        const id = dragId;
+        const beforeId = computeBeforeId(ev.clientY);
+        setOver(null);
         dragId = null;
         el.classList.remove('dragging');
-        box.querySelectorAll('.todo-item.drag-over').forEach((x) => x.classList.remove('drag-over'));
-        commitTodoMove(ds, movedId, beforeId);
+        commitTodoMove(ds, id, beforeId);
+        setTimeout(() => { ckinDragJustDone = false; }, 350); // 兜底清残留,防吞掉之后正常点击
       };
       el.addEventListener('pointermove', onMove);
       el.addEventListener('pointerup', onUp);

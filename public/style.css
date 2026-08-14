@@ -337,7 +337,7 @@ body {
 
 /* ---------- 打卡:展开区 / 拖拽 / 弹窗 ---------- */
 .todo-item[draggable="true"] { cursor: grab; }
-.todo-item.dragging { opacity: 0.4; }
+.todo-item.dragging { opacity: 0.4; touch-action: none; -webkit-user-select: none; user-select: none; }
 .todo-item.drag-over { outline: 2px dashed var(--brand, #e11d48); }
 .ckin-extra {
   display: flex;
