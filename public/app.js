@@ -265,6 +265,7 @@ function renderDayTodos(ds) {
         <span class="todo-check">${t.done ? '✅' : '○'}</span>
         <span class="todo-text">${esc(t.text)}</span>
         ${extra}
+        <button type="button" class="todo-edit" data-id="${t.id}" aria-label="编辑">✎</button>
         <button type="button" class="todo-del" data-id="${t.id}" aria-label="删除">✕</button>
       </div>`;
       }).join('')
@@ -291,6 +292,12 @@ function renderDayTodos(ds) {
   });
   box.querySelectorAll('.todo-del').forEach((b) => {
     b.addEventListener('click', () => deleteTodo(Number(b.dataset.id), ds));
+  });
+  box.querySelectorAll('.todo-edit').forEach((b) => {
+    b.addEventListener('click', (ev) => {
+      ev.stopPropagation(); // 不触发勾选/打卡弹窗
+      enterEditTodo(b, Number(b.dataset.id), ds);
+    });
   });
   const form = box.querySelector('.todo-add');
   form.addEventListener('submit', async (ev) => {
@@ -324,11 +331,57 @@ async function deleteTodo(id, ds) {
   } catch { /* 忽略 */ }
 }
 
+// 内联编辑待办文本(Enter 保存 / Esc 取消 / 点保存按钮)
+function enterEditTodo(btn, id, ds) {
+  const item = btn.closest('.todo-item');
+  if (!item) return;
+  const textEl = item.querySelector('.todo-text');
+  const input = document.createElement('input');
+  input.className = 'todo-edit-input';
+  input.maxLength = 200;
+  input.value = textEl.textContent;
+  textEl.replaceWith(input);
+  const save = document.createElement('button');
+  save.type = 'button';
+  save.className = 'btn-small';
+  save.textContent = '保存';
+  save.addEventListener('click', async () => {
+    const v = input.value.trim();
+    if (!v) return;
+    const fd = new FormData();
+    fd.append('id', String(id));
+    fd.append('text', v);
+    try {
+      const res = await (await fetch('/api/todos/update', { method: 'POST', body: fd })).json();
+      if (res.ok && res.todo) {
+        const t = allTodos.find((x) => x.id === id);
+        if (t) t.text = res.todo.text;
+        renderDayTodos(ds);
+        renderCalendar();
+      } else if (res.error) {
+        input.placeholder = res.error;
+      }
+    } catch { /* 忽略 */ }
+  });
+  btn.replaceWith(save);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') save.click();
+    else if (e.key === 'Escape') renderDayTodos(ds);
+  });
+  input.addEventListener('blur', () => {
+    setTimeout(() => { if (document.contains(input)) renderDayTodos(ds); }, 150);
+  });
+  input.focus();
+  input.select();
+}
+
 async function toggleTodo(id, ds, extra = {}) {
   const fd = new FormData();
   fd.append('id', String(id));
   if (extra.note) fd.append('note', extra.note);
   if (extra.location) fd.append('location', extra.location);
+  if (extra.lat != null) fd.append('lat', String(extra.lat));
+  if (extra.lng != null) fd.append('lng', String(extra.lng));
   (extra.fulls || []).forEach((f) => fd.append('photo_full', f));
   (extra.thumbs || []).forEach((f) => fd.append('photo_thumb', f));
   try {
@@ -363,6 +416,8 @@ let ckinTodo = null;
 let ckinDs = null;
 let ckinFulls = [];
 let ckinThumbs = [];
+let ckinLat = null;  // 自动定位得到的坐标(随保存提交,服务端直存不再 geocode)
+let ckinLng = null;
 let ckinDragJustDone = false; // 触屏拖拽结束后吞掉紧随的 click
 
 function compressImage(file, maxLen, quality) {
@@ -398,6 +453,8 @@ function openCheckinModal(t, ds) {
   ckinDs = ds;
   ckinFulls = [];
   ckinThumbs = [];
+  ckinLat = null;
+  ckinLng = null;
   $('#ckin-todo').textContent = `「${t.text}」`;
   $('#ckin-note').value = '';
   $('#ckin-loc').value = '';
@@ -450,9 +507,35 @@ async function submitCheckin(mode) {
     return;
   }
   st.textContent = '提交中…';
-  const r = await toggleTodo(t.id, ds, { note, location, fulls: ckinFulls, thumbs: ckinThumbs });
+  const r = await toggleTodo(t.id, ds, { note, location, lat: ckinLat, lng: ckinLng, fulls: ckinFulls, thumbs: ckinThumbs });
   if (r.ok) closeCheckinModal();
   else st.textContent = r.error || '打卡失败';
+}
+
+// 自动定位:浏览器定位 → 服务端反查地名填入定位框(坐标随保存提交,服务端直存)
+function locateCheckin() {
+  const st = $('#ckin-status');
+  const input = $('#ckin-loc');
+  if (!navigator.geolocation) { st.textContent = '浏览器不支持定位'; return; }
+  st.textContent = '定位中…';
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
+    ckinLat = lat;
+    ckinLng = lng;
+    try {
+      const r = await (await fetch(`/api/reverse?lat=${lat}&lng=${lng}`)).json();
+      if (r && r.name) input.value = r.name.slice(0, 80);
+      else input.value = `${lat.toFixed(5)},${lng.toFixed(5)}`;
+    } catch {
+      input.value = `${lat.toFixed(5)},${lng.toFixed(5)}`;
+    }
+    st.textContent = '';
+  }, () => {
+    st.textContent = '定位失败,请允许位置权限后重试';
+    ckinLat = null;
+    ckinLng = null;
+  }, { timeout: 8000, maximumAge: 60000 });
 }
 
 /* ---------- 待办拖拽排序(桌面 HTML5 DnD + 触屏长按) ---------- */
@@ -688,6 +771,7 @@ async function init() {
   $('#ckin-cancel').addEventListener('click', closeCheckinModal);
   $('#ckin-quick').addEventListener('click', () => submitCheckin('quick'));
   $('#ckin-save').addEventListener('click', () => submitCheckin('save'));
+  $('#ckin-locate').addEventListener('click', locateCheckin);
   initCalendar();
   renderAlbums();
   renderStream();

@@ -59,7 +59,10 @@
         <label class="ckin-add" for="ckin-files">+ 照片(可选,≤9 张)</label>
         <input type="file" id="ckin-files" accept="image/*" multiple hidden>
       </div>
-      <input id="ckin-loc" maxlength="80" placeholder="定位(可选,如:橘子洲)">
+      <div class="ckin-loc-row">
+        <input id="ckin-loc" maxlength="80" placeholder="定位(可选,如:橘子洲)">
+        <button type="button" id="ckin-locate" class="btn-small" title="自动定位">📍 定位</button>
+      </div>
       <div class="ckin-actions">
         <button type="button" id="ckin-cancel" class="btn-small">取消</button>
         <button type="button" id="ckin-quick" class="btn-small">直接打卡</button>

@@ -396,6 +396,27 @@ body {
   border-radius: 8px;
 }
 .ckin-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.ckin-loc-row { display: flex; gap: 6px; margin-bottom: 8px; }
+.ckin-loc-row input { flex: 1; margin-bottom: 0; }
+.ckin-loc-row .btn-small { flex-shrink: 0; }
+.todo-edit {
+  background: none;
+  border: none;
+  color: var(--text-soft);
+  cursor: pointer;
+  padding: 0 4px;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+.todo-edit-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 0.9rem;
+  font-family: inherit;
+}
 
 /* 当天速记 */
 .note-hint {
