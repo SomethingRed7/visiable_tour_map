@@ -13,6 +13,10 @@
 
 * { box-sizing: border-box; }
 
+/* 移动端防横向溢出:grid/flex 子项默认 min-width:auto 会被内容撑宽导致整页可左右滚动(Chrome 移动端表现为整体偏右) */
+html, body { overflow-x: hidden; }
+.layout, .layout > * { min-width: 0; }
+
 /* hidden 属性必须赢过任何 display 规则(如 .success-banner/.loc-panel 的 flex) */
 [hidden] { display: none !important; }
 
@@ -324,6 +328,7 @@ body {
 
 .todo-add input {
   flex: 1;
+  min-width: 0; /* flex 子项默认 min-width:auto 会按内容撑宽,窄屏溢出 */
   font: inherit;
   font-size: 0.9rem;
   padding: 8px 10px;
@@ -405,7 +410,7 @@ body {
 }
 .ckin-actions { display: flex; gap: 8px; justify-content: flex-end; }
 .ckin-loc-row { display: flex; gap: 6px; margin-bottom: 8px; }
-.ckin-loc-row input { flex: 1; margin-bottom: 0; }
+.ckin-loc-row input { flex: 1; min-width: 0; margin-bottom: 0; }
 .ckin-loc-row .btn-small { flex-shrink: 0; }
 .ckin-vis-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .ckin-vis-label { font-size: 0.9em; color: var(--text-soft); flex: 0 0 3.2em; }
@@ -748,7 +753,7 @@ body {
 .btn-small:active { opacity: 0.8; }
 
 .loc-row { display: flex; gap: 8px; }
-.loc-row input { flex: 1; }
+.loc-row input { flex: 1; min-width: 0; }
 
 /* 全屏选点器(搜索优先) */
 .loc-overlay {
@@ -792,6 +797,7 @@ body {
 
 .loc-search-row input {
   flex: 1;
+  min-width: 0;
   font: inherit;
   padding: 10px 12px;
   border: 1px solid var(--line);
