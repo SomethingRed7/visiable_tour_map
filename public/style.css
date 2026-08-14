@@ -606,7 +606,65 @@ body {
   flex-direction: column;
   gap: 16px;
   max-width: 640px;
+  position: relative; /* 日期弹层定位参照 */
 }
+
+/* ---------- 写日记页:日期选择弹层(替代原生 date input,跨端观感统一) ---------- */
+.date-picker {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + 6px);
+  left: 0;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 10px;
+  width: 272px;
+}
+.dp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+.dp-head button {
+  border: none;
+  background: none;
+  font-size: 1.1rem;
+  color: var(--text);
+  cursor: pointer;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+}
+.dp-head button:hover { background: #f3f4f6; }
+.dp-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  text-align: center;
+  color: var(--text-soft);
+  font-size: 0.78rem;
+  margin-bottom: 4px;
+}
+.dp-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.dp-day {
+  border: none;
+  background: none;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  font: inherit;
+  color: var(--text);
+  cursor: pointer;
+}
+.dp-day:hover { background: #f3f4f6; }
+.dp-day.today { border: 1px solid var(--brand); }
+.dp-day.selected { background: var(--brand); color: #fff; }
 
 .upload-form label {
   display: flex;

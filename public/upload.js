@@ -1057,6 +1057,55 @@ function rememberDefaults() {
   localStorage.removeItem('gg_loc_lng');
 }
 
+/* ---------- 日期选择弹层(替代原生 date input,跨端观感统一) ---------- */
+const dp = {
+  viewY: 0, viewM: 0, // 当前翻页所在的年月
+};
+function renderDatePicker() {
+  const grid = $('#dp-grid');
+  const first = new Date(dp.viewY, dp.viewM, 1);
+  const startWeekday = first.getDay(); // 0=周日
+  const daysInMonth = new Date(dp.viewY, dp.viewM + 1, 0).getDate();
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const cur = $('#f-date').value;
+  $('#dp-title').textContent = `${dp.viewY}年${dp.viewM + 1}月`;
+  let html = '';
+  for (let i = 0; i < startWeekday; i++) html += '<span></span>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ds = `${dp.viewY}-${String(dp.viewM + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const cls = ['dp-day', ds === todayStr ? 'today' : '', ds === cur ? 'selected' : ''].filter(Boolean).join(' ');
+    html += `<button type="button" class="${cls}" data-ds="${ds}">${d}</button>`;
+  }
+  grid.innerHTML = html;
+}
+function openDatePicker() {
+  if ($('#f-date').disabled) return; // 编辑态日期锁定,不弹
+  const cur = $('#f-date').value;
+  if (cur) {
+    const [y, m] = cur.split('-').map(Number);
+    dp.viewY = y; dp.viewM = m - 1;
+  } else {
+    const t = new Date();
+    dp.viewY = t.getFullYear(); dp.viewM = t.getMonth();
+  }
+  renderDatePicker();
+  $('#date-picker').hidden = false;
+}
+$('#f-date').addEventListener('click', openDatePicker);
+$('#dp-prev').addEventListener('click', (e) => { e.stopPropagation(); dp.viewM--; if (dp.viewM < 0) { dp.viewM = 11; dp.viewY--; } renderDatePicker(); });
+$('#dp-next').addEventListener('click', (e) => { e.stopPropagation(); dp.viewM++; if (dp.viewM > 11) { dp.viewM = 0; dp.viewY++; } renderDatePicker(); });
+$('#dp-grid').addEventListener('click', (e) => {
+  const b = e.target.closest('.dp-day');
+  if (!b) return;
+  $('#f-date').value = b.dataset.ds;
+  $('#date-picker').hidden = true;
+});
+document.addEventListener('click', (e) => {
+  const picker = $('#date-picker');
+  if (picker.hidden) return;
+  if (!picker.contains(e.target) && e.target.id !== 'f-date') picker.hidden = true;
+});
+
 /* 默认日期 = 今天;先探测登录态,再初始化编辑器数据 */
 $('#f-date').value = new Date().toISOString().slice(0, 10);
 applyDefaults();

@@ -80,7 +80,16 @@
         <h2 class="panel-heading">写日记</h2>
         <label>
           日期
-          <input type="date" id="f-date" required>
+          <input type="text" id="f-date" readonly placeholder="选择日期" required>
+          <div id="date-picker" class="date-picker" hidden>
+            <div class="dp-head">
+              <button type="button" id="dp-prev" aria-label="上月">‹</button>
+              <span id="dp-title"></span>
+              <button type="button" id="dp-next" aria-label="下月">›</button>
+            </div>
+            <div class="dp-weekdays">日 一 二 三 四 五 六</div>
+            <div id="dp-grid" class="dp-grid"></div>
+          </div>
         </label>
 
         <label>
