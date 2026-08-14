@@ -438,6 +438,33 @@ function closeCheckinModal() {
   ckinDs = null;
 }
 
+/* 键盘弹出时打卡框自动上移(visualViewport 高度变化),内容不被键盘遮挡可总览 */
+function bindCheckinKeyboard() {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  const modal = $('#ckin-modal');
+  const box = $('.ckin-box');
+  const apply = () => {
+    if (modal.hidden) return;
+    const visible = vv.height;
+    const layoutH = window.innerHeight;
+    const kb = layoutH - visible; // 键盘占用高度
+    if (kb > 80) {
+      // 键盘弹出:弹窗贴顶,高度=可视区-上下边距,内容可滚动查看
+      modal.style.alignItems = 'flex-start';
+      modal.style.paddingTop = '12px';
+      box.style.maxHeight = (visible - 24) + 'px';
+    } else {
+      modal.style.alignItems = '';
+      modal.style.paddingTop = '';
+      box.style.maxHeight = '';
+    }
+  };
+  vv.addEventListener('resize', apply);
+  vv.addEventListener('scroll', apply);
+}
+bindCheckinKeyboard();
+
 async function handleCkinFiles(ev) {
   const files = [...ev.target.files].slice(0, 9 - ckinFulls.length);
   const st = $('#ckin-status');
