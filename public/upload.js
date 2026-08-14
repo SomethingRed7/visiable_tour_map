@@ -313,11 +313,11 @@ $('#f-album').addEventListener('change', () => {
   }
 });
 
-/* 照片预览 */
+/* 照片预览(与打卡弹窗一致:方形缩略图,无文件名) */
 function renderPreview() {
   const files = [...$('#f-photos').files];
   $('#photo-preview').innerHTML = files
-    .map((f, i) => `<div class="preview-item"><img src="${URL.createObjectURL(f)}" alt="预览 ${i + 1}"><span>${f.name}</span></div>`)
+    .map((f, i) => `<div class="preview-item"><img src="${URL.createObjectURL(f)}" alt="预览 ${i + 1}"></div>`)
     .join('');
 }
 

@@ -629,9 +629,9 @@ body {
 .upload-form input[type="file"] { font-size: 0.88rem; }
 
 .photo-preview {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-  gap: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .preview-item {
@@ -642,9 +642,10 @@ body {
   color: var(--text-soft);
 }
 
+/* 与打卡弹窗一致:方形缩略图 */
 .preview-item img {
-  width: 100%;
-  aspect-ratio: 4 / 3;
+  width: 64px;
+  height: 64px;
   object-fit: cover;
   border-radius: 8px;
 }
