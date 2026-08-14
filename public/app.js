@@ -555,30 +555,115 @@ async function submitCheckin(mode) {
   else st.textContent = r.error || '打卡失败';
 }
 
-// 自动定位:浏览器定位 → 服务端反查地名填入定位框(坐标随保存提交,服务端直存)
+// 自动定位:高德 + 浏览器并行竞争,谁先成功用谁(浏览器源在手机/微信内置经常失败,
+// 高德 Geolocation 失败还有 IP 定位兜底)→ 定位成功率大幅提升
+let ckinAmapKey = '';
+let ckinAmapSec = '';
+let ckinAmapReadyP = null;
+async function ckinFetchConfig() {
+  try {
+    const res = await (await fetch('/api/config')).json();
+    ckinAmapKey = res.amap_key || '';
+    ckinAmapSec = res.amap_security_js_code || '';
+  } catch { ckinAmapKey = ''; ckinAmapSec = ''; }
+}
+function ckinLoadAmap() {
+  return new Promise((resolve) => {
+    if (window.AMap && window.AMap.Geolocation) return resolve(true);
+    const s = document.createElement('script');
+    s.src = `https://webapi.amap.com/maps?v=2.0&key=${ckinAmapKey}`;
+    s.onload = () => {
+      if (window.AMap && window.AMap.plugin) window.AMap.plugin(['AMap.Geolocation'], () => resolve(true));
+      else resolve(false);
+    };
+    s.onerror = () => resolve(false);
+    if (ckinAmapSec) window._AMapSecurityConfig = { securityJsCode: ckinAmapSec };
+    document.head.appendChild(s);
+  });
+}
+function ckinEnsureAmap() {
+  if (window.AMap && window.AMap.Geolocation) return Promise.resolve(true);
+  if (!ckinAmapKey) return Promise.resolve(false);
+  if (!ckinAmapReadyP) {
+    ckinAmapReadyP = ckinLoadAmap().catch(() => { ckinAmapReadyP = null; return false; });
+  }
+  return ckinAmapReadyP;
+}
+async function ckinGetPosition() {
+  await ckinFetchConfig();
+  const amapReady = await Promise.race([ckinEnsureAmap(), new Promise((r) => setTimeout(() => r(false), 6000))]);
+  const amapP = amapReady
+    ? new Promise((resolve) => {
+        try {
+          const gl = new AMap.Geolocation({ enableHighAccuracy: true, timeout: 10000 });
+          gl.getCurrentPosition((status, result) => {
+            if (status === 'complete' && result && result.position) {
+              resolve({ lat: result.position.getLat(), lng: result.position.getLng() });
+            } else {
+              // 高精度失败 → IP 定位兜底(城市中心)
+              try {
+                gl.getCityInfo((st2, r2) => {
+                  if (st2 === 'complete' && r2 && r2.center) {
+                    resolve({ lat: r2.center.getLat(), lng: r2.center.getLng(), ipFallback: true });
+                  } else resolve(null);
+                });
+              } catch { resolve(null); }
+            }
+          });
+        } catch { resolve(null); }
+      })
+    : Promise.resolve(null);
+  const browserP = navigator.geolocation
+    ? new Promise((resolve) => {
+        navigator.geolocation.getCurrentPosition(
+          // 浏览器定位 = WGS-84,转 GCJ-02(否则图钉偏)
+          (pos) => resolve(wgs2gcj(pos.coords.latitude, pos.coords.longitude)),
+          () => resolve(null),
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+        );
+      })
+    : Promise.resolve(null);
+  // 并行竞争:谁先成功用谁(高德 SDK 卡住不阻塞浏览器源)
+  return firstCkinSuccess([amapP, browserP]);
+}
+async function firstCkinSuccess(promises) {
+  const wrappers = promises.map((p, i) => p.then((v) => ({ i, v })));
+  const done = new Set();
+  while (done.size < wrappers.length) {
+    const remaining = wrappers.filter((_, i) => !done.has(i));
+    const { i, v } = await Promise.race(remaining);
+    done.add(i);
+    if (v) return v;
+  }
+  return null;
+}
 function locateCheckin() {
   const st = $('#ckin-status');
   const input = $('#ckin-loc');
-  if (!navigator.geolocation) { st.textContent = '浏览器不支持定位'; return; }
   st.textContent = '定位中…';
-  navigator.geolocation.getCurrentPosition(async (pos) => {
-    const lat = pos.coords.latitude;
-    const lng = pos.coords.longitude;
+  ckinGetPosition().then(async (pos) => {
+    if (!pos) {
+      st.textContent = '定位失败:请允许位置权限后重试,或手动输入地点';
+      ckinLat = null;
+      ckinLng = null;
+      return;
+    }
+    const lat = pos.lat;
+    const lng = pos.lng;
     ckinLat = lat;
     ckinLng = lng;
     try {
-      const r = await (await fetch(`/api/reverse?lat=${lat}&lng=${lng}`)).json();
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 8000);
+      const r = await (await fetch(`/api/reverse?lat=${lat}&lng=${lng}`, { signal: ctrl.signal })).json();
+      clearTimeout(timer);
       if (r && r.name) input.value = r.name.slice(0, 80);
       else input.value = `${lat.toFixed(5)},${lng.toFixed(5)}`;
     } catch {
       input.value = `${lat.toFixed(5)},${lng.toFixed(5)}`;
     }
     st.textContent = '';
-  }, () => {
-    st.textContent = '定位失败,请允许位置权限后重试';
-    ckinLat = null;
-    ckinLng = null;
-  }, { timeout: 8000, maximumAge: 60000 });
+  });
 }
 
 /* ---------- 待办拖拽排序(桌面 HTML5 DnD + 触屏长按) ---------- */
