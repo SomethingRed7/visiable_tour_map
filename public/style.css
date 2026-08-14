@@ -438,7 +438,7 @@ body {
   background: var(--card);
 }
 
-.entry-title { margin: 4px 0 4px; font-size: 1.08rem; }
+.entry-title { margin: 4px 0 4px; font-size: 1.08rem; font-weight: 700; }
 
 .entry-text {
   margin: 6px 0;

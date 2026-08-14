@@ -832,7 +832,7 @@ async function renderRecent() {
       .slice(0, 20);
     box.innerHTML = list.length
       ? list.map((e) => `<div class="recent-item">
-          <span class="recent-info">${esc(e.date)} <span class="time-tag">${fmtTime(entryTs(e))}</span> ${e.visibility === 'private' ? '<span class="vis-tag">私有</span>' : ''} ${esc(e.title || '')} · ${esc(e.author || '')}</span>
+          <span class="recent-info">${esc(e.date)} <span class="time-tag">${fmtTime(entryTs(e))}</span> ${e.visibility === 'private' ? '<span class="vis-tag">私有</span>' : ''} <b>${esc(e.title || '')}</b> · ${esc(e.author || '')}</span>
           <span class="recent-actions">
             <button type="button" class="btn-small btn-vis" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}" data-vis="${e.visibility === 'private' ? 'private' : 'public'}">${e.visibility === 'private' ? '改公开' : '改私有'}</button>
             <button type="button" class="btn-small btn-prev" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}">预览</button>
