@@ -959,7 +959,32 @@ body {
   .panel { box-shadow: none; border: 1px solid var(--line); page-break-inside: avoid; }
   .photo-grid img { max-height: 200px; }
   #ex-map { height: 400px; }
+  .ex-controls, .ex-login { display: none !important; }
 }
+
+/* ---------- 导出内容选择器/待办小节(export 页) ---------- */
+.ex-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: center;
+  font-size: 0.9rem;
+  margin-bottom: 12px;
+}
+.ex-controls label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.ex-hint { color: var(--text-soft); font-size: 0.8rem; }
+.ex-todos {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+  background: var(--card);
+}
+.ex-todos-title { font-weight: 600; margin-bottom: 4px; }
+.ex-todo { display: flex; gap: 6px; align-items: center; padding: 2px 0; }
+.ex-todo.done { color: var(--text-soft); text-decoration: line-through; }
+.ex-login { margin-bottom: 12px; font-size: 0.95rem; }
 
 /* ---------- 底部 ---------- */
 .site-footer {

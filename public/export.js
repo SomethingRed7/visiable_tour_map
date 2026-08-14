@@ -60,49 +60,126 @@ function ggPinSvg() {
     + '<circle cx="12" cy="10" r="3.1" fill="#fff"/></svg>';
 }
 
+/* 导出的数据与勾选状态(登录后加载) */
+let exFrom = '';
+let exTo = '';
+let exAllEntries = [];
+let exAllTodos = [];
+let exMapInstance = null;
+
 async function init() {
   const params = new URLSearchParams(location.search);
-  const from = params.get('from') || '';
-  const to = params.get('to') || '';
+  exFrom = params.get('from') || '';
+  exTo = params.get('to') || '';
   const valid = /^\d{4}-\d{2}-\d{2}$/;
   const box = $('#ex-overview');
   const mapBox = $('#ex-map');
 
-  if (!valid.test(from) || !valid.test(to) || from > to) {
+  // 登录门:导出含私有内容,未登录引导去登录(不渲染任何内容)
+  const auth = await (await fetch('/api/auth')).json();
+  if (!auth.user) {
+    $('#ex-login').hidden = false;
+    $('#ex-controls').hidden = true;
+    box.innerHTML = '';
+    mapBox.style.display = 'none';
+    return;
+  }
+  $('#ex-login').hidden = true;
+  $('#ex-controls').hidden = false;
+
+  if (!valid.test(exFrom) || !valid.test(exTo) || exFrom > exTo) {
     $('#ex-title').textContent = '参数不对';
     box.innerHTML = '<p class="empty">请在写日记页「导出行程」选择日期区间,或检查链接 ?from=YYYY-MM-DD&to=YYYY-MM-DD</p>';
     mapBox.style.display = 'none';
     return;
   }
 
-  $('#ex-subtitle').textContent = `${fmt(from)} ~ ${fmt(to)}`;
-  document.title = `行程总览 ${from} ~ ${to} · 咕咕嘎嘎`;
+  $('#ex-subtitle').textContent = `${fmt(exFrom)} ~ ${fmt(exTo)}`;
+  document.title = `行程总览 ${exFrom} ~ ${exTo} · 咕咕嘎嘎`;
 
-  const data = await (await fetch('/api/entries')).json();
-  const list = (data.entries || [])
-    .filter((e) => e.visibility !== 'private') // 导出页永远排除私有(链接给家人)
-    .filter((e) => e.date >= from && e.date <= to)
+  const [entriesData, todosData] = await Promise.all([
+    fetch('/api/entries').then((r) => r.json()),
+    fetch('/api/todos').then((r) => r.json()).catch(() => ({ todos: [] })),
+  ]);
+  exAllEntries = (entriesData.entries || []).filter((e) => e.date >= exFrom && e.date <= exTo);
+  exAllTodos = (todosData.todos || []).filter((t) => t.date >= exFrom && t.date <= exTo);
+
+  // 勾选变化即时重渲染
+  ['ck-public', 'ck-private', 'ck-todo', 'ck-checkin'].forEach((id) => {
+    document.getElementById(id).addEventListener('change', renderExport);
+  });
+  renderExport();
+}
+
+// 按勾选过滤条目:公开 / 私有(非打卡)/ 打卡(私有子集,需「私有」与「打卡」都勾)
+function filteredEntries() {
+  const showPublic = $('#ck-public').checked;
+  const showPrivate = $('#ck-private').checked;
+  const showCheckin = $('#ck-checkin').checked;
+  return exAllEntries
+    .filter((e) => {
+      if (e.visibility !== 'private') return showPublic;
+      const isCheckin = (e.title || '').startsWith('打卡:');
+      if (isCheckin) return showPrivate && showCheckin;
+      return showPrivate;
+    })
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (a.ts || 0) - (b.ts || 0)));
+}
 
-  if (!list.length) {
-    $('#ex-title').textContent = '这段时间还没有日记';
-    box.innerHTML = '<p class="empty">区间内没有条目,换个日期试试</p>';
+async function renderExport() {
+  const box = $('#ex-overview');
+  const mapBox = $('#ex-map');
+  const list = filteredEntries();
+  const showTodo = $('#ck-todo').checked;
+
+  if (!list.length && !(showTodo && exAllTodos.length)) {
+    $('#ex-title').textContent = '这段时间还没有内容';
+    box.innerHTML = '<p class="empty">所选区间与勾选条件下没有内容,换个日期或勾选试试</p>';
     mapBox.style.display = 'none';
     return;
   }
+  $('#ex-title').textContent = '行程总览';
 
-  box.innerHTML = list.map((e) => `<article class="entry">
+  // 按日期分组:条目 + 待办
+  const days = new Map();
+  for (const e of list) {
+    if (!days.has(e.date)) days.set(e.date, { entries: [], todos: [] });
+    days.get(e.date).entries.push(e);
+  }
+  if (showTodo) {
+    const todos = [...exAllTodos].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
+    for (const t of todos) {
+      if (!days.has(t.date)) days.set(t.date, { entries: [], todos: [] });
+      days.get(t.date).todos.push(t);
+    }
+  }
+
+  box.innerHTML = [...days.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .map(([date, { entries, todos }]) => {
+      const todoHtml = todos.length
+        ? `<div class="ex-todos"><div class="ex-todos-title">待办</div>${todos
+            .map((t) => `<div class="ex-todo${t.done ? ' done' : ''}"><span class="todo-check">${t.done ? '✅' : '○'}</span>${esc(t.text)}</div>`)
+            .join('')}</div>`
+        : '';
+      const entryHtml = entries
+        .map((e) => `<article class="entry">
     <div class="entry-meta">
       <span class="stream-date">${esc(e.date)}</span>
       ${e.ts ? `<span class="time-tag">${fmtTime(e.ts)}</span>` : ''}
       ${e.author ? `<span class="author-tag${e.author === '小红' ? ' rose' : ''}">${esc(e.author)}</span>` : ''}
+      ${e.visibility === 'private' ? '<span class="vis-tag">私有</span>' : ''}
       ${e.album ? `<span class="album-tag">${esc(e.album)}</span>` : ''}
       ${e.location && e.location.name ? `<span class="loc-tag">📍 ${esc(e.location.name)}</span>` : ''}
     </div>
     ${e.title ? `<h3 class="entry-title">${esc(e.title)}</h3>` : ''}
     ${e.text ? `<div class="entry-text">${esc(e.text).replace(/\n/g, '<br>')}</div>` : ''}
     ${(e.photos || []).length ? `<div class="photo-grid">${e.photos.map((p) => `<img src="${thumbUrl(p)}" data-full="${p}" alt="照片" loading="lazy">`).join('')}</div>` : ''}
-  </article>`).join('');
+  </article>`)
+        .join('');
+      return `<div class="ex-day">${todoHtml}${entryHtml}</div>`;
+    })
+    .join('');
 
   // 照片兜底:缩略图 404 → 回退全图;全图也挂 → 隐藏(CSP 禁内联 onerror,必须 addEventListener)
   box.querySelectorAll('.photo-grid img').forEach((img) => {
@@ -119,7 +196,7 @@ async function init() {
     img.addEventListener('click', () => window.open(img.dataset.full || img.src, '_blank'));
   });
 
-  // 地图路线:按日期连线
+  // 地图路线:与条目列表一致(仅含坐标的条目)
   await renderMap(list, mapBox, $('#ex-map-note'));
 }
 
@@ -134,6 +211,7 @@ async function renderMap(list, box, noteEl) {
   if (!pts.length) { box.style.display = 'none'; return; }
   box.style.display = 'block';
 
+  if (exMapInstance) { exMapInstance.remove(); exMapInstance = null; }
   try {
     if (!window.L) await loadLeaflet();
   } catch {
@@ -143,6 +221,7 @@ async function renderMap(list, box, noteEl) {
   }
 
   const map = L.map('ex-map', { scrollWheelZoom: false });
+  exMapInstance = map;
   L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
     maxZoom: 18,
     subdomains: ['1', '2', '3', '4'],

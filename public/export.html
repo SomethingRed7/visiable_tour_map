@@ -22,6 +22,17 @@
     <section class="panel">
       <h2 id="ex-title" class="panel-heading">行程总览</h2>
       <p id="ex-subtitle" class="manage-hint"></p>
+      <div id="ex-login" class="ex-login" hidden>
+        <p>导出包含私有内容(私有条目/待办/打卡),需要登录后才能使用。</p>
+        <a class="btn-write" href="/write">去登录</a>
+      </div>
+      <div id="ex-controls" class="ex-controls" hidden>
+        <label><input type="checkbox" id="ck-public" checked> 公开条目</label>
+        <label><input type="checkbox" id="ck-private" checked> 私有条目</label>
+        <label><input type="checkbox" id="ck-todo" checked> 待办</label>
+        <label><input type="checkbox" id="ck-checkin" checked> 打卡记录</label>
+        <span class="ex-hint">取消勾选的内容不导出</span>
+      </div>
       <div id="ex-overview" class="entries"></div>
     </section>
 
