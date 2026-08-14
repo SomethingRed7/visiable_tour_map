@@ -404,10 +404,13 @@ body {
   border: none;
   color: var(--text-soft);
   cursor: pointer;
-  padding: 0 4px;
+  padding: 2px 4px;
   font-size: 0.85rem;
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
 }
+.todo-edit:hover { color: var(--brand, #e11d48); }
 .todo-edit-input {
   flex: 1;
   min-width: 0;
