@@ -55,7 +55,7 @@ export async function onRequestPost(context) {
       const location = await resolveLocation(locationName, latRaw, lngRaw);
       const ts = Date.now();
       const photoPaths = await storePhotos(context.env, row.date, ts, fulls, thumbs);
-      await insertEntry(context.env, {
+      const entry = {
         date: row.date,
         ts,
         title: `打卡:${row.text}`,
@@ -67,8 +67,13 @@ export async function onRequestPost(context) {
         photo_hashes: photoHashes,
         visibility: 'private',
         created_at: new Date().toISOString(),
-      });
+      };
+      await insertEntry(context.env, entry);
       await context.env.DB.prepare('UPDATE todos SET done = 1, checkin_ts = ?1 WHERE id = ?2').bind(ts, id).run();
+      const todo = await context.env.DB
+        .prepare('SELECT id, date, text, done, sort_order, checkin_ts FROM todos WHERE id = ?1')
+        .bind(id).first();
+      return Response.json({ ok: true, todo, entry });
     } else {
       await context.env.DB.prepare('UPDATE todos SET done = 1 WHERE id = ?1').bind(id).run();
     }

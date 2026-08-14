@@ -166,6 +166,13 @@ function selectDate(ds) {
   renderAlbums();
   renderCalendar();
   renderStream(); // 专辑面板同步回占位态(否则残留上一次的专辑列表/地图)
+  renderDayEntries(ds);
+  renderDayNote(ds);
+  renderDayTodos(ds);
+}
+
+// 当天动态渲染(selectDate 与打卡后刷新共用)
+function renderDayEntries(ds) {
   const dayEntries = allEntries
     .filter((e) => e.date === ds)
     .sort((a, b) => ((a.created_at || '') < (b.created_at || '') ? -1 : 1));
@@ -175,8 +182,6 @@ function selectDate(ds) {
     ? dayEntries.map(entryCard).join('')
     : '<p class="empty">当日无事发生</p>';
   bindPhotoGridFallback($('#day-entries'));
-  renderDayNote(ds);
-  renderDayTodos(ds);
 }
 
 /* ---------- 当天速记(仅登录;与待办同区) ---------- */
@@ -241,15 +246,28 @@ function renderDayTodos(ds) {
   const box = $('#day-todos');
   if (!currentUser) { box.hidden = true; box.innerHTML = ''; return; }
   box.hidden = false;
-  const list = allTodos.filter((t) => t.date === ds);
+  const list = allTodos
+    .filter((t) => t.date === ds)
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.id - b.id);
   const done = list.filter((t) => t.done).length;
   const items = list.length
-    ? list.map((t) => `
-      <div class="todo-item${t.done ? ' done' : ''}" data-id="${t.id}">
+    ? list.map((t) => {
+        const ck = t.done && t.checkin_ts
+          ? allEntries.find((e) => String(e.ts) === String(t.checkin_ts))
+          : null;
+        const extra = ck
+          ? `<div class="ckin-extra">${
+              (ck.photos || []).slice(0, 9).map((p) => `<img src="${thumbUrl(p)}" data-full="${p}" alt="打卡照片" loading="lazy">`).join('')
+            }${ck.location && ck.location.name ? `<span class="ckin-loc">📍 ${esc(ck.location.name)}</span>` : ''}</div>`
+          : '';
+        return `
+      <div class="todo-item${t.done ? ' done' : ''}" data-id="${t.id}" draggable="true">
         <span class="todo-check">${t.done ? '✅' : '○'}</span>
         <span class="todo-text">${esc(t.text)}</span>
+        ${extra}
         <button type="button" class="todo-del" data-id="${t.id}" aria-label="删除">✕</button>
-      </div>`).join('')
+      </div>`;
+      }).join('')
     : '<p class="todo-empty">这天还没有待办,添加一条开始打卡</p>';
   box.innerHTML = `
     <div class="todo-head"><span>当天待办</span><span class="todo-progress">已勾 ${done}/${list.length}</span></div>
@@ -258,7 +276,17 @@ function renderDayTodos(ds) {
   box.querySelectorAll('.todo-item').forEach((el) => {
     el.addEventListener('click', (ev) => {
       if (ev.target.closest('.todo-del')) return; // 删除按钮不触发勾选
-      toggleTodo(Number(el.dataset.id), ds);
+      if (ckinDragJustDone) { ckinDragJustDone = false; return; } // 拖拽刚结束,吞掉本次点击
+      const t = allTodos.find((x) => x.id === Number(el.dataset.id));
+      if (!t) return;
+      if (t.done) {
+        // 已勾选 → 取消打卡(有记录先确认,照片删除不可逆)
+        if (confirm(t.checkin_ts ? '取消打卡?已生成的打卡记录(照片)将一并删除。' : '取消勾选?')) {
+          toggleTodo(t.id, ds);
+        }
+      } else {
+        openCheckinModal(t, ds);
+      }
     });
   });
   box.querySelectorAll('.todo-del').forEach((b) => {
@@ -282,6 +310,7 @@ function renderDayTodos(ds) {
       } else if (res.error) input.placeholder = res.error;
     } catch { /* 忽略 */ }
   });
+  setupTodoDrag(box, ds);
 }
 
 async function deleteTodo(id, ds) {
@@ -295,17 +324,216 @@ async function deleteTodo(id, ds) {
   } catch { /* 忽略 */ }
 }
 
-async function toggleTodo(id, ds) {
+async function toggleTodo(id, ds, extra = {}) {
   const fd = new FormData();
   fd.append('id', String(id));
+  if (extra.note) fd.append('note', extra.note);
+  if (extra.location) fd.append('location', extra.location);
+  (extra.fulls || []).forEach((f) => fd.append('photo_full', f));
+  (extra.thumbs || []).forEach((f) => fd.append('photo_thumb', f));
   try {
     const res = await (await fetch('/api/todos/toggle', { method: 'POST', body: fd })).json();
-    if (!res.ok) return;
+    if (!res.ok) return { error: res.error };
     const t = allTodos.find((x) => x.id === id);
-    if (t) t.done = res.todo.done;
+    if (t) {
+      const oldTs = t.checkin_ts;
+      t.done = res.todo.done;
+      t.checkin_ts = res.todo.checkin_ts;
+      if (oldTs && !res.todo.checkin_ts) {
+        // 取消打卡:服务端已删条目,本地同步移除(否则当天动态残留)
+        allEntries = allEntries.filter((e) => String(e.ts) !== String(oldTs));
+      }
+    }
+    if (res.entry) {
+      // 打卡生成的私有条目并入本地数据 → 当天动态/展开区即时可见
+      allEntries = allEntries.filter((e) => String(e.ts) !== String(res.entry.ts));
+      allEntries.push(res.entry);
+    }
     renderDayTodos(ds);
+    if (ds === selectedDate) renderDayEntries(ds); // 打卡条目即时出现在当天动态
     renderCalendar(); // 日历圈同步:全部勾完 → 实心
+    return { ok: true };
+  } catch {
+    return { error: '网络错误,请重试' };
+  }
+}
+
+/* ---------- 打卡弹窗(勾选未完成待办时;照片/定位/备注可选填) ---------- */
+let ckinTodo = null;
+let ckinDs = null;
+let ckinFulls = [];
+let ckinThumbs = [];
+let ckinDragJustDone = false; // 触屏拖拽结束后吞掉紧随的 click
+
+function compressImage(file, maxLen, quality) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const scale = Math.min(1, maxLen / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        canvas.toBlob((blob) => resolve(blob), 'image/jpeg', quality);
+      } catch (e) {
+        URL.revokeObjectURL(url);
+        reject(e);
+      }
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('图片无法解码(HEIC 请用 iPhone Safari 打开)'));
+    };
+    img.src = url;
+  });
+}
+
+function openCheckinModal(t, ds) {
+  ckinTodo = t;
+  ckinDs = ds;
+  ckinFulls = [];
+  ckinThumbs = [];
+  $('#ckin-todo').textContent = `「${t.text}」`;
+  $('#ckin-note').value = '';
+  $('#ckin-loc').value = '';
+  $('#ckin-status').textContent = '';
+  $('#ckin-photos').innerHTML =
+    '<label class="ckin-add" for="ckin-files">+ 照片(可选,≤9 张)</label><input type="file" id="ckin-files" accept="image/*" multiple hidden>';
+  $('#ckin-photos').querySelector('#ckin-files').addEventListener('change', handleCkinFiles);
+  $('#ckin-modal').hidden = false;
+  $('#ckin-note').focus();
+}
+
+function closeCheckinModal() {
+  $('#ckin-modal').hidden = true;
+  ckinTodo = null;
+  ckinDs = null;
+}
+
+async function handleCkinFiles(ev) {
+  const files = [...ev.target.files].slice(0, 9 - ckinFulls.length);
+  const st = $('#ckin-status');
+  for (const f of files) {
+    try {
+      const [full, thumb] = await Promise.all([
+        compressImage(f, 1600, 0.85),
+        compressImage(f, 480, 0.75),
+      ]);
+      ckinFulls.push(new File([full], `p${ckinFulls.length}.jpg`, { type: 'image/jpeg' }));
+      ckinThumbs.push(new File([thumb], `p${ckinThumbs.length}.jpg`, { type: 'image/jpeg' }));
+      const img = document.createElement('img');
+      img.src = URL.createObjectURL(thumb);
+      img.title = f.name;
+      $('#ckin-photos').appendChild(img);
+    } catch (e) {
+      st.textContent = e.message;
+    }
+  }
+  const add = $('#ckin-photos').querySelector('.ckin-add');
+  if (ckinFulls.length >= 9 && add) add.remove();
+}
+
+async function submitCheckin(mode) {
+  const t = ckinTodo;
+  const ds = ckinDs;
+  if (!t) return;
+  const note = $('#ckin-note').value.trim();
+  const location = $('#ckin-loc').value.trim();
+  const st = $('#ckin-status');
+  if (mode === 'save' && !note && !location && ckinFulls.length === 0) {
+    st.textContent = '没有内容,点「直接打卡」即可';
+    return;
+  }
+  st.textContent = '提交中…';
+  const r = await toggleTodo(t.id, ds, { note, location, fulls: ckinFulls, thumbs: ckinThumbs });
+  if (r.ok) closeCheckinModal();
+  else st.textContent = r.error || '打卡失败';
+}
+
+/* ---------- 待办拖拽排序(桌面 HTML5 DnD + 触屏长按) ---------- */
+function setupTodoDrag(box, ds) {
+  let dragId = null;
+  // 桌面
+  box.querySelectorAll('.todo-item').forEach((el) => {
+    el.addEventListener('dragstart', (e) => {
+      dragId = Number(el.dataset.id);
+      el.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(dragId));
+    });
+    el.addEventListener('dragend', () => { el.classList.remove('dragging'); dragId = null; });
+    el.addEventListener('dragover', (e) => { e.preventDefault(); el.classList.add('drag-over'); });
+    el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+    el.addEventListener('drop', (e) => {
+      e.preventDefault();
+      el.classList.remove('drag-over');
+      if (dragId && dragId !== Number(el.dataset.id)) commitTodoMove(ds, dragId, Number(el.dataset.id));
+      dragId = null;
+    });
+  });
+  // 触屏:长按 400ms 进入拖动,松手提交
+  let longPress = null;
+  box.querySelectorAll('.todo-item').forEach((el) => {
+    el.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse') return; // 桌面走 HTML5 DnD
+      if (e.target.closest('.todo-del')) return;
+      clearTimeout(longPress);
+      longPress = setTimeout(() => {
+        dragId = Number(el.dataset.id);
+        el.classList.add('dragging');
+        ckinDragJustDone = true; // 拖动结束后吞掉 click
+      }, 400);
+      const onMove = (ev) => {
+        if (!dragId) return;
+        const siblings = [...box.querySelectorAll('.todo-item:not(.dragging)')];
+        box.querySelectorAll('.todo-item.drag-over').forEach((x) => x.classList.remove('drag-over'));
+        for (const s of siblings) {
+          const r = s.getBoundingClientRect();
+          if (ev.clientY < r.top + r.height / 2) { s.classList.add('drag-over'); break; }
+        }
+      };
+      const onUp = (ev) => {
+        clearTimeout(longPress);
+        el.removeEventListener('pointermove', onMove);
+        el.removeEventListener('pointerup', onUp);
+        el.removeEventListener('pointercancel', onUp);
+        if (!dragId) return;
+        const siblings = [...box.querySelectorAll('.todo-item:not(.dragging)')];
+        let beforeId = null;
+        for (const s of siblings) {
+          const r = s.getBoundingClientRect();
+          if (ev.clientY < r.top + r.height / 2) { beforeId = Number(s.dataset.id); break; }
+        }
+        const movedId = dragId;
+        dragId = null;
+        el.classList.remove('dragging');
+        box.querySelectorAll('.todo-item.drag-over').forEach((x) => x.classList.remove('drag-over'));
+        commitTodoMove(ds, movedId, beforeId);
+      };
+      el.addEventListener('pointermove', onMove);
+      el.addEventListener('pointerup', onUp);
+      el.addEventListener('pointercancel', onUp);
+    });
+  });
+}
+
+async function commitTodoMove(ds, id, beforeId) {
+  const fd = new FormData();
+  fd.append('id', String(id));
+  if (beforeId) fd.append('before_id', String(beforeId));
+  try {
+    const res = await (await fetch('/api/todos/move', { method: 'POST', body: fd })).json();
+    if (res.ok && res.order) {
+      const orderMap = new Map(res.order.map((x, i) => [x, i]));
+      allTodos = allTodos.map((t) => (orderMap.has(t.id) ? { ...t, sort_order: orderMap.get(t.id) } : t));
+    }
   } catch { /* 忽略 */ }
+  renderDayTodos(ds);
 }
 
 /* ---------- 专辑地图(Leaflet + 高德瓦片,懒加载) ---------- */
@@ -456,6 +684,10 @@ async function loadEntries() {
 async function init() {
   await loadEntries();
   setupLightbox();
+  // 打卡弹窗按钮(静态元素,只绑一次)
+  $('#ckin-cancel').addEventListener('click', closeCheckinModal);
+  $('#ckin-quick').addEventListener('click', () => submitCheckin('quick'));
+  $('#ckin-save').addEventListener('click', () => submitCheckin('save'));
   initCalendar();
   renderAlbums();
   renderStream();

@@ -49,6 +49,26 @@
 
   <div id="lightbox" class="lightbox" aria-hidden="true"><img alt="查看大图"></div>
 
+  <!-- 打卡弹窗(勾选待办时;照片/定位/备注均可选填) -->
+  <div id="ckin-modal" class="ckin-modal" hidden>
+    <div class="ckin-box">
+      <div class="ckin-head">打卡</div>
+      <div class="ckin-todo" id="ckin-todo"></div>
+      <textarea id="ckin-note" maxlength="5000" rows="2" placeholder="备注(可选)"></textarea>
+      <div class="ckin-photos" id="ckin-photos">
+        <label class="ckin-add" for="ckin-files">+ 照片(可选,≤9 张)</label>
+        <input type="file" id="ckin-files" accept="image/*" multiple hidden>
+      </div>
+      <input id="ckin-loc" maxlength="80" placeholder="定位(可选,如:橘子洲)">
+      <div class="ckin-actions">
+        <button type="button" id="ckin-cancel" class="btn-small">取消</button>
+        <button type="button" id="ckin-quick" class="btn-small">直接打卡</button>
+        <button type="button" id="ckin-save" class="btn-small">保存打卡</button>
+      </div>
+      <div id="ckin-status" class="form-status"></div>
+    </div>
+  </div>
+
   <script src="app.js?v=2.0"></script>
 </body>
 </html>

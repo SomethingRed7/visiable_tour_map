@@ -328,6 +328,75 @@ body {
 
 .todo-add .btn-small { flex-shrink: 0; }
 
+/* ---------- 打卡:展开区 / 拖拽 / 弹窗 ---------- */
+.todo-item[draggable="true"] { cursor: grab; }
+.todo-item.dragging { opacity: 0.4; }
+.todo-item.drag-over { outline: 2px dashed var(--brand, #e11d48); }
+.ckin-extra {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 4px 0 0 26px;
+  font-size: 0.85rem;
+  color: var(--text-soft);
+}
+.ckin-extra img {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 8px;
+  cursor: zoom-in;
+}
+.ckin-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+}
+.ckin-modal[hidden] { display: none; }
+.ckin-box {
+  background: var(--card, #fff);
+  border-radius: 12px;
+  padding: 16px;
+  width: min(92vw, 420px);
+  max-height: 85vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+.ckin-head { font-weight: 600; margin-bottom: 4px; }
+.ckin-todo { color: var(--text-soft); font-size: 0.9em; margin-bottom: 8px; }
+.ckin-box textarea,
+.ckin-box input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 16px;
+  margin-bottom: 8px;
+  font-family: inherit;
+}
+.ckin-photos { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.ckin-photos .ckin-add {
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  cursor: pointer;
+  color: var(--text-soft);
+  font-size: 0.9em;
+}
+.ckin-photos img {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.ckin-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
 /* 当天速记 */
 .note-hint {
   font-size: 0.72rem;
