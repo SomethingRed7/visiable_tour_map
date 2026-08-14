@@ -17,12 +17,12 @@ export async function onRequestGet(context) {
   if (date) {
     if (!DATE_RE.test(date)) return Response.json({ error: '日期格式不对' }, { status: 400 });
     const { results } = await context.env.DB
-      .prepare('SELECT id, date, text, done, sort_order FROM todos WHERE date = ?1 ORDER BY sort_order ASC, id ASC')
+      .prepare('SELECT id, date, text, done, sort_order, checkin_ts FROM todos WHERE date = ?1 ORDER BY sort_order ASC, id ASC')
       .bind(date).all();
     return Response.json({ todos: results });
   }
   const { results } = await context.env.DB
-    .prepare('SELECT id, date, text, done, sort_order FROM todos ORDER BY date ASC, sort_order ASC, id ASC')
+    .prepare('SELECT id, date, text, done, sort_order, checkin_ts FROM todos ORDER BY date ASC, sort_order ASC, id ASC')
     .all();
   return Response.json({ todos: results });
 }

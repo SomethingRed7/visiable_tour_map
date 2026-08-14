@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS todos (
   text TEXT NOT NULL,
   done INTEGER NOT NULL DEFAULT 0,
   sort_order INTEGER NOT NULL DEFAULT 0,
+  checkin_ts INTEGER,
   created_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_todos_date ON todos (date);

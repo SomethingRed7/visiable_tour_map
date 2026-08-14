@@ -5,11 +5,8 @@
 // 防重复:同一天同照片内容(SHA-256)拒绝;地点已带坐标则直存,否则服务端 Nominatim 编码
 // 加固:单文件 ≤10MB、单请求 ≤20 张、Content-Type image/* + 魔数嗅探(见 _lib/images.js)
 import { verifySession, rateLimitUpload } from '../_lib/auth.js';
-import { imageError, MAX_PHOTOS, MAX_FILE_BYTES } from '../_lib/images.js';
-
-// 文本字段长度上限(防 D1/页面被超大内容撑爆)
-const MAX_TITLE = 200;
-const MAX_TEXT = 5000;
+import { MAX_PHOTOS, MAX_FILE_BYTES } from '../_lib/images.js';
+import { MAX_TITLE, MAX_TEXT, resolveLocation, validatePhotos, storePhotos, insertEntry } from '../_lib/entries.js';
 
 export async function onRequestPost(context) {
   const user = await verifySession(context.env, context.request);
@@ -43,81 +40,24 @@ export async function onRequestPost(context) {
   if (!title && !text && fulls.length === 0) {
     return Response.json({ error: '内容为空:至少填标题/文字/照片之一' }, { status: 400 });
   }
-  if (fulls.length > MAX_PHOTOS) {
-    return Response.json({ error: `一次最多 ${MAX_PHOTOS} 张照片` }, { status: 400 });
-  }
   for (const t of thumbs) {
     if (t.size > MAX_FILE_BYTES) return Response.json({ error: '单张照片不能超过 10MB' }, { status: 400 });
   }
 
-  // 照片内容哈希:同一天去重(D1 强一致查询)
-  const photoHashes = [];
-  if (fulls.length > 0) {
-    const existingHashes = new Set();
-    try {
-      const rows = await context.env.DB.prepare('SELECT photo_hashes FROM entries WHERE date = ?1')
-        .bind(date)
-        .all();
-      for (const r of rows.results || []) {
-        for (const h of JSON.parse(r.photo_hashes || '[]')) existingHashes.add(h);
-      }
-    } catch { /* DB 不可用则跳过去重 */ }
-    for (const f of fulls) {
-      const buf = await f.arrayBuffer();
-      const err = imageError(buf, f.type, f.size);
-      if (err) return Response.json({ error: err }, { status: 400 });
-      const digest = await crypto.subtle.digest('SHA-256', buf);
-      const hash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
-      if (existingHashes.has(hash)) {
-        return Response.json({ error: '这张照片今天已经传过啦,换一张或去掉重复' }, { status: 400 });
-      }
-      photoHashes.push(hash);
-    }
+  // 照片校验 + 同日 SHA-256 去重
+  let photoHashes = [];
+  try {
+    const vp = await validatePhotos(context.env, date, fulls, MAX_PHOTOS);
+    photoHashes = vp.map((p) => p.hash);
+  } catch (e) {
+    return Response.json({ error: e.message }, { status: 400 });
   }
 
   // 地点:已有坐标直存;否则地名 geocode(失败仅存地名)
-  let location = null;
-  if (locationName) {
-    if (Number.isFinite(latRaw) && Number.isFinite(lngRaw)) {
-      location = { name: locationName, lat: latRaw, lng: lngRaw, display: locationName };
-    } else {
-      try {
-        const q = encodeURIComponent(locationName);
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=zh-CN&q=${q}`, {
-          headers: { 'User-Agent': 'gugugaga-travel-diary/1.0 (personal use)' },
-          signal: AbortSignal.timeout(8000),
-        });
-        if (res.ok) {
-          const arr = await res.json();
-          if (arr.length > 0) {
-            location = {
-              name: locationName,
-              lat: parseFloat(arr[0].lat),
-              lng: parseFloat(arr[0].lon),
-              display: (arr[0].display_name || locationName).slice(0, 80),
-            };
-          }
-        }
-      } catch { /* 忽略 */ }
-    }
-    if (!location) location = { name: locationName, lat: null, lng: null, display: locationName };
-  }
+  const location = await resolveLocation(locationName, latRaw, lngRaw);
 
   const ts = Date.now();
-  const photoPaths = [];
-  for (let i = 0; i < fulls.length; i++) {
-    // R2 key 不带 photos/ 前缀;条目里的显示路径带 /photos/ 前缀
-    const base = `${date}/${ts}-${i}`;
-    await context.env.PHOTOS.put(`${base}.jpg`, fulls[i].stream(), {
-      httpMetadata: { contentType: 'image/jpeg' },
-    });
-    if (thumbs[i]) {
-      await context.env.PHOTOS.put(`${base}-thumb.jpg`, thumbs[i].stream(), {
-        httpMetadata: { contentType: 'image/jpeg' },
-      });
-    }
-    photoPaths.push(`/photos/${base}.jpg`);
-  }
+  const photoPaths = await storePhotos(context.env, date, ts, fulls, thumbs);
 
   const entry = {
     date, title, text, album, author: user, location,
@@ -127,10 +67,6 @@ export async function onRequestPost(context) {
     visibility,
     created_at: new Date().toISOString(),
   };
-  await context.env.DB.prepare(
-    'INSERT OR REPLACE INTO entries (date, ts, title, text, album, author, location, photos, photo_hashes, visibility, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)'
-  )
-    .bind(date, ts, title, text, album, user, JSON.stringify(location), JSON.stringify(photoPaths), JSON.stringify(photoHashes), visibility, entry.created_at)
-    .run();
+  await insertEntry(context.env, entry);
   return Response.json({ ok: true, entry });
 }
