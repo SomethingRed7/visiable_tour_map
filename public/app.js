@@ -237,7 +237,7 @@ function renderDayTodos(ds) {
       }).join('')
     : '<p class="todo-empty">这天还没有待办,添加一条开始打卡</p>';
   box.innerHTML = `
-    <div class="todo-head"><span>当天待办</span><span class="todo-progress">已勾 ${done}/${list.length}</span></div>
+    <div class="todo-head"><span>当日待办</span><span class="todo-progress">已勾 ${done}/${list.length}</span></div>
     ${items}
     <form class="todo-add"><input type="text" maxlength="200" placeholder="添加一条待办…" required><button type="submit" class="btn-small">添加</button></form>`;
   box.querySelectorAll('.todo-item').forEach((el) => {
