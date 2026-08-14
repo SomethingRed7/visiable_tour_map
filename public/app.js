@@ -772,6 +772,10 @@ async function init() {
   $('#ckin-quick').addEventListener('click', () => submitCheckin('quick'));
   $('#ckin-save').addEventListener('click', () => submitCheckin('save'));
   $('#ckin-locate').addEventListener('click', locateCheckin);
+  // 点击阴影区关闭(e.target 是遮罩本身,弹窗内部点击不触发)
+  $('#ckin-modal').addEventListener('click', (e) => {
+    if (e.target === $('#ckin-modal')) closeCheckinModal();
+  });
   initCalendar();
   renderAlbums();
   renderStream();
