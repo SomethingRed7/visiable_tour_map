@@ -267,14 +267,51 @@ function compressImage(file, maxLen, quality) {
   });
 }
 
-/* 相册 datalist */
+/* 相册 select(原生下拉,移动端兼容;datalist 在微信/安卓 WebView 表现差已弃用) */
 async function loadAlbums() {
   try {
     const data = await (await fetch('/api/entries')).json();
     const albums = [...new Set((data.entries || []).map((e) => e.album).filter(Boolean))];
-    $('#album-list').innerHTML = albums.map((a) => `<option value="${a.replace(/"/g, '&quot;')}">`).join('');
-  } catch { /* 忽略,手动输入即可 */ }
+    const sel = $('#f-album');
+    // 记住上次选择(applyDefaults 在 select 填充前赋值会失败,这里兜底读 localStorage)
+    const current = sel.value || localStorage.getItem(LS_ALBUM) || '';
+    sel.innerHTML = '<option value="">不设专辑</option>' +
+      albums.map((a) => `<option value="${a.replace(/"/g, '&quot;')}">${a.replace(/"/g, '&quot;')}</option>`).join('') +
+      '<option value="__new__">➕ 新建专辑…</option>';
+    // 恢复之前的值(编辑回填/记住上次选择)
+    if (current) {
+      const exists = [...sel.options].some((o) => o.value === current);
+      if (exists) sel.value = current;
+      else if (current !== '__new__') {
+        // 当前值不在列表(如老条目专辑):补一个选项并选中
+        const o = document.createElement('option');
+        o.value = current;
+        o.textContent = current;
+        sel.insertBefore(o, sel.lastChild);
+        sel.value = current;
+      }
+    }
+  } catch { /* 忽略,保留默认选项 */ }
 }
+
+$('#f-album').addEventListener('change', () => {
+  const sel = $('#f-album');
+  if (sel.value !== '__new__') return;
+  const name = prompt('新专辑名字:');
+  if (name && name.trim()) {
+    const v = name.trim();
+    const exists = [...sel.options].some((o) => o.value === v);
+    if (!exists) {
+      const o = document.createElement('option');
+      o.value = v;
+      o.textContent = v;
+      sel.insertBefore(o, sel.lastChild);
+    }
+    sel.value = v;
+  } else {
+    sel.value = ''; // 取消 → 回到「不设专辑」
+  }
+});
 
 /* 照片预览 */
 function renderPreview() {
@@ -830,7 +867,18 @@ async function enterEdit(date, ts) {
   $('#f-date').disabled = true; // 日期是主键,编辑不改
   $('#f-title').value = e.title || '';
   $('#f-text').value = e.text || '';
-  $('#f-album').value = e.album || '';
+  // select 回填:专辑不在选项列表(老条目)时先补一个选项再选中
+  const albumSel = $('#f-album');
+  if (e.album) {
+    const exists = [...albumSel.options].some((o) => o.value === e.album);
+    if (!exists) {
+      const o = document.createElement('option');
+      o.value = e.album;
+      o.textContent = e.album;
+      albumSel.insertBefore(o, albumSel.lastChild);
+    }
+  }
+  albumSel.value = e.album || '';
   $('#f-visibility').value = e.visibility === 'private' ? 'private' : 'public'; // 仅展示,保存走 doUpdate(不提交可见性)
   $('#f-location').value = (e.location && e.location.name) || '';
   $('#f-lat').value = $('#f-lng').value = '';

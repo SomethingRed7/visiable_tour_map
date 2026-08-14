@@ -105,8 +105,10 @@
 
         <label>
           专辑
-          <input type="text" id="f-album" list="album-list">
-          <datalist id="album-list"></datalist>
+          <select id="f-album">
+            <option value="">不设专辑</option>
+            <option value="__new__">➕ 新建专辑…</option>
+          </select>
         </label>
 
         <label>
