@@ -19,8 +19,74 @@ function setAuthed(user) {
   $('#login-panel').hidden = loggedIn;
   $('#editor-area').hidden = !loggedIn;
   $('#user-area').hidden = !loggedIn;
-  if (user) $('#current-user').textContent = user;
-  else showLoginPanel();
+  if (user) {
+    $('#current-user').textContent = user;
+    autoFillLocation(); // 进入记录界面自动后台定位并填入地点
+  } else showLoginPanel();
+}
+
+/* ---------- 进入界面自动定位(后台,不打扰;失败静默,不覆盖已有值) ---------- */
+let autoFilled = false;
+async function autoFillLocation() {
+  if (autoFilled) return;
+  autoFilled = true;
+  if ($('#f-location').value) return; // 编辑预填/已有地点不覆盖
+  let lat = null, lng = null;
+  try { await fetchConfig(); } catch { /* 无 key 走浏览器定位 */ }
+  // 定位:高德优先(国行安卓也能定到),失败降级浏览器(WGS-84→GCJ-02)
+  // 注意:高德 SDK/插件加载可能卡住(网络抖动),必须带超时,否则自动定位永久挂起
+  const amapReady = await Promise.race([
+    ensureAmap(),
+    new Promise((resolve) => setTimeout(() => resolve(false), 6000)),
+  ]);
+  if (amapReady) {
+    try {
+      const gl = new AMap.Geolocation({ enableHighAccuracy: true, timeout: 8000 });
+      const pos = await new Promise((resolve) => gl.getCurrentPosition((st, r) => {
+        if (st === 'complete' && r && r.position) resolve({ lat: r.position.getLat(), lng: r.position.getLng() });
+        else resolve(null);
+      }));
+      if (pos) { lat = pos.lat; lng = pos.lng; }
+    } catch { /* 降级 */ }
+  }
+  if (lat == null && navigator.geolocation) {
+    try {
+      const p = await new Promise((resolve) => navigator.geolocation.getCurrentPosition(
+        resolve, () => resolve(null), { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }));
+      if (p) { const g = wgs2gcj(p.coords.latitude, p.coords.longitude); lat = g.lat; lng = g.lng; }
+    } catch { /* 忽略 */ }
+  }
+  if (lat == null) return; // 定位失败静默
+  // 反查地名:高德客户端优先,失败回退服务端(同样带超时)
+  let name = '';
+  const amapReady2 = await Promise.race([
+    ensureAmap(),
+    new Promise((resolve) => setTimeout(() => resolve(false), 6000)),
+  ]);
+  if (amapReady2) {
+    try {
+      const gc = new AMap.Geocoder({ extensions: 'all' });
+      const rev = await new Promise((resolve) => gc.getAddress([lng, lat], (st, r) => {
+        resolve(st === 'complete' && r && r.regeocode ? r.regeocode : null);
+      }));
+      if (rev) {
+        const pois = (rev.pois || []).filter((p) => p && p.name);
+        name = pois[0] ? pois[0].name : (rev.formattedAddress || '');
+      }
+    } catch { /* 回退 */ }
+  }
+  if (!name) {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 12000);
+      const res = await (await fetch(`/api/geocode?lat=${lat}&lng=${lng}`, { signal: ctrl.signal })).json();
+      clearTimeout(timer);
+      const r = res.results && res.results[0];
+      if (r) name = r.name;
+    } catch { /* 保持空 */ }
+  }
+  if (!name || $('#f-location').value) return; // 反查失败/用户已手动填 → 不打扰
+  selectPoint(name, lat, lng);
 }
 
 async function initAuth() {
