@@ -345,21 +345,23 @@ body {
 .todo-item.dragging { opacity: 0.4; touch-action: none; -webkit-user-select: none; user-select: none; }
 .todo-item.drag-over { outline: 2px dashed var(--brand, #e11d48); }
 .ckin-extra {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr); /* 竖图一排俩,与 photo-grid 一致 */
+  gap: 6px;
   margin: 4px 0 0 26px;
   font-size: 0.85rem;
   color: var(--text-soft);
 }
 .ckin-extra img {
-  width: 56px;
+  width: 100%;
   height: auto;
-  max-height: 112px;
+  max-height: 180px;
   border-radius: 8px;
   cursor: zoom-in;
 }
+/* 横图(宽>高)单列占满整行,竖图保持双列 */
+.ckin-extra img.landscape { grid-column: 1 / -1; }
+.ckin-extra .ckin-loc { grid-column: 1 / -1; }
 .ckin-modal {
   position: fixed;
   inset: 0;
