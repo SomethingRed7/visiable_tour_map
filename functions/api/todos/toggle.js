@@ -25,6 +25,7 @@ export async function onRequestPost(context) {
   if (!row) return Response.json({ error: '待办不存在' }, { status: 404 });
 
   const note = (form.get('note') || '').trim();
+  const album = (form.get('album') || '').trim().slice(0, 50);
   const locationName = (form.get('location') || '').trim();
   const latRaw = parseFloat(form.get('lat'));
   const lngRaw = parseFloat(form.get('lng'));
@@ -60,7 +61,7 @@ export async function onRequestPost(context) {
         ts,
         title: `打卡:${row.text}`,
         text: note,
-        album: null,
+        album: album || null,
         author: user,
         location,
         photos: photoPaths,

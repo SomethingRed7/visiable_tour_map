@@ -359,6 +359,7 @@ async function toggleTodo(id, ds, extra = {}) {
   const fd = new FormData();
   fd.append('id', String(id));
   if (extra.note) fd.append('note', extra.note);
+  if (extra.album) fd.append('album', extra.album);
   if (extra.location) fd.append('location', extra.location);
   if (extra.lat != null) fd.append('lat', String(extra.lat));
   if (extra.lng != null) fd.append('lng', String(extra.lng));
@@ -436,6 +437,7 @@ function openCheckinModal(t, ds) {
   ckinLat = null;
   ckinLng = null;
   $('#ckin-todo').textContent = `「${t.text}」`;
+  loadCkinAlbums(); // 专辑下拉(已有专辑+新建)
   $('#ckin-note').value = '';
   $('#ckin-loc').value = '';
   $('#ckin-status').textContent = '';
@@ -445,6 +447,36 @@ function openCheckinModal(t, ds) {
   $('#ckin-modal').hidden = false;
   $('#ckin-note').focus();
 }
+
+/* 打卡弹窗专辑下拉:已有专辑 + 新建(选中 __new__ 弹输入,复用 index.html 内 select) */
+async function loadCkinAlbums() {
+  const sel = $('#ckin-album');
+  if (!sel) return;
+  const current = sel.value || '';
+  try {
+    const data = await (await fetch('/api/entries')).json();
+    const albums = [...new Set((data.entries || []).map((e) => e.album).filter(Boolean))];
+    sel.innerHTML = '<option value="">不设专辑</option>'
+      + albums.map((a) => `<option value="${esc(a)}">${esc(a)}</option>`).join('')
+      + '<option value="__new__">➕ 新建专辑…</option>';
+    // 恢复上次选中(若还在选项里)
+    if ([...sel.options].some((o) => o.value === current)) sel.value = current;
+  } catch { /* 保持默认 */ }
+}
+$('#ckin-album').addEventListener('change', () => {
+  const sel = $('#ckin-album');
+  if (sel.value !== '__new__') return;
+  const name = prompt('新专辑名字:');
+  if (name && name.trim()) {
+    const n = name.trim();
+    const existing = [...sel.options].find((o) => o.value === n);
+    if (existing) sel.value = n;
+    else {
+      sel.insertAdjacentHTML('beforeend', `<option value="${esc(n)}">${esc(n)}</option>`);
+      sel.value = n;
+    }
+  } else sel.value = '';
+});
 
 function closeCheckinModal() {
   $('#ckin-modal').hidden = true;
@@ -508,13 +540,14 @@ async function submitCheckin(mode) {
   if (!t) return;
   const note = $('#ckin-note').value.trim();
   const location = $('#ckin-loc').value.trim();
+  const album = $('#ckin-album').value.trim();
   const st = $('#ckin-status');
-  if (mode === 'save' && !note && !location && ckinFulls.length === 0) {
+  if (mode === 'save' && !note && !location && ckinFulls.length === 0 && !album) {
     st.textContent = '没有内容,点「直接打卡」即可';
     return;
   }
   st.textContent = '提交中…';
-  const r = await toggleTodo(t.id, ds, { note, location, lat: ckinLat, lng: ckinLng, fulls: ckinFulls, thumbs: ckinThumbs });
+  const r = await toggleTodo(t.id, ds, { note, location, album, lat: ckinLat, lng: ckinLng, fulls: ckinFulls, thumbs: ckinThumbs });
   if (r.ok) closeCheckinModal();
   else st.textContent = r.error || '打卡失败';
 }

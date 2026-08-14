@@ -377,7 +377,8 @@ body {
 .ckin-head { font-weight: 600; margin-bottom: 4px; }
 .ckin-todo { color: var(--text-soft); font-size: 0.9em; margin-bottom: 8px; }
 .ckin-box textarea,
-.ckin-box input {
+.ckin-box input,
+.ckin-box select {
   width: 100%;
   box-sizing: border-box;
   border: 1px solid var(--line);
