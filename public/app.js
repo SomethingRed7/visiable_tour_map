@@ -252,6 +252,7 @@ function renderDayTodos(ds) {
     <form class="todo-add"><input type="text" maxlength="200" placeholder="添加一条待办…" required><button type="submit" class="btn-small">添加</button></form>`;
   box.querySelectorAll('.todo-item').forEach((el) => {
     el.addEventListener('click', (ev) => {
+      if (el.classList.contains('editing')) return; // 编辑中:点击不触发勾选/打卡(输入框/保存按钮冒泡到此)
       if (ev.target.closest('.todo-del')) return; // 删除按钮不触发勾选
       if (ckinDragJustDone) { ckinDragJustDone = false; return; } // 拖拽刚结束,吞掉本次点击
       const t = allTodos.find((x) => x.id === Number(el.dataset.id));
@@ -311,17 +312,20 @@ async function deleteTodo(id, ds) {
 function enterEditTodo(btn, id, ds) {
   const item = btn.closest('.todo-item');
   if (!item) return;
+  item.classList.add('editing'); // 编辑中:条目点击不触发勾选/打卡
   const textEl = item.querySelector('.todo-text');
   const input = document.createElement('input');
   input.className = 'todo-edit-input';
   input.maxLength = 200;
   input.value = textEl.textContent;
+  input.addEventListener('click', (e) => e.stopPropagation()); // 点输入框不触发条目点击
   textEl.replaceWith(input);
   const save = document.createElement('button');
   save.type = 'button';
   save.className = 'btn-small';
   save.textContent = '保存';
-  save.addEventListener('click', async () => {
+  save.addEventListener('click', async (ev) => {
+    ev.stopPropagation(); // 点保存不触发条目点击
     const v = input.value.trim();
     if (!v) return;
     const fd = new FormData();
@@ -565,7 +569,7 @@ function setupTodoDrag(box, ds) {
   // 桌面:容器级 DnD —— 空隙/末尾都能放,按 Y 上下半决定插前/插后
   box.addEventListener('dragstart', (e) => {
     const el = e.target.closest('.todo-item');
-    if (!el) return;
+    if (!el || el.classList.contains('editing')) return; // 编辑中不拖拽(避免拖输入框文字)
     dragId = Number(el.dataset.id);
     el.classList.add('dragging');
     e.dataTransfer.effectAllowed = 'move';
@@ -599,6 +603,7 @@ function setupTodoDrag(box, ds) {
   box.querySelectorAll('.todo-item').forEach((el) => {
     el.addEventListener('pointerdown', (e) => {
       if (e.pointerType === 'mouse') return; // 桌面走 HTML5 DnD
+      if (el.classList.contains('editing')) return; // 编辑中不拖拽
       if (e.target.closest('.todo-del') || e.target.closest('.todo-edit')) return;
       clearTimeout(longPress);
       longPress = setTimeout(() => {
