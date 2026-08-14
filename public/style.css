@@ -560,9 +560,10 @@ body {
 }
 
 /* ---------- 照片 ---------- */
+/* 双列网格:竖长图(火车票/截图)不再全宽拉长变糊;横竖图均按原比例显示不裁切 */
 .photo-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 8px;
   margin-top: 10px;
 }

@@ -31,32 +31,10 @@ async function autoFillLocation() {
   if (autoFilled) return;
   autoFilled = true;
   if ($('#f-location').value) return; // 编辑预填/已有地点不覆盖
-  let lat = null, lng = null;
-  try { await fetchConfig(); } catch { /* 无 key 走浏览器定位 */ }
-  // 定位:高德优先(国行安卓也能定到),失败降级浏览器(WGS-84→GCJ-02)
-  // 注意:高德 SDK/插件加载可能卡住(网络抖动),必须带超时,否则自动定位永久挂起
-  const amapReady = await Promise.race([
-    ensureAmap(),
-    new Promise((resolve) => setTimeout(() => resolve(false), 6000)),
-  ]);
-  if (amapReady) {
-    try {
-      const gl = new AMap.Geolocation({ enableHighAccuracy: true, timeout: 8000 });
-      const pos = await new Promise((resolve) => gl.getCurrentPosition((st, r) => {
-        if (st === 'complete' && r && r.position) resolve({ lat: r.position.getLat(), lng: r.position.getLng() });
-        else resolve(null);
-      }));
-      if (pos) { lat = pos.lat; lng = pos.lng; }
-    } catch { /* 降级 */ }
-  }
-  if (lat == null && navigator.geolocation) {
-    try {
-      const p = await new Promise((resolve) => navigator.geolocation.getCurrentPosition(
-        resolve, () => resolve(null), { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }));
-      if (p) { const g = wgs2gcj(p.coords.latitude, p.coords.longitude); lat = g.lat; lng = g.lng; }
-    } catch { /* 忽略 */ }
-  }
-  if (lat == null) return; // 定位失败静默
+  // 并行定位:高德 + 浏览器竞争(高德 SDK 加载卡住也不阻塞浏览器源)
+  const pos = await getPositionWithFallback();
+  if (!pos) return; // 定位失败静默,留空让用户手动选
+  const lat = pos.lat, lng = pos.lng;
   // 反查地名:高德客户端优先,失败回退服务端(同样带超时)
   let name = '';
   const amapReady2 = await Promise.race([
@@ -613,7 +591,63 @@ $('#loc-search').addEventListener('input', () => {
   }, 300);
 });
 
-// 定位:高德(配置了 key 时,国行安卓也能定到)否则纯浏览器定位,失败给明确引导
+// 定位:高德 + 浏览器并行竞争,谁先成功用谁(此前高德失败即 fail,从不降级浏览器 → 定位经常失败)
+// 返回 { lat, lng }(GCJ-02)或 null;高德定位结果即 GCJ-02,浏览器 WGS-84 需转换
+async function getPositionWithFallback() {
+  let amapReady = false;
+  try { await fetchConfig(); } catch { amapKey = ''; }
+  amapReady = await Promise.race([ensureAmap(), new Promise((r) => setTimeout(() => r(false), 6000))]);
+
+  const amapP = amapReady
+    ? new Promise((resolve) => {
+        try {
+          const gl = new AMap.Geolocation({ enableHighAccuracy: true, timeout: 10000 });
+          gl.getCurrentPosition((status, result) => {
+            if (status === 'complete' && result && result.position) {
+              resolve({ lat: result.position.getLat(), lng: result.position.getLng() });
+            } else {
+              // 高精度定位失败 → IP 定位兜底(返回城市中心,坐标 GCJ-02)
+              try {
+                gl.getCityInfo((st2, r2) => {
+                  if (st2 === 'complete' && r2 && r2.center) {
+                    resolve({ lat: r2.center.getLat(), lng: r2.center.getLng(), ipFallback: true });
+                  } else resolve(null);
+                });
+              } catch { resolve(null); }
+            }
+          });
+        } catch { resolve(null); }
+      })
+    : Promise.resolve(null);
+
+  const browserP = navigator.geolocation
+    ? new Promise((resolve) => {
+        navigator.geolocation.getCurrentPosition(
+          // 浏览器定位 = WGS-84,转 GCJ-02 再落点(否则图钉偏几百米)
+          (pos) => resolve(wgs2gcj(pos.coords.latitude, pos.coords.longitude)),
+          () => resolve(null),
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+      })
+    : Promise.resolve(null);
+
+  // 两个源同时跑,谁先返回非 null 用谁(不等最慢的;一个失败不阻塞另一个)
+  return firstSuccess([amapP, browserP]);
+}
+
+// 竞争取第一个非 null 结果(全部失败返回 null)
+async function firstSuccess(promises) {
+  const wrappers = promises.map((p, i) => p.then((v) => ({ i, v })));
+  const done = new Set();
+  while (done.size < wrappers.length) {
+    const remaining = wrappers.filter((_, i) => !done.has(i));
+    const { i, v } = await Promise.race(remaining);
+    done.add(i);
+    if (v) return v;
+  }
+  return null;
+}
+
 async function locateCurrent() {
   const st = $('#loc-status');
   st.textContent = '定位中...';
@@ -641,30 +675,9 @@ async function locateCurrent() {
   };
   const fail = () => st.textContent = '定位失败:检查位置权限/系统定位后重试,或直接搜索/点地图选';
 
-  try { await fetchConfig(); } catch { amapKey = ''; }
-  if (await ensureAmap()) {
-    try {
-      const geolocation = new AMap.Geolocation({ enableHighAccuracy: true, timeout: 10000 });
-      geolocation.getCurrentPosition((status, result) => {
-        if (status === 'complete' && result && result.position) {
-          done(result.position.getLat(), result.position.getLng());
-        } else {
-          fail();
-        }
-      });
-      return;
-    } catch { /* 高德加载失败降级浏览器定位 */ }
-  }
-  if (!navigator.geolocation) return fail();
-  navigator.geolocation.getCurrentPosition(
-    // 浏览器定位 = WGS-84,转 GCJ-02 再落点(否则图钉偏几百米)
-    (pos) => {
-      const g = wgs2gcj(pos.coords.latitude, pos.coords.longitude);
-      done(g.lat, g.lng);
-    },
-    () => fail(),
-    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-  );
+  const pos = await getPositionWithFallback();
+  if (pos) done(pos.lat, pos.lng);
+  else fail();
 }
 
 $('#btn-loc').addEventListener('click', openPicker);
