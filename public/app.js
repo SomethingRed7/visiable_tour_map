@@ -167,7 +167,6 @@ function selectDate(ds) {
   renderCalendar();
   renderStream(); // 专辑面板同步回占位态(否则残留上一次的专辑列表/地图)
   renderDayEntries(ds);
-  renderDayNote(ds);
   renderDayTodos(ds);
 }
 
@@ -182,39 +181,6 @@ function renderDayEntries(ds) {
     ? dayEntries.map(entryCard).join('')
     : '<p class="empty">当日无事发生</p>';
   bindPhotoGridFallback($('#day-entries'));
-}
-
-/* ---------- 当天速记(仅登录;与待办同区) ---------- */
-function renderDayNote(ds) {
-  const box = $('#day-note');
-  if (!currentUser) { box.hidden = true; box.innerHTML = ''; return; }
-  box.hidden = false;
-  box.innerHTML = `
-    <div class="todo-head"><span>当天速记</span><span class="note-hint">随手记,保存即发布</span></div>
-    <form class="todo-add note-add">
-      <input type="text" maxlength="200" placeholder="随手记点什么…" required>
-      <label class="note-vis"><input type="checkbox"> 私有</label>
-      <button type="submit" class="btn-small">保存</button>
-    </form>`;
-  box.querySelector('form').addEventListener('submit', async (ev) => {
-    ev.preventDefault();
-    const input = box.querySelector('input');
-    const text = input.value.trim();
-    if (!text) return;
-    const fd = new FormData();
-    fd.append('date', ds);
-    fd.append('text', text);
-    if (box.querySelector('.note-vis input').checked) fd.append('visibility', 'private');
-    try {
-      const res = await (await fetch('/api/upload', { method: 'POST', body: fd })).json();
-      if (res.ok) {
-        input.value = '';
-        box.querySelector('.note-vis input').checked = false;
-        await loadEntries();
-        selectDate(ds); // 刷新当天动态/日历
-      } else if (res.error) alert(res.error);
-    } catch { /* 忽略 */ }
-  });
 }
 
 /* ---------- 私有待办(规划打卡;仅登录用户可见) ---------- */
@@ -234,7 +200,7 @@ async function initPortalUser() {
       allTodos = d.todos || [];
     } catch { allTodos = []; }
     renderCalendar();
-    if (selectedDate) { renderDayNote(selectedDate); renderDayTodos(selectedDate); }
+    if (selectedDate) { renderDayTodos(selectedDate); }
   } else {
     box.hidden = false;
     // 未登录:仅一个醒目的「登录」按钮(btn-write 样式)

@@ -421,24 +421,6 @@ body {
   font-family: inherit;
 }
 
-/* 当天速记 */
-.note-hint {
-  font-size: 0.72rem;
-  font-weight: 500;
-  color: var(--text-soft);
-}
-
-.note-vis {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: var(--text-soft);
-  flex-shrink: 0;
-  cursor: pointer;
-}
-
 /* ---------- 条目 ---------- */
 .entries { display: flex; flex-direction: column; gap: 14px; }
 
