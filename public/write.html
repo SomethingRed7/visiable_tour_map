@@ -86,15 +86,31 @@
         </label>
 
         <label>
+          标题
+          <input type="text" id="f-title" placeholder="今天去了哪?">
+        </label>
+
+        <label>
+          正文
+          <textarea id="f-text" rows="5" placeholder="记点什么吧..."></textarea>
+        </label>
+
+        <label>
           可见性
           <select id="f-visibility">
-            <option value="public" selected>公开(家人可见)</option>
-            <option value="private">私有(仅登录可见)</option>
+            <option value="public" selected>公开</option>
+            <option value="private">私有</option>
           </select>
         </label>
 
         <label>
-          地点(可选)
+          专辑
+          <input type="text" id="f-album" list="album-list">
+          <datalist id="album-list"></datalist>
+        </label>
+
+        <label>
+          地点
           <div class="loc-row">
             <input type="text" id="f-location" placeholder="点「定位」选地点" readonly>
             <button type="button" id="btn-loc" class="btn-small" title="自动定位">📍 定位</button>
@@ -126,23 +142,7 @@
         </div>
 
         <label>
-          专辑(可选)
-          <input type="text" id="f-album" list="album-list">
-          <datalist id="album-list"></datalist>
-        </label>
-
-        <label>
-          标题
-          <input type="text" id="f-title" placeholder="今天去了哪?">
-        </label>
-
-        <label>
-          文字
-          <textarea id="f-text" rows="5" placeholder="记点什么吧..."></textarea>
-        </label>
-
-        <label>
-          照片(可多选,自动压缩;同一张照片同一天只能传一次)
+          照片
           <input type="file" id="f-photos" accept="image/*" multiple>
         </label>
 
@@ -166,7 +166,7 @@
 
       <section class="panel manage-panel">
         <h2 class="panel-heading">管理条目</h2>
-        <p class="manage-hint">预览 / 编辑 / 删除(删除有确认弹窗)</p>
+        <p class="manage-hint">预览 / 编辑 / 删除</p>
         <div id="recent-list" class="recent-list"></div>
       </section>
 
