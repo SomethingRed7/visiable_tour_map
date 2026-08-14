@@ -599,16 +599,7 @@ async function ckinGetPosition() {
           gl.getCurrentPosition((status, result) => {
             if (status === 'complete' && result && result.position) {
               resolve({ lat: result.position.getLat(), lng: result.position.getLng() });
-            } else {
-              // 高精度失败 → IP 定位兜底(城市中心)
-              try {
-                gl.getCityInfo((st2, r2) => {
-                  if (st2 === 'complete' && r2 && r2.center) {
-                    resolve({ lat: r2.center.getLat(), lng: r2.center.getLng(), ipFallback: true });
-                  } else resolve(null);
-                });
-              } catch { resolve(null); }
-            }
+            } else resolve(null);
           });
         } catch { resolve(null); }
       })
