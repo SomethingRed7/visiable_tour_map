@@ -76,11 +76,32 @@
       <div class="ckin-loc-row">
         <input id="ckin-loc" maxlength="80" placeholder="定位(可选,如:橘子洲)">
         <button type="button" id="ckin-locate" class="btn-small" title="自动定位">📍 定位</button>
+        <button type="button" id="ckin-map" class="btn-small" title="地图选点">🗺️ 地图</button>
       </div>
       <div class="ckin-actions">
         <button type="button" id="ckin-save" class="btn-small">保存打卡</button>
       </div>
       <div id="ckin-status" class="form-status"></div>
+    </div>
+  </div>
+
+  <!-- 打卡:地图选点弹层(点图选点 → 反查地名 → 确认回填) -->
+  <div id="ckin-map-overlay" class="loc-overlay" hidden>
+    <div class="loc-overlay-card">
+      <div class="loc-overlay-head">
+        <span class="loc-overlay-title">地图选点</span>
+        <button type="button" id="ckin-map-close" class="btn-small">✕</button>
+      </div>
+      <div class="loc-search-row">
+        <input type="search" id="ckin-map-search" placeholder="搜索地名/店铺,如:橘子洲" autocomplete="off" enterkeyhint="search">
+      </div>
+      <div id="ckin-map-results" class="loc-results"></div>
+      <div id="ckin-map-canvas" class="loc-map"></div>
+      <div class="loc-confirm" id="ckin-map-confirm" hidden>
+        <span id="ckin-map-name" class="loc-confirm-name"></span>
+        <span id="ckin-map-status" class="loc-status"></span>
+        <button type="button" id="ckin-map-ok" class="btn-small">确定选这个点</button>
+      </div>
     </div>
   </div>
 
