@@ -247,6 +247,8 @@ async function initPortalUser() {
     box.hidden = false;
     // 登录态:用户名 + 管理按钮(btn-write 样式,同原「写日记」入口)
     box.innerHTML = `<span class="user-name">${esc(currentUser)}</span><a class="btn-write" href="/write">管理</a>`;
+    const sp = $('#stream-panel');
+    if (sp) sp.hidden = false; // 专辑面板仅登录可见
     try {
       const d = await (await fetch('/api/todos')).json();
       allTodos = d.todos || [];
