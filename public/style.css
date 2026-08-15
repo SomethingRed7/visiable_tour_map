@@ -845,6 +845,7 @@ body {
   border-radius: 8px;
   background: #fffbeb;
   flex-shrink: 0;
+  margin-top: auto; /* 确认栏吸底:列表/地图再长也不被挤出视口 */
 }
 
 .loc-confirm-name {
@@ -864,6 +865,8 @@ body {
   border: 1px dashed var(--line);
   border-radius: 8px;
   background: #fafafa;
+  max-height: 30vh;
+  overflow-y: auto;
 }
 
 .loc-nearby-title {
