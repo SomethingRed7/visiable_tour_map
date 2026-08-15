@@ -238,7 +238,7 @@ async function renderRecent() {
     const ckin = all.filter((e) => (e.title || '').startsWith('打卡:'));
     const diary = all.filter((e) => !(e.title || '').startsWith('打卡:')).slice(0, 20);
     const itemHtml = (e) => `<div class="recent-item">
-        <span class="recent-info">${esc(e.date)} <span class="time-tag">${fmtTime(entryTs(e))}</span> ${e.visibility === 'private' ? '<span class="vis-tag">私有</span>' : ''} <b>${esc(e.title || '')}</b> · ${esc(e.author || '')}</span>
+        <span class="recent-info">${esc(e.date)} <span class="time-tag">${fmtTime(entryTs(e))}</span> ${e.visibility === 'private' ? '<span class="vis-tag">私有</span>' : ''} <b>${esc(e.title || '')}</b>${(e.title || '').startsWith('打卡:') ? '' : ` · ${esc(e.author || '')}`}</span>
         <span class="recent-actions">
           <button type="button" class="btn-small btn-vis" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}" data-vis="${e.visibility === 'private' ? 'private' : 'public'}">${e.visibility === 'private' ? '改公开' : '改私有'}</button>
           <button type="button" class="btn-small btn-prev" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}">预览</button>
@@ -286,6 +286,11 @@ async function openPreview(date, ts) {
 
 $('#btn-preview-close').addEventListener('click', () => { $('#preview-modal').hidden = true; });
 $('#preview-modal').addEventListener('click', (e) => { if (e.target.id === 'preview-modal') $('#preview-modal').hidden = true; });
+function askDelete(btn) {
+  const { date, ts } = btn.dataset;
+  if (!confirm(`确定删除 ${date} 的这条日记吗?\n照片会一起删除,无法恢复!`)) return;
+  doDelete(date, ts);
+}
 async function doDelete(date, ts) {
   const fd = new FormData();
   fd.append('date', date);

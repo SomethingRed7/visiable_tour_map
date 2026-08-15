@@ -59,7 +59,9 @@ function shortLoc(name) {
 }
 
 function entryCard(e) {
-  const authorTag = e.author
+  // 打卡记录不区分用户:标题以「打卡:」开头的条目不显示作者
+  const isCkin = (e.title || '').startsWith('打卡:');
+  const authorTag = !isCkin && e.author
     ? `<span class="author-tag${e.author === '小红' ? ' rose' : ''}">${esc(e.author)}</span>`
     : '';
   const locTag = e.location && e.location.name
