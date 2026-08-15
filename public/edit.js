@@ -308,27 +308,37 @@ function locateToField() {
     st.textContent = '定位失败:' + (err ? { 1: '(权限被拒)', 2: '(定位服务不可用)', 3: '(定位超时)' }[err.code] || '' : '') + ',打开地图选点';
     setTimeout(() => openPicker(), 600);
   };
-  // ① 先高德定位(基站/WiFi,国内可靠),失败再走浏览器
-  st.textContent = '高德定位中…';
-  LocPicker.lpAmapLocate().then((g) => {
-    if (g) {
-      done(g.lat, g.lng);
-      return;
-    }
-    // ② 高德失败 → 浏览器原生定位(网络定位)
-    if (!navigator.geolocation) {
-      fail();
-      return;
-    }
+  // ① 浏览器原生定位(网络定位):同步启动,手势激活期内 Chrome 才会弹权限框
+  if (!navigator.geolocation) {
+    fail();
+  } else {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const gg = wgs2gcj(pos.coords.latitude, pos.coords.longitude);
-        done(gg.lat, gg.lng);
+        const g = wgs2gcj(pos.coords.latitude, pos.coords.longitude);
+        done(g.lat, g.lng);
       },
-      (err) => fail(err),
+      (err) => {
+        // ② 浏览器失败 → 高德定位(基站/WiFi)
+        st.textContent = '浏览器定位失败,改用高德定位…';
+        LocPicker.lpAmapLocate().then((g) => {
+          if (g) {
+            done(g.lat, g.lng);
+            return;
+          }
+          // ③ 高德也失败 → IP 定位(城市级兜底,必成功)
+          st.textContent = '高德定位失败,改用 IP 定位…';
+          LocPicker.lpIpLocate().then((ip) => {
+            if (ip) {
+              done(ip.lat, ip.lng);
+            } else {
+              fail(err);
+            }
+          });
+        });
+      },
       { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
     );
-  });
+  }
 }
 
 $('#btn-loc').addEventListener('click', locateToField);

@@ -648,17 +648,22 @@ body {
 /* ---------- 照片 ---------- */
 /* 双列网格:竖长图(火车票/截图)不再全宽拉长变糊;横竖图均按原比例显示不裁切 */
 .photo-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 10px;
 }
-
-/* 横图(宽>高)单列占满整行,竖图保持双列;混合时横图独占一行 */
-.photo-grid img.landscape { grid-column: 1 / -1; }
-
-/* 照片按原图比例缩放,不裁切(长图/截图完整可见;曾用固定 4:3 cover 导致车票等竖长图糊) */
+/* 竖图(非 landscape)成对并排:两张各 50%;不会出现单张落单右边空 */
+/* 注意:height auto + 无 cover,保持原比例不裁切(用户明确要求) */
 .photo-grid img {
+  width: calc(50% - 4px);
+  height: auto;
+  border-radius: 8px;
+  cursor: zoom-in;
+  box-shadow: var(--shadow);
+}
+/* 横图(宽>高)独占整行 */
+.photo-grid img.landscape {
   width: 100%;
   height: auto;
   border-radius: 8px;

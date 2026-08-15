@@ -159,6 +159,23 @@ async function lpAmapLocate() {
   } catch { return null; }
 }
 
+/* IP 定位(城市级兜底):服务端按访客 IP 反查(高德 v3/ip),无权限限制必成功。
+ * 返回 GCJ-02 {lat,lng,city};失败 resolve(null)。精确定位失败后用它兜底,
+ * 让选点器/附近推荐从城市中心开始,而不是每次从全国 [35,105] 开始。 */
+async function lpIpLocate() {
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    const r = await fetch('/api/locate', { signal: ctrl.signal });
+    clearTimeout(timer);
+    const d = await r.json();
+    if (d && d.ok && Number.isFinite(d.lat) && Number.isFinite(d.lng)) {
+      return { lat: d.lat, lng: d.lng, city: d.city || '' };
+    }
+    return null;
+  } catch { return null; }
+}
+
 /* ---------- 选点器核心 ---------- */
 function placeMarker(lat, lng) {
   if (!pickerMap) return;
@@ -359,31 +376,41 @@ function locateCurrent() {
     st.textContent = '微信内无法定位:点右上角 ⋯ 选「在浏览器打开」后重试,或直接搜索/点地图选';
     return;
   }
-  // 串行降级(高德 → 浏览器):不并发,避免抢手势被拒
+  // 串行降级(浏览器 → 高德 → IP):不并发,避免抢手势被拒
   let settled = false;
   const settle = (lat, lng) => { if (settled) return; settled = true; done(lat, lng); };
   const failOnce = (err) => { if (settled) return; settled = true; fail(err); };
-  // ① 先高德定位(基站/WiFi,国内可靠),失败再走浏览器
-  st.textContent = '高德定位中…';
-  lpAmapLocate().then((g) => {
-    if (g) {
-      done(g.lat, g.lng);
-      return;
-    }
-    // ② 高德失败 → 浏览器原生定位(网络定位)
-    if (!navigator.geolocation) {
-      failOnce();
-      return;
-    }
+  // ① 浏览器原生定位(网络定位):同步启动,手势激活期内 Chrome 才会弹权限框
+  if (!navigator.geolocation) {
+    failOnce();
+  } else {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const gg = wgs2gcj(pos.coords.latitude, pos.coords.longitude);
-        settle(gg.lat, gg.lng);
+        const g = wgs2gcj(pos.coords.latitude, pos.coords.longitude);
+        settle(g.lat, g.lng);
       },
-      (err) => failOnce(err),
+      (err) => {
+        // ② 浏览器失败 → 高德定位(基站/WiFi)
+        st.textContent = '浏览器定位失败,改用高德定位…';
+        lpAmapLocate().then((g) => {
+          if (g) {
+            settle(g.lat, g.lng);
+            return;
+          }
+          // ③ 高德也失败 → IP 定位(城市级兜底)
+          st.textContent = '高德定位失败,改用 IP 定位…';
+          lpIpLocate().then((ip) => {
+            if (ip) {
+              settle(ip.lat, ip.lng);
+            } else {
+              failOnce(err);
+            }
+          });
+        });
+      },
       { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
     );
-  });
+  }
 }
 
 /* ---------- 打开 / 关闭 ---------- */
@@ -465,4 +492,5 @@ window.LocPicker = {
     lpOpenPicker(opts && opts.lat, opts && opts.lng);
   },
   lpAmapLocate, // 高德定位兜底(打卡/写日记定位失败时复用)
+  lpIpLocate,   // IP 定位城市级兜底(精确定位失败后,选点器从城市中心开始)
 };
