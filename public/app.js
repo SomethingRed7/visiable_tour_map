@@ -227,9 +227,20 @@ function renderDayTodos(ds) {
       if (ckinDragJustDone) { ckinDragJustDone = false; return; } // 拖拽刚结束,吞掉本次点击
       const t = allTodos.find((x) => x.id === Number(el.dataset.id));
       if (!t) return;
+      // 点左边 ✓/○ → 勾选切换(保留旧交互:已打卡=取消打卡,未打卡=打卡)
+      if (ev.target.closest('.todo-check')) {
+        if (!t.done) {
+          openCheckinModal(t, ds);
+        } else if (t.checkin_ts) {
+          if (confirm('取消打卡?已生成的打卡记录(照片)将一并删除。')) toggleTodo(t.id, ds);
+        } else if (confirm('取消勾选?')) {
+          toggleTodo(t.id, ds);
+        }
+        return;
+      }
+      // 点待办其他区域 → 已打卡=编辑,未打卡=打卡
       if (t.done) {
         if (t.checkin_ts) {
-          // 已打卡 → 打开编辑态(改内容/补照片/删照片/删除打卡)
           const ck = allEntries.find((e) => String(e.ts) === String(t.checkin_ts));
           openCheckinModal(t, ds, ck || null);
         } else if (confirm('取消勾选?')) {
