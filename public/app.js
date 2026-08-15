@@ -450,9 +450,16 @@ function enterEditTodo(btn, id, ds) {
       const res = await (await fetch('/api/todos/update', { method: 'POST', body: fd })).json();
       if (res.ok && res.todo) {
         const t = allTodos.find((x) => x.id === id);
+        const oldText = t ? t.text : '';
         if (t) t.text = res.todo.text;
+        // 已打卡 → 本地同步打卡条目标题(服务端已改,这里保持界面一致)
+        if (t && t.checkin_ts) {
+          const ck = allEntries.find((e) => String(e.ts) === String(t.checkin_ts) && e.date === t.date);
+          if (ck && ck.title === `打卡:${oldText}`) ck.title = `打卡:${res.todo.text}`;
+        }
         renderDayTodos(ds);
         renderCalendar();
+        if (ds === selectedDate) renderDayEntries(ds);
       } else if (res.error) {
         input.placeholder = res.error;
       }
