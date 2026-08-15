@@ -21,7 +21,8 @@ function setAuthed(user) {
   $('#user-area').hidden = !loggedIn;
   if (user) {
     $('#current-user').textContent = user;
-    autoFillLocation(); // 进入记录界面自动后台定位并填入地点
+    // ⚠️ 不做自动定位:页面加载/登录时发起 geolocation 属非手势请求,
+    // Chrome 会拒绝并污染权限状态,导致用户手动点击定位也失败(2026-08-15 用户反馈换浏览器都定不上)
   } else showLoginPanel();
 }
 
@@ -416,8 +417,8 @@ async function openPicker() {
   } catch {
     $('#loc-status').textContent = '地图加载失败,仍可搜索选点';
   }
-  // 默认自动定位推荐(减少操作;权限已允许时秒出,失败有引导仍可搜索/点图)
-  setTimeout(() => locateCurrent(), 0);
+  // ⚠️ 不做自动定位:setTimeout 后已无用户手势,geolocation 会被 Chrome 拒绝
+  // 用户明确点「📍 定位」按钮(locateCurrent)时才请求
 }
 
 function initPickerMap() {
