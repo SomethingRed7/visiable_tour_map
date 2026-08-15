@@ -1105,31 +1105,38 @@ async function renderStream() {
     return (a.created_at || '') > (b.created_at || '') ? -1 : 1;
   });
   $('#stream-title').textContent = activeAlbum ? `专辑 · ${activeAlbum}` : '最近动态';
-  // 条目样式与管理界面完全一致:日期 时间 [私有] 标题加粗 · 作者 + 改公开/预览/编辑/删除(仅登录)
-  $('#stream').innerHTML = list
-    .slice(0, 60)
-    .map((e) => {
-      const isCkin = (e.title || '').startsWith('打卡:');
-      const visTag = e.visibility === 'private' ? '<span class="vis-tag">私有</span>' : '';
-      const visBtn = currentUser
-        ? `<button type="button" class="btn-small btn-vis" data-date="${esc(e.date)}" data-ts="${esc(e.ts)}" data-vis="${e.visibility === 'private' ? 'private' : 'public'}">${e.visibility === 'private' ? '改公开' : '改私有'}</button>`
-        : '';
-      const prevBtn = currentUser
-        ? `<button type="button" class="btn-small btn-prev" data-date="${esc(e.date)}" data-ts="${esc(e.ts)}">预览</button>`
-        : '';
-      const editBtn = currentUser
-        ? `<button type="button" class="btn-small btn-edit" data-date="${esc(e.date)}" data-ts="${esc(e.ts)}">编辑</button>`
-        : '';
-      const delBtn = currentUser
-        ? `<button type="button" class="btn-small btn-del" data-date="${esc(e.date)}" data-ts="${esc(e.ts)}">删除</button>`
-        : '';
-      return `<div class="recent-item">
-        <span class="recent-info">${esc(e.date)} <span class="time-tag">${fmtTime(e.ts)}</span> ${visTag} <b>${esc(e.title || '')}</b>${isCkin ? '' : ` · ${esc(e.author || '')}`}</span>
-        <span class="recent-actions">${visBtn}${prevBtn}${editBtn}${delBtn}</span>
-      </div>`;
-    })
-    .join('')
-    || '<p class="empty">还没有日记 ✏️</p>';
+  // 条目按日期分组:每日小标题 + 当日条目(样式与管理界面一致)
+  const grouped = [];
+  const byDate = {};
+  for (const e of list.slice(0, 60)) {
+    (byDate[e.date] = byDate[e.date] || []).push(e);
+  }
+  for (const date of Object.keys(byDate).sort().reverse()) grouped.push({ date, items: byDate[date] });
+  $('#stream').innerHTML = grouped.length
+    ? grouped.map((g) => `
+      <div class="stream-date-head">${esc(g.date)}</div>
+      ${g.items.map((e) => {
+        const isCkin = (e.title || '').startsWith('打卡:');
+        const visTag = e.visibility === 'private' ? '<span class="vis-tag">私有</span>' : '';
+        const visBtn = currentUser
+          ? `<button type="button" class="btn-small btn-vis" data-date="${esc(e.date)}" data-ts="${esc(e.ts)}" data-vis="${e.visibility === 'private' ? 'private' : 'public'}">${e.visibility === 'private' ? '改公开' : '改私有'}</button>`
+          : '';
+        const prevBtn = currentUser
+          ? `<button type="button" class="btn-small btn-prev" data-date="${esc(e.date)}" data-ts="${esc(e.ts)}">预览</button>`
+          : '';
+        const editBtn = currentUser
+          ? `<button type="button" class="btn-small btn-edit" data-date="${esc(e.date)}" data-ts="${esc(e.ts)}">编辑</button>`
+          : '';
+        const delBtn = currentUser
+          ? `<button type="button" class="btn-small btn-del" data-date="${esc(e.date)}" data-ts="${esc(e.ts)}">删除</button>`
+          : '';
+        return `<div class="recent-item">
+          <span class="recent-info">${esc(e.date)} <span class="time-tag">${fmtTime(e.ts)}</span> ${visTag} <b>${esc(e.title || '')}</b>${isCkin ? '' : ` · ${esc(e.author || '')}`}</span>
+          <span class="recent-actions">${visBtn}${prevBtn}${editBtn}${delBtn}</span>
+        </div>`;
+      }).join('')}
+    `).join('')
+    : '<p class="empty">还没有日记 ✏️</p>';
   bindStreamEditBtns($('#stream'));
   // 地图仅在选中专辑时显示
   if (activeAlbum) await renderAlbumMap(list);

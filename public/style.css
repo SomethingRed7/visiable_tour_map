@@ -531,7 +531,7 @@ body {
 .album-map {
   display: none;
   width: 100%;
-  height: 320px;
+  height: 200px; /* 扁:专辑地图降高 */
   border-radius: var(--radius);
   border: 1px solid var(--line);
   margin-bottom: 14px;
@@ -541,7 +541,7 @@ body {
 
 /* 移动端适配(≤600px):主按钮全宽大点击区 + 输入字号≥16px 防 iOS 聚焦自动缩放 */
 @media (max-width: 600px) {
-  .album-map { height: 240px; aspect-ratio: auto; } /* 固定高度:aspect-ratio auto 会让 Leaflet 初始化时高度为 0 导致瓦片错位/突出 */
+  .album-map { height: 160px; aspect-ratio: auto; } /* 固定高度:aspect-ratio auto 会让 Leaflet 初始化时高度为 0 导致瓦片错位/突出 */
   .btn-submit {
     width: 100%;
     min-height: 46px;
@@ -596,6 +596,24 @@ body {
   color: var(--text-soft);
   font-weight: 600;
 }
+
+/* 专辑条目按日期分组的小标题 */
+.stream-date-head {
+  margin: 14px 0 6px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.stream-date-head::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.stream-date-head:first-child { margin-top: 0; }
 
 /* ---------- 照片 ---------- */
 /* 双列网格:竖长图(火车票/截图)不再全宽拉长变糊;横竖图均按原比例显示不裁切 */
