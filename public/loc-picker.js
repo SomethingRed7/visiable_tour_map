@@ -124,6 +124,7 @@ async function fetchConfig() {
 }
 
 let amapReadyPromise = null;
+let lpCityCache = ''; // 最近一次 IP 定位的城市(搜索时限定,避免搜出外地的同名店铺)
 function ensureAmap() {
   if (window.AMap && window.AMap.Geocoder && window.AMap.PlaceSearch) return Promise.resolve(true);
   if (!amapKey) return Promise.resolve(false);
@@ -170,6 +171,7 @@ async function lpIpLocate() {
     clearTimeout(timer);
     const d = await r.json();
     if (d && d.ok && Number.isFinite(d.lat) && Number.isFinite(d.lng)) {
+      lpCityCache = d.city || '';
       return { lat: d.lat, lng: d.lng, city: d.city || '' };
     }
     return null;
@@ -304,10 +306,13 @@ async function serverSearch(q) {
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 6000);
-    const res = await (await fetch(`/api/geocode?q=${encodeURIComponent(q)}`, { signal: ctrl.signal })).json();
+    // 限定城市(lpCityCache 来自 IP 定位),避免同名店铺搜到外地
+    const cityQ = lpCityCache ? `&city=${encodeURIComponent(lpCityCache)}` : '';
+    const res = await (await fetch(`/api/geocode?q=${encodeURIComponent(q)}${cityQ}`, { signal: ctrl.signal })).json();
     clearTimeout(timer);
     const results = (res.results || []).map((r) => {
-      const g = wgs2gcj(r.lat, r.lng); // Nominatim = WGS-84,转 GCJ-02
+      // crs:'gcj'=高德结果已是 GCJ-02 勿转;无 crs=Nominatim(WGS-84)需转,否则偏 1.4km
+      const g = r.crs === 'gcj' ? { lat: r.lat, lng: r.lng } : wgs2gcj(r.lat, r.lng);
       return { name: r.name, lat: g.lat, lng: g.lng };
     });
     renderLocResults(results);
@@ -447,6 +452,8 @@ function lpOpenPicker(initLat, initLng) {
   $('#loc-confirm').hidden = true;
   $('#loc-status').textContent = '';
   setTimeout(() => $('#loc-search').focus(), 50);
+  // 缓存城市(搜索限定时用);无则异步拉一次 IP 定位(不阻塞打开)
+  if (!lpCityCache) lpIpLocate().then(() => {});
   (async () => {
     try {
       await loadLeaflet();

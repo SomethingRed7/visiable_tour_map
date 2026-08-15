@@ -27,13 +27,15 @@ async function amapRegeo(env, lat, lng) {
     // —— regeo 的 pois 是有限集合常漏店铺(实测丹丹热卤 16m 却不在 regeo 列表),around 全且按距离
     let nearby = [];
     try {
+      // around 不带 types = 全品类 POI(餐饮+酒店+购物+生活+交通…),与高德 App 一致
+      // ⚠️ 曾用 types=050000(餐饮单类)导致酒店/购物查不到;多值 types 返回空(高德坑)
       const ar = await fetch(
-        `https://restapi.amap.com/v3/place/around?key=${key}&location=${lng},${lat}&radius=500&types=050000&offset=20&sortrule=distance`,
+        `https://restapi.amap.com/v3/place/around?key=${key}&location=${lng},${lat}&radius=1000&offset=30&sortrule=distance`,
         { signal: AbortSignal.timeout(8000) }
       );
       const ad = await ar.json();
       if (ad.status === '1' && ad.pois) {
-        nearby = ad.pois.slice(0, 12).map((p) => {
+        nearby = ad.pois.slice(0, 20).map((p) => {
           const [lngN, latN] = String(p.location || '').split(',').map(Number);
           // 高德 around 坐标 = GCJ-02,与高德瓦片一致,前端勿再转(WGS-84→GCJ 会双重偏移 1.4km)
           return { name: p.name, lat: Number.isFinite(latN) ? latN : null, lng: Number.isFinite(lngN) ? lngN : null, dist: p.distance, crs: 'gcj' };
@@ -45,7 +47,7 @@ async function amapRegeo(env, lat, lng) {
       const pois = (d.regeocode.pois || [])
         .filter((p) => p && p.name)
         .sort((a, b) => parseFloat(a.distance || 99999) - parseFloat(b.distance || 99999))
-        .slice(0, 12)
+        .slice(0, 20)
         .map((p) => {
           const [lngN, latN] = String(p.location || '').split(',').map(Number);
           return { name: p.name, lat: Number.isFinite(latN) ? latN : null, lng: Number.isFinite(lngN) ? lngN : null, dist: p.distance, crs: 'gcj' };
@@ -117,6 +119,27 @@ export async function onRequestGet(context) {
     }
 
     if (q) {
+      // 优先高德 place/text(全品类、中国 POI 全;Nominatim/OSM 中国数据极少「9栋/10栋」)
+      const key = context.env.AMAP_WEB_KEY || '';
+      if (key) {
+        try {
+          const city = (url.searchParams.get('city') || '').trim();
+          // citylimit=true 需配 city(前端传 IP 定位城市,如「长沙市」),避免同名搜到外地
+          const ar = await fetch(
+            `https://restapi.amap.com/v3/place/text?key=${key}&keywords=${encodeURIComponent(q)}&city=${encodeURIComponent(city)}&citylimit=true&offset=10&page=1`,
+            { signal: AbortSignal.timeout(8000) }
+          );
+          const ad = await ar.json();
+          if (ad.status === '1' && ad.pois && ad.pois.length) {
+            return Response.json({
+              results: ad.pois.slice(0, 8).map((p) => {
+                const [lngN, latN] = String(p.location || '').split(',').map(Number);
+                return { name: String(p.name || '').slice(0, 80), lat: Number.isFinite(latN) ? latN : null, lng: Number.isFinite(lngN) ? lngN : null, crs: 'gcj' };
+              }).filter((r) => r.lat != null),
+            });
+          }
+        } catch { /* 回退 Nominatim */ }
+      }
       const res = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&limit=5&accept-language=zh-CN&q=${encodeURIComponent(q)}`,
         { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(8000) }
