@@ -649,39 +649,65 @@ async function geolocDeniedReason() {
   } catch { /* 老浏览器无 permissions API */ }
   return 'unknown';
 }
+// 关键时序:Chrome 要求 getCurrentPosition 在用户手势激活期内调用,
+// 一旦 await(网络/高德)激活窗口过期,直接拒绝不弹权限框。
+// 所以浏览器定位必须在点击回调里【同步】启动,高德并行不阻塞。
 function locateCheckin() {
   const st = $('#ckin-status');
   const input = $('#ckin-loc');
   st.textContent = '定位中…';
-  ckinGetPosition().then(async (pos) => {
-    if (!pos) {
-      if (isWechatBrowser()) {
-        st.textContent = '微信内无法定位,请点右上角 ⋯ 选「在浏览器打开」后重试';
-      } else {
-        const denied = await geolocDeniedReason();
+  let settled = false;
+  const done = (lat, lng) => {
+    if (settled) return;
+    settled = true;
+    ckinLat = lat;
+    ckinLng = lng;
+    (async () => {
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 8000);
+        const r = await (await fetch(`/api/reverse?lat=${lat}&lng=${lng}`, { signal: ctrl.signal })).json();
+        clearTimeout(timer);
+        if (r && r.name) input.value = r.name.slice(0, 80);
+        else input.value = `${lat.toFixed(5)},${lng.toFixed(5)}`;
+      } catch {
+        input.value = `${lat.toFixed(5)},${lng.toFixed(5)}`;
+      }
+      st.textContent = '';
+    })();
+  };
+  const fail = () => {
+    if (settled) return;
+    settled = true;
+    if (isWechatBrowser()) {
+      st.textContent = '微信内无法定位,请点右上角 ⋯ 选「在浏览器打开」后重试';
+    } else {
+      geolocDeniedReason().then((denied) => {
         st.textContent = denied === 'denied'
           ? '定位被拒绝:点地址栏左侧图标 → 网站设置 → 允许位置,再试'
           : '定位失败:请允许位置权限后重试,或手动输入地点';
-      }
-      ckinLat = null;
-      ckinLng = null;
-      return;
+      });
     }
-    const lat = pos.lat;
-    const lng = pos.lng;
-    ckinLat = lat;
-    ckinLng = lng;
-    try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 8000);
-      const r = await (await fetch(`/api/reverse?lat=${lat}&lng=${lng}`, { signal: ctrl.signal })).json();
-      clearTimeout(timer);
-      if (r && r.name) input.value = r.name.slice(0, 80);
-      else input.value = `${lat.toFixed(5)},${lng.toFixed(5)}`;
-    } catch {
-      input.value = `${lat.toFixed(5)},${lng.toFixed(5)}`;
-    }
-    st.textContent = '';
+    ckinLat = null;
+    ckinLng = null;
+  };
+
+  // 1) 浏览器定位:同步启动(手势激活期内,Chrome 才会弹权限框)
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const g = wgs2gcj(pos.coords.latitude, pos.coords.longitude);
+        done(g.lat, g.lng);
+      },
+      () => fail(),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+  } else {
+    fail();
+  }
+  // 2) 高德定位:并行尝试,成功优先(浏览器失败时兜底;插件未注册则静默忽略)
+  ckinGetPosition().then((pos) => {
+    if (pos && !settled) done(pos.lat, pos.lng);
   });
 }
 

@@ -668,9 +668,27 @@ async function locateCurrent() {
     ? '微信内无法定位,请点右上角 ⋯ 选「在浏览器打开」后重试,或直接搜索/点地图选'
     : '定位失败:检查位置权限/系统定位后重试,或直接搜索/点地图选';
 
-  const pos = await getPositionWithFallback();
-  if (pos) done(pos.lat, pos.lng);
-  else fail();
+  // 关键时序:Chrome 要求 getCurrentPosition 在用户手势激活期内同步调用,
+  // 先 await 高德会过期手势 → 直接拒绝不弹权限框。所以浏览器定位立即启动,高德并行。
+  let settled = false;
+  const settle = (lat, lng) => { if (settled) return; settled = true; done(lat, lng); };
+  const failOnce = () => { if (settled) return; settled = true; fail(); };
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const g = wgs2gcj(pos.coords.latitude, pos.coords.longitude);
+        settle(g.lat, g.lng);
+      },
+      () => failOnce(),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  } else {
+    failOnce();
+  }
+  // 高德并行:成功优先(浏览器失败时兜底)
+  getPositionWithFallback().then((pos) => {
+    if (pos && !settled) settle(pos.lat, pos.lng);
+  });
 }
 
 $('#btn-loc').addEventListener('click', openPicker);
