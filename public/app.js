@@ -568,6 +568,9 @@ function openCheckinModal(t, ds, editEntry) {
   if (editEntry) {
     // ---- 编辑态:预填已有内容 ----
     $('#ckin-title').textContent = '编辑打卡';
+    const ti = $('#ckin-title-input');
+    ti.hidden = false;
+    ti.value = editEntry.title || `打卡:${t.text}`;
     $('#ckin-vis').value = editEntry.visibility === 'private' ? 'private' : 'public';
     $('#ckin-note').value = editEntry.text || '';
     $('#ckin-loc').value = (editEntry.location && editEntry.location.name) || '';
@@ -599,6 +602,9 @@ function openCheckinModal(t, ds, editEntry) {
   } else {
     // ---- 新建态 ----
     $('#ckin-title').textContent = '打卡';
+    const ti = $('#ckin-title-input');
+    ti.hidden = true;
+    ti.value = '';
     $('#ckin-vis').value = 'public'; // 打卡默认公开,可改私有
     $('#ckin-note').value = '';
     $('#ckin-loc').value = '';
@@ -717,10 +723,11 @@ async function submitCheckin() {
   try {
     if (ckinEdit) {
       // ---- 编辑态:更新已有打卡记录(不走 toggle,保留 done/checkin_ts)----
+      const newTitle = $('#ckin-title-input').value.trim() || `打卡:${t.text}`;
       const fd = new FormData();
       fd.append('date', ckinEdit.date);
       fd.append('ts', String(ckinEdit.ts));
-      fd.append('title', ckinEdit.title || '');
+      fd.append('title', newTitle);
       fd.append('text', note);
       fd.append('album', album);
       fd.append('visibility', vis);
@@ -740,7 +747,7 @@ async function submitCheckin() {
       // 本地同步更新
       const idx = allEntries.findIndex((e) => String(e.ts) === String(ckinEdit.ts));
       if (idx >= 0) {
-        allEntries[idx] = { ...allEntries[idx], text: note, album: album || null, visibility: vis, location: data.entry ? data.entry.location : allEntries[idx].location, photos: data.entry ? data.entry.photos : allEntries[idx].photos };
+        allEntries[idx] = { ...allEntries[idx], title: newTitle, text: note, album: album || null, visibility: vis, location: data.entry ? data.entry.location : allEntries[idx].location, photos: data.entry ? data.entry.photos : allEntries[idx].photos };
       }
       closeCheckinModal();
       renderDayTodos(ds);
