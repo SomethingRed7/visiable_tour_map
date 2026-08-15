@@ -872,13 +872,13 @@ function setCkinMapPoint(lat, lng, name) {
   $('#ckin-map-status').textContent = `坐标 ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 }
 
-// 反查地名:服务端 /api/geocode(高德 regeo 优先,失败 Nominatim)
+// 反查地名 + 附近地点:服务端 /api/geocode(高德 regeo 优先,失败 Nominatim+Overpass)
 async function ckinReverse(lat, lng) {
   const st = $('#ckin-map-status');
   st.textContent = '反查中…';
   try {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 12000);
+    const timer = setTimeout(() => ctrl.abort(), 20000);
     const r = await (await fetch(`/api/geocode?lat=${lat}&lng=${lng}`, { signal: ctrl.signal })).json();
     clearTimeout(timer);
     const res = r.results && r.results[0];
@@ -886,8 +886,30 @@ async function ckinReverse(lat, lng) {
       ckinMapPt.name = res.name;
       $('#ckin-map-name').textContent = res.name;
     }
+    // 附近地点推荐:点击用它的名字+坐标(与写日记页选点器一致)
+    const nearby = ((res && res.nearby) || []).map((n) => {
+      const g = wgs2gcj(n.lat, n.lng); // Overpass 是 WGS-84,转 GCJ-02 才对得上高德瓦片
+      return { name: n.name, lat: g.lat, lng: g.lng };
+    }).slice(0, 8);
+    const nb = $('#ckin-map-nearby');
+    if (nearby.length) {
+      nb.hidden = false;
+      nb.innerHTML = '<div class="loc-nearby-title">附近:点一个用它的名字</div>' +
+        nearby.map((n, i) => `<button type="button" class="loc-nearby-chip" data-i="${i}">${esc(n.name)}</button>`).join('');
+      [...nb.querySelectorAll('.loc-nearby-chip')].forEach((b) => {
+        b.addEventListener('click', () => {
+          const n = nearby[Number(b.dataset.i)];
+          setCkinMapPoint(n.lat, n.lng, n.name);
+          if (ckinMapObj) ckinMapObj.setView([n.lat, n.lng], Math.max(ckinMapObj.getZoom(), 15));
+        });
+      });
+    } else {
+      nb.hidden = true;
+      nb.innerHTML = '';
+    }
     st.textContent = `坐标 ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
   } catch {
+    $('#ckin-map-nearby').hidden = true;
     st.textContent = `坐标 ${lat.toFixed(5)}, ${lng.toFixed(5)}(反查失败,可直接确认)`;
   }
 }
