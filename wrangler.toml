@@ -21,7 +21,7 @@ SESSION_SECRET = "cfef4e321f670a2026dcd0fcea5ff1396b84a18af981b09e"
 # AMAP_WEB_KEY = Web服务 key —— 服务端 regeo(restapi.amap.com),无需白名单
 AMAP_KEY = "c89c48432f7c8a0f2408cffc4a535d15"
 AMAP_SECURITY = "5aaffe1e328474981800c46a0e5bdc90"
-AMAP_WEB_KEY = ""
+AMAP_WEB_KEY = "69998348ddc40d7d814ca8eb34ca17b0"
 
 # 条目存储:D1(SQLite,强一致;KV 最终一致性曾导致上传后查不到)
 [[d1_databases]]
