@@ -88,14 +88,16 @@ export async function onRequestPost(context) {
 
   // 删除指定照片:按路径定位索引,同步移除 R2/列表/哈希
   const toRemoveRaw = form.get('photos_to_remove');
-  let maxIdx = -1; // 现有+已删照片的最大编号(新照片必须大于它,防止路径复用)
+  // 现有+已删照片的最大编号(新照片必须大于它,防止路径复用——不删照片时也要算!
+  // 否则补传照片编号从 0 开始,覆盖已有照片的 R2 文件 → 重复显示/新图丢失)
+  let maxIdx = -1;
+  photos.forEach((p) => {
+    const m = p.match(/-([0-9]+)\.jpg$/);
+    if (m) maxIdx = Math.max(maxIdx, parseInt(m[1], 10));
+  });
   if (toRemoveRaw) {
     try {
       const toRemove = new Set(JSON.parse(toRemoveRaw));
-      photos.forEach((p) => {
-        const m = p.match(/-(\d+)\.jpg$/);
-        if (m) maxIdx = Math.max(maxIdx, parseInt(m[1], 10));
-      });
       const idxs = photos.map((p, i) => (toRemove.has(p) ? i : -1)).filter((i) => i >= 0).sort((a, b) => b - a);
       for (const idx of idxs) {
         const k = photos[idx].replace(/^\/photos\//, '');
