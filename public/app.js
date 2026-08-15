@@ -147,10 +147,26 @@ function selectDate(ds) {
 }
 
 // 当天动态渲染(selectDate 与打卡后刷新共用)
-/* 已登录:动态/流条目「✎ 编辑」(打卡 → 编辑打卡弹窗;日记 → 跳 /edit) */
+/* 已登录:动态/流条目按钮(改公开/预览/编辑/删除,与管理界面一致) */
 function bindStreamEditBtns(container) {
   if (!currentUser) return;
-  container.querySelectorAll('.entry-edit').forEach((b) => {
+  container.querySelectorAll('.btn-vis').forEach((b) => {
+    b.addEventListener('click', async () => {
+      const fd = new FormData();
+      fd.append('date', b.dataset.date);
+      fd.append('ts', b.dataset.ts);
+      fd.append('visibility', b.dataset.vis === 'private' ? 'public' : 'private');
+      try {
+        const res = await (await fetch('/api/update', { method: 'POST', body: fd })).json();
+        if (res.ok) renderStream();
+        else alert(res.error || '切换失败');
+      } catch { alert('网络异常,请重试'); }
+    });
+  });
+  container.querySelectorAll('.btn-prev').forEach((b) => {
+    b.addEventListener('click', () => openStreamPreview(b.dataset.date, b.dataset.ts));
+  });
+  container.querySelectorAll('.btn-edit').forEach((b) => {
     b.addEventListener('click', () => {
       const date = b.dataset.date;
       const ts = Number(b.dataset.ts);
@@ -167,7 +183,44 @@ function bindStreamEditBtns(container) {
       }
     });
   });
+  container.querySelectorAll('.btn-del').forEach((b) => {
+    b.addEventListener('click', async () => {
+      if (!confirm(`确定删除 ${b.dataset.date} 的这条日记吗?\n照片会一起删除,无法恢复!`)) return;
+      const fd = new FormData();
+      fd.append('date', b.dataset.date);
+      fd.append('ts', b.dataset.ts);
+      try {
+        const res = await fetch('/api/delete', { method: 'POST', body: fd });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (res.status === 401) { location.href = '/'; return; }
+          return alert(data.error || `删除失败(HTTP ${res.status})`);
+        }
+        // 本地同步移除
+        allEntries = allEntries.filter((x) => !(x.date === b.dataset.date && String(x.ts) === String(b.dataset.ts)));
+        renderStream();
+        if (selectedDate) renderDayEntries(selectedDate);
+        renderCalendar();
+        alert('已删除 ✅');
+      } catch { alert('网络异常,请重试'); }
+    });
+  });
 }
+
+/* 预览弹层(与管理界面同款) */
+async function openStreamPreview(date, ts) {
+  const data = await (await fetch(`/api/entries?date=${date}`)).json();
+  const e = (data.entries || []).find((x) => String(x.ts) === String(ts));
+  if (!e) return alert('条目不存在');
+  $('#preview-body').innerHTML = `<div class="preview-date">${esc(e.date)}</div>` + entryCard(e);
+  $('#preview-modal').hidden = false;
+  bindPhotoGridFallback($('#preview-body'));
+  $('#preview-body').querySelectorAll('.photo-grid img').forEach((img) => {
+    img.addEventListener('click', () => window.open(img.dataset.full || img.src, '_blank'));
+  });
+}
+$('#btn-preview-close').addEventListener('click', () => { $('#preview-modal').hidden = true; });
+$('#preview-modal').addEventListener('click', (e) => { if (e.target.id === 'preview-modal') $('#preview-modal').hidden = true; });
 
 function renderDayEntries(ds) {
   const dayEntries = allEntries
@@ -1049,24 +1102,27 @@ async function renderStream() {
     return (a.created_at || '') > (b.created_at || '') ? -1 : 1;
   });
   $('#stream-title').textContent = activeAlbum ? `专辑 · ${activeAlbum}` : '最近动态';
-  // 简要条目(两行式):meta 一行(日期 时间 专辑),标题一行完整显示,右侧编辑
+  // 条目样式与管理界面完全一致:日期 时间 [私有] 标题加粗 · 作者 + 改公开/预览/编辑/删除(仅登录)
   $('#stream').innerHTML = list
     .slice(0, 60)
     .map((e) => {
       const isCkin = (e.title || '').startsWith('打卡:');
       const visTag = e.visibility === 'private' ? '<span class="vis-tag">私有</span>' : '';
-      const albumTag = e.album ? `<span class="album-tag">${esc(e.album)}</span>` : '';
-      const editBtn = currentUser
-        ? `<button type="button" class="btn-small entry-edit" data-date="${esc(e.date)}" data-ts="${esc(e.ts)}">✎ 编辑</button>`
+      const visBtn = currentUser
+        ? `<button type="button" class="btn-small btn-vis" data-date="${esc(e.date)}" data-ts="${esc(e.ts)}" data-vis="${e.visibility === 'private' ? 'private' : 'public'}">${e.visibility === 'private' ? '改公开' : '改私有'}</button>`
         : '';
-      const title = e.title || '(无标题)';
-      const author = isCkin ? '' : ` · ${esc(e.author || '')}`;
+      const prevBtn = currentUser
+        ? `<button type="button" class="btn-small btn-prev" data-date="${esc(e.date)}" data-ts="${esc(e.ts)}">预览</button>`
+        : '';
+      const editBtn = currentUser
+        ? `<button type="button" class="btn-small btn-edit" data-date="${esc(e.date)}" data-ts="${esc(e.ts)}">编辑</button>`
+        : '';
+      const delBtn = currentUser
+        ? `<button type="button" class="btn-small btn-del" data-date="${esc(e.date)}" data-ts="${esc(e.ts)}">删除</button>`
+        : '';
       return `<div class="recent-item">
-        <div class="recent-main">
-          <div class="recent-meta">${esc(e.date)} <span class="time-tag">${fmtTime(e.ts)}</span> ${visTag}${albumTag}</div>
-          <div class="recent-title"><b>${esc(title)}</b>${author}</div>
-        </div>
-        <span class="recent-actions">${editBtn}</span>
+        <span class="recent-info">${esc(e.date)} <span class="time-tag">${fmtTime(e.ts)}</span> ${visTag} <b>${esc(e.title || '')}</b>${isCkin ? '' : ` · ${esc(e.author || '')}`}</span>
+        <span class="recent-actions">${visBtn}${prevBtn}${editBtn}${delBtn}</span>
       </div>`;
     })
     .join('')
