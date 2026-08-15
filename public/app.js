@@ -973,6 +973,8 @@ async function renderAlbumMap(list) {
   if (albumMap) albumMap.remove();
   const map = L.map('album-map', { scrollWheelZoom: false });
   albumMap = map;
+  // 容器从 display:none 切到显示后立即初始化会尺寸错位 → 延时校正(瓦片偏移根因)
+  setTimeout(() => map.invalidateSize(), 120);
   L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
     maxZoom: 18,
     subdomains: ['1', '2', '3', '4'],
@@ -1047,12 +1049,23 @@ async function renderStream() {
     return (a.created_at || '') > (b.created_at || '') ? -1 : 1;
   });
   $('#stream-title').textContent = activeAlbum ? `专辑 · ${activeAlbum}` : '最近动态';
+  // 简要条目(类似管理界面):日期 时间 标题 · 专辑 一行,右侧编辑按钮
   $('#stream').innerHTML = list
     .slice(0, 60)
-    .map((e) => `<article class="entry stream-entry"><div class="stream-date">${esc(e.date)}</div>${entryCard(e, currentUser ? { editBtn: true } : null)}</article>`)
+    .map((e) => {
+      const isCkin = (e.title || '').startsWith('打卡:');
+      const visTag = e.visibility === 'private' ? '<span class="vis-tag">私有</span>' : '';
+      const albumTag = e.album ? `<span class="album-tag">${esc(e.album)}</span>` : '';
+      const editBtn = currentUser
+        ? `<button type="button" class="btn-small entry-edit" data-date="${esc(e.date)}" data-ts="${esc(e.ts)}">✎ 编辑</button>`
+        : '';
+      return `<div class="recent-item">
+        <span class="recent-info">${esc(e.date)} <span class="time-tag">${fmtTime(e.ts)}</span> ${visTag}${albumTag} <b>${esc(e.title || '')}</b>${isCkin ? '' : ` · ${esc(e.author || '')}`}</span>
+        <span class="recent-actions">${editBtn}</span>
+      </div>`;
+    })
     .join('')
     || '<p class="empty">还没有日记 ✏️</p>';
-  bindPhotoGridFallback($('#stream'));
   bindStreamEditBtns($('#stream'));
   // 地图仅在选中专辑时显示
   if (activeAlbum) await renderAlbumMap(list);
