@@ -445,10 +445,10 @@ function initPickerMap() {
         const r = res.results && res.results[0];
         if (r) {
           $('#loc-confirm-name').textContent = r.name;
-          // 兜底反查的 nearby 来自 Overpass = WGS-84,转 GCJ-02 再渲染(图钉才不会偏)
+          // nearby 坐标系:高德 gcj(勿转)/Overpass wgs(转 GCJ-02 再渲染,图钉才不会偏)
           const nearby = ((r && r.nearby) || []).map((n) => {
-            const g = wgs2gcj(n.lat, n.lng);
-            return { name: n.name, lat: g.lat, lng: g.lng };
+            const p = n.crs === 'wgs' ? wgs2gcj(n.lat, n.lng) : { lat: n.lat, lng: n.lng };
+            return { name: n.name, lat: p.lat, lng: p.lng };
           });
           renderNearby(nearby, lat, lng);
         }

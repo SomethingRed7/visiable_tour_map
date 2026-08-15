@@ -898,9 +898,10 @@ async function ckinReverse(lat, lng) {
       $('#ckin-map-name').textContent = res.name;
     }
     // 附近地点推荐:点击用它的名字+坐标(与写日记页选点器一致)
+    // crs: 'gcj'=高德(已是 GCJ-02 勿转);'wgs'=Overpass(WGS-84 需转 GCJ-02 才对得上高德瓦片)
     const nearby = ((res && res.nearby) || []).map((n) => {
-      const g = wgs2gcj(n.lat, n.lng); // Overpass 是 WGS-84,转 GCJ-02 才对得上高德瓦片
-      return { name: n.name, lat: g.lat, lng: g.lng };
+      const p = n.crs === 'wgs' ? wgs2gcj(n.lat, n.lng) : { lat: n.lat, lng: n.lng };
+      return { name: n.name, lat: p.lat, lng: p.lng };
     }).slice(0, 12);
     const nb = $('#ckin-map-nearby');
     if (nearby.length) {

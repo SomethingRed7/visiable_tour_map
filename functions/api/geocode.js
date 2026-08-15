@@ -35,7 +35,8 @@ async function amapRegeo(env, lat, lng) {
       if (ad.status === '1' && ad.pois) {
         nearby = ad.pois.slice(0, 12).map((p) => {
           const [lngN, latN] = String(p.location || '').split(',').map(Number);
-          return { name: p.name, lat: Number.isFinite(latN) ? latN : null, lng: Number.isFinite(lngN) ? lngN : null, dist: p.distance };
+          // 高德 around 坐标 = GCJ-02,与高德瓦片一致,前端勿再转(WGS-84→GCJ 会双重偏移 1.4km)
+          return { name: p.name, lat: Number.isFinite(latN) ? latN : null, lng: Number.isFinite(lngN) ? lngN : null, dist: p.distance, crs: 'gcj' };
         }).filter((n) => n.lat != null);
       }
     } catch { /* 周边失败就空列表 */ }
@@ -47,7 +48,7 @@ async function amapRegeo(env, lat, lng) {
         .slice(0, 12)
         .map((p) => {
           const [lngN, latN] = String(p.location || '').split(',').map(Number);
-          return { name: p.name, lat: Number.isFinite(latN) ? latN : null, lng: Number.isFinite(lngN) ? lngN : null, dist: p.distance };
+          return { name: p.name, lat: Number.isFinite(latN) ? latN : null, lng: Number.isFinite(lngN) ? lngN : null, dist: p.distance, crs: 'gcj' };
         });
       nearby = pois;
     }
@@ -79,7 +80,7 @@ async function nearbyOverpass(lat, lng) {
       const lngN = e.lon ?? (e.center || {}).lon;
       if (latN == null || lngN == null) continue;
       seen.add(name);
-      out.push({ name, lat: latN, lng: lngN });
+      out.push({ name, lat: latN, lng: lngN, crs: 'wgs' }); // Overpass = WGS-84,前端需转 GCJ-02
       if (out.length >= 6) break;
     }
     return out;
