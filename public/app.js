@@ -312,7 +312,7 @@ function renderDayTodos(ds) {
     // 已完成默认排最后;未完成按拖拽顺序
     .sort((a, b) => (a.done - b.done) || ((a.sort_order ?? 0) - (b.sort_order ?? 0)) || a.id - b.id);
   const done = list.filter((t) => t.done).length;
-  const items = list.length
+  const itemsHtml = list.length
     ? list.map((t) => {
         const ck = t.done && t.checkin_ts
           ? allEntries.find((e) => String(e.ts) === String(t.checkin_ts))
@@ -334,8 +334,8 @@ function renderDayTodos(ds) {
     : '<p class="todo-empty">这天还没有待办,添加一条开始打卡</p>';
   box.innerHTML = `
     <div class="todo-head"><span>当日待办</span><span class="todo-progress">已勾 ${done}/${list.length}</span></div>
-    ${items}
-    <form class="todo-add"><input type="text" maxlength="200" placeholder="添加一条待办…" required><button type="submit" class="btn-small">添加</button></form>`;
+    <form class="todo-add"><input type="text" maxlength="200" placeholder="添加一条待办…" required><button type="submit" class="btn-small">添加</button></form>
+    ${itemsHtml}`;
   // 打卡展开区缩略图:横图(宽>高)加 landscape 单列占满行,竖图双列(与 photo-grid 一致)
   box.querySelectorAll('.ckin-extra img').forEach((img) => {
     const mark = () => { if (img.naturalWidth > img.naturalHeight) img.classList.add('landscape'); };
