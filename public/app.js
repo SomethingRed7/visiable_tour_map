@@ -1084,6 +1084,16 @@ function openCkinMap() {
 /* ---------- 专辑地图(Leaflet + 高德瓦片,懒加载) ---------- */
 let albumMap = null;
 
+/* 条目时间戳:优先 ts 字段,退化为从照片路径提取 */
+function entryTs(e) {
+  if (e.ts) return String(e.ts);
+  if (e.photos && e.photos[0]) {
+    const m = e.photos[0].match(/([0-9]{13})-[0-9]+\.jpg$/);
+    if (m) return m[1];
+  }
+  return '0';
+}
+
 async function renderAlbumMap(list) {
   const box = $('#album-map');
   const withLoc = list.filter((e) => e.location && e.location.lat != null && e.location.lng != null);
@@ -1099,7 +1109,7 @@ async function renderAlbumMap(list) {
     return;
   }
   if (albumMap) albumMap.remove();
-  const map = L.map('album-map', { scrollWheelZoom: false });
+  const map = L.map('album-map', { scrollWheelZoom: true, zoomControl: true });
   albumMap = map;
   // 容器从 display:none 切到显示后立即初始化会尺寸错位 → 延时校正(瓦片偏移/突出根因)
   setTimeout(() => map.invalidateSize(), 120);
@@ -1118,8 +1128,12 @@ async function renderAlbumMap(list) {
   if (bounds.length === 1) {
     map.setView(bounds[0], 12);
   } else if (bounds.length > 1) {
-    // 沿路规划(CF 边缘 OSRM 代理,失败回退直线),按日期排序连线
-    const ordered = withLoc.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    // 沿路规划(CF 边缘 OSRM 代理,失败回退直线),按日期+时间排序连线
+    // ⚠️ 之前只按 date 排序,同一天多条打卡顺序不稳定(V8 sort 不稳定)→ 连线乱/漏
+    const ordered = withLoc.slice().sort((a, b) => {
+      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+      return (entryTs(a) || 0) - (entryTs(b) || 0);
+    });
     // 存储坐标=GCJ-02(高德系),OSRM 要 WGS-84,请求前转换
     const wgsPts = ordered.map((e) => gcj2wgs(e.location.lat, e.location.lng));
     let line = ordered.map((e) => [e.location.lat, e.location.lng]);
@@ -1134,7 +1148,8 @@ async function renderAlbumMap(list) {
         });
       }
     } catch { /* 直线 */ }
-    L.polyline(line, { color: '#d97706', weight: 3, opacity: 0.8 }).addTo(map);
+    // 轨迹线:品牌红醒目(原 #d97706 琥珀色太淡)
+    L.polyline(line, { color: '#e11d48', weight: 4, opacity: 0.9 }).addTo(map);
     map.fitBounds(line, { padding: [30, 30] });
   }
 }
