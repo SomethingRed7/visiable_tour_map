@@ -46,16 +46,26 @@ export async function onRequestPost(context) {
         return Response.json({ error: '上传太频繁了,休息 15 分钟再试' }, { status: 429 });
       }
 
+      // 幂等:原子抢占 done(WHERE done=0 保证并发时只有一个请求能成功),
+      // 抢到后再生成条目;照片存储失败则回滚抢占
+      const ts = Date.now();
+      const claim = await context.env.DB
+        .prepare('UPDATE todos SET done = 1, checkin_ts = ?1 WHERE id = ?2 AND done = 0')
+        .bind(ts, id).run();
+      if (!claim.meta || claim.meta.changes === 0) {
+        return Response.json({ error: '已打卡过了' }, { status: 409 });
+      }
+
       let photoHashes = [];
       try {
         const vp = await validatePhotos(context.env, row.date, fulls, MAX_CHECKIN_PHOTOS);
         photoHashes = vp.map((p) => p.hash);
       } catch (e) {
+        await context.env.DB.prepare('UPDATE todos SET done = 0, checkin_ts = NULL WHERE id = ?1').bind(id).run();
         return Response.json({ error: e.message }, { status: 400 });
       }
 
       const location = await resolveLocation(locationName, latRaw, lngRaw);
-      const ts = Date.now();
       const photoPaths = await storePhotos(context.env, row.date, ts, fulls, thumbs);
       const entry = {
         date: row.date,
@@ -70,8 +80,13 @@ export async function onRequestPost(context) {
         visibility,
         created_at: new Date().toISOString(),
       };
-      await insertEntry(context.env, entry);
-      await context.env.DB.prepare('UPDATE todos SET done = 1, checkin_ts = ?1 WHERE id = ?2').bind(ts, id).run();
+      try {
+        await insertEntry(context.env, entry);
+      } catch (e) {
+        // 条目插入失败 → 回滚抢占 + 删已传照片
+        await context.env.DB.prepare('UPDATE todos SET done = 0, checkin_ts = NULL WHERE id = ?1').bind(id).run();
+        throw e;
+      }
       const todo = await context.env.DB
         .prepare('SELECT id, date, text, done, sort_order, checkin_ts FROM todos WHERE id = ?1')
         .bind(id).first();

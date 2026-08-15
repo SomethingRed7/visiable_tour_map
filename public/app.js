@@ -508,6 +508,9 @@ async function submitCheckin() {
   const t = ckinTodo;
   const ds = ckinDs;
   if (!t) return;
+  const btn = $('#ckin-save');
+  if (btn.disabled) return; // 防重复提交(双击/网络慢时连续点击)
+  btn.disabled = true;
   const note = $('#ckin-note').value.trim();
   const location = $('#ckin-loc').value.trim();
   const album = $('#ckin-album').value.trim();
@@ -516,9 +519,13 @@ async function submitCheckin() {
   st.textContent = '提交中…';
   // 无内容(公开+空)→ 仅勾选完成;有内容 → 生成打卡记录
   const hasContent = Boolean(note || location || ckinFulls.length || album || vis === 'private');
-  const r = await toggleTodo(t.id, ds, hasContent ? { note, location, album, vis, lat: ckinLat, lng: ckinLng, fulls: ckinFulls, thumbs: ckinThumbs } : {});
-  if (r.ok) closeCheckinModal();
-  else st.textContent = r.error || '打卡失败';
+  try {
+    const r = await toggleTodo(t.id, ds, hasContent ? { note, location, album, vis, lat: ckinLat, lng: ckinLng, fulls: ckinFulls, thumbs: ckinThumbs } : {});
+    if (r.ok) closeCheckinModal();
+    else st.textContent = r.error || '打卡失败';
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 // 自动定位:高德 + 浏览器并行竞争,谁先成功用谁(浏览器源在手机/微信内置经常失败,
