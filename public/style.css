@@ -349,23 +349,24 @@ body {
 .todo-item.dragging { opacity: 0.4; touch-action: none; -webkit-user-select: none; user-select: none; }
 .todo-item.drag-over { outline: 2px dashed var(--brand, #e11d48); }
 .ckin-extra {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr); /* 竖图一排俩,与 photo-grid 一致 */
+  display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   margin: 4px 0 0 26px;
   font-size: 0.85rem;
   color: var(--text-soft);
 }
+/* 竖图成对并排(各 50%),横图独占整行——不再出现竖图被横图隔开右边空 */
 .ckin-extra img {
-  width: 100%;
+  width: calc(50% - 3px);
   height: auto;
   max-height: 180px;
   border-radius: 8px;
   cursor: zoom-in;
 }
-/* 横图(宽>高)单列占满整行,竖图保持双列 */
-.ckin-extra img.landscape { grid-column: 1 / -1; }
-.ckin-extra .ckin-loc { grid-column: 1 / -1; }
+/* 横图(宽>高)单列占满整行,竖图保持成对 */
+.ckin-extra img.landscape { width: 100%; }
+.ckin-extra .ckin-loc { width: 100%; }
 .ckin-modal {
   position: fixed;
   inset: 0;
