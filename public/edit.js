@@ -663,9 +663,17 @@ async function locateCurrent() {
     })();
     st.textContent = '已定位,确认后点「确定选这个点」';
   };
-  const fail = () => st.textContent = /MicroMessenger/i.test(navigator.userAgent)
-    ? '微信内无法定位,请点右上角 ⋯ 选「在浏览器打开」后重试,或直接搜索/点地图选'
-    : '定位失败:检查位置权限/系统定位后重试,或直接搜索/点地图选';
+  const fail = (err) => {
+    // 显示具体错误码:1=权限被拒 2=位置不可用(系统定位关/无GPS) 3=超时
+    let detail = '';
+    if (err) {
+      const map = { 1: '(权限被拒)', 2: '(定位服务不可用)', 3: '(定位超时)' };
+      detail = ' ' + (map[err.code] || '(错误' + err.code + ')');
+    }
+    st.textContent = (/MicroMessenger/i.test(navigator.userAgent)
+      ? '微信内无法定位,请点右上角 ⋯ 选「在浏览器打开」后重试,或直接搜索/点地图选'
+      : '定位失败:' + (detail || '检查位置权限/系统定位后重试') + ',或直接搜索/点地图选');
+  };
 
   // 微信内置浏览器直接提示(微信禁 H5 定位,getCurrentPosition 会挂起不回调,不等超时浪费体验)
   if (/MicroMessenger/i.test(navigator.userAgent)) {
@@ -678,15 +686,15 @@ async function locateCurrent() {
   // 还会抢走手势激活窗口)→ 这里只保留唯一一个浏览器定位请求。
   let settled = false;
   const settle = (lat, lng) => { if (settled) return; settled = true; done(lat, lng); };
-  const failOnce = () => { if (settled) return; settled = true; fail(); };
+  const failOnce = (err) => { if (settled) return; settled = true; fail(err); };
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const g = wgs2gcj(pos.coords.latitude, pos.coords.longitude);
         settle(g.lat, g.lng);
       },
-      () => failOnce(),
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      (err) => failOnce(err),
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
     );
   } else {
     failOnce();
