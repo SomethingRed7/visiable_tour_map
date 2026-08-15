@@ -667,7 +667,9 @@ async function locateCurrent() {
     : '定位失败:检查位置权限/系统定位后重试,或直接搜索/点地图选';
 
   // 关键时序:Chrome 要求 getCurrentPosition 在用户手势激活期内同步调用,
-  // 先 await 高德会过期手势 → 直接拒绝不弹权限框。所以浏览器定位立即启动,高德并行。
+  // 先 await 高德会过期手势 → 直接拒绝不弹权限框。所以浏览器定位立即启动。
+  // ⚠️ 不再并行 getPositionWithFallback:它会再发一个浏览器请求(某些浏览器拒绝并发,
+  // 还会抢走手势激活窗口)→ 这里只保留唯一一个浏览器定位请求。
   let settled = false;
   const settle = (lat, lng) => { if (settled) return; settled = true; done(lat, lng); };
   const failOnce = () => { if (settled) return; settled = true; fail(); };
@@ -683,10 +685,6 @@ async function locateCurrent() {
   } else {
     failOnce();
   }
-  // 高德并行:成功优先(浏览器失败时兜底)
-  getPositionWithFallback().then((pos) => {
-    if (pos && !settled) settle(pos.lat, pos.lng);
-  });
 }
 
 $('#btn-loc').addEventListener('click', openPicker);

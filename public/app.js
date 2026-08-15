@@ -693,6 +693,8 @@ function locateCheckin() {
   };
 
   // 1) 浏览器定位:同步启动(手势激活期内,Chrome 才会弹权限框)
+  // ⚠️ 不再并行 ckinGetPosition:它内部会再发浏览器请求 + 高德加载,
+  // 并发 getCurrentPosition 会被部分浏览器(尤其 iOS)拒绝,反而全灭。
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -705,10 +707,6 @@ function locateCheckin() {
   } else {
     fail();
   }
-  // 2) 高德定位:并行尝试,成功优先(浏览器失败时兜底;插件未注册则静默忽略)
-  ckinGetPosition().then((pos) => {
-    if (pos && !settled) done(pos.lat, pos.lng);
-  });
 }
 
 /* ---------- 待办拖拽排序(桌面 HTML5 DnD + 触屏长按) ---------- */
