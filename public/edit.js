@@ -667,6 +667,11 @@ async function locateCurrent() {
     ? '微信内无法定位,请点右上角 ⋯ 选「在浏览器打开」后重试,或直接搜索/点地图选'
     : '定位失败:检查位置权限/系统定位后重试,或直接搜索/点地图选';
 
+  // 微信内置浏览器直接提示(微信禁 H5 定位,getCurrentPosition 会挂起不回调,不等超时浪费体验)
+  if (/MicroMessenger/i.test(navigator.userAgent)) {
+    st.textContent = '微信内无法定位:点右上角 ⋯ 选「在浏览器打开」后重试,或直接搜索/点地图选';
+    return;
+  }
   // 关键时序:Chrome 要求 getCurrentPosition 在用户手势激活期内同步调用,
   // 先 await 高德会过期手势 → 直接拒绝不弹权限框。所以浏览器定位立即启动。
   // ⚠️ 不再并行 getPositionWithFallback:它会再发一个浏览器请求(某些浏览器拒绝并发,

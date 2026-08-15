@@ -692,6 +692,11 @@ function locateCheckin() {
     ckinLng = null;
   };
 
+  // 微信内置浏览器直接提示(微信禁 H5 定位,getCurrentPosition 挂起不回调,不等超时)
+  if (/MicroMessenger/i.test(navigator.userAgent)) {
+    st.textContent = '微信内无法定位:点右上角 ⋯ 选「在浏览器打开」后重试';
+    return;
+  }
   // 1) 浏览器定位:同步启动(手势激活期内,Chrome 才会弹权限框)
   // ⚠️ 不再并行 ckinGetPosition:它内部会再发浏览器请求 + 高德加载,
   // 并发 getCurrentPosition 会被部分浏览器(尤其 iOS)拒绝,反而全灭。
@@ -890,7 +895,7 @@ async function ckinReverse(lat, lng) {
     const nearby = ((res && res.nearby) || []).map((n) => {
       const g = wgs2gcj(n.lat, n.lng); // Overpass 是 WGS-84,转 GCJ-02 才对得上高德瓦片
       return { name: n.name, lat: g.lat, lng: g.lng };
-    }).slice(0, 8);
+    }).slice(0, 12);
     const nb = $('#ckin-map-nearby');
     if (nearby.length) {
       nb.hidden = false;
