@@ -836,27 +836,33 @@ function bindPhotoGridFallback(container) {
 
 async function renderRecent() {
   const box = $('#recent-list');
+  const ckinBox = $('#ckin-list');
   try {
     const data = await (await fetch('/api/entries')).json();
-    const list = (data.entries || [])
+    const all = (data.entries || [])
       .sort((a, b) => (a.date === b.date ? (a.created_at || '') > (b.created_at || '') ? -1 : 1 : a.date > b.date ? -1 : 1))
-      .slice(0, 20);
-    box.innerHTML = list.length
-      ? list.map((e) => `<div class="recent-item">
-          <span class="recent-info">${esc(e.date)} <span class="time-tag">${fmtTime(entryTs(e))}</span> ${e.visibility === 'private' ? '<span class="vis-tag">私有</span>' : ''} <b>${esc(e.title || '')}</b> · ${esc(e.author || '')}</span>
-          <span class="recent-actions">
-            <button type="button" class="btn-small btn-vis" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}" data-vis="${e.visibility === 'private' ? 'private' : 'public'}">${e.visibility === 'private' ? '改公开' : '改私有'}</button>
-            <button type="button" class="btn-small btn-prev" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}">预览</button>
-            <button type="button" class="btn-small btn-edit" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}">编辑</button>
-            <button type="button" class="btn-small btn-del" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}">删除</button>
-          </span>
-        </div>`).join('')
-      : '<p class="empty">还没有条目</p>';
-    bindPhotoGridFallback(box);
-    [...box.querySelectorAll('.btn-prev')].forEach((b) => b.addEventListener('click', () => openPreview(b.dataset.date, b.dataset.ts)));
-    [...box.querySelectorAll('.btn-edit')].forEach((b) => b.addEventListener('click', () => enterEdit(b.dataset.date, b.dataset.ts)));
-    [...box.querySelectorAll('.btn-del')].forEach((b) => b.addEventListener('click', () => askDelete(b)));
-    [...box.querySelectorAll('.btn-vis')].forEach((b) => b.addEventListener('click', () => toggleVisibility(b)));
+      .slice(0, 40);
+    // 打卡记录 = 标题以「打卡:」开头;其余为日记
+    const ckin = all.filter((e) => (e.title || '').startsWith('打卡:'));
+    const diary = all.filter((e) => !(e.title || '').startsWith('打卡:')).slice(0, 20);
+    const itemHtml = (e) => `<div class="recent-item">
+        <span class="recent-info">${esc(e.date)} <span class="time-tag">${fmtTime(entryTs(e))}</span> ${e.visibility === 'private' ? '<span class="vis-tag">私有</span>' : ''} <b>${esc(e.title || '')}</b> · ${esc(e.author || '')}</span>
+        <span class="recent-actions">
+          <button type="button" class="btn-small btn-vis" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}" data-vis="${e.visibility === 'private' ? 'private' : 'public'}">${e.visibility === 'private' ? '改公开' : '改私有'}</button>
+          <button type="button" class="btn-small btn-prev" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}">预览</button>
+          <button type="button" class="btn-small btn-edit" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}">编辑</button>
+          <button type="button" class="btn-small btn-del" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}">删除</button>
+        </span>
+      </div>`;
+    box.innerHTML = diary.length ? diary.map(itemHtml).join('') : '<p class="empty">还没有日记条目</p>';
+    ckinBox.innerHTML = ckin.length ? ckin.map(itemHtml).join('') : '<p class="empty">还没有打卡记录</p>';
+    [box, ckinBox].forEach((b) => {
+      bindPhotoGridFallback(b);
+      [...b.querySelectorAll('.btn-prev')].forEach((btn) => btn.addEventListener('click', () => openPreview(btn.dataset.date, btn.dataset.ts)));
+      [...b.querySelectorAll('.btn-edit')].forEach((btn) => btn.addEventListener('click', () => enterEdit(btn.dataset.date, btn.dataset.ts)));
+      [...b.querySelectorAll('.btn-del')].forEach((btn) => btn.addEventListener('click', () => askDelete(btn)));
+      [...b.querySelectorAll('.btn-vis')].forEach((btn) => btn.addEventListener('click', () => toggleVisibility(btn)));
+    });
   } catch { /* 忽略 */ }
 }
 

@@ -898,6 +898,13 @@ body {
 .success-actions .btn-small { background: #d1fae5; border-color: #a7f3d0; }
 
 .manage-panel { max-width: 640px; }
+.sub-panel-heading {
+  margin: 16px 0 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-soft);
+}
+.sub-panel-heading:first-of-type { margin-top: 4px; }
 
 .manage-hint { margin: 0 0 10px; font-size: 0.8rem; color: var(--text-soft); }
 
