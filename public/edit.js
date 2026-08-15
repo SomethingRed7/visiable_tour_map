@@ -305,7 +305,11 @@ function locateToField() {
       const map = { 1: '(权限被拒)', 2: '(定位服务不可用)', 3: '(定位超时)' };
       detail = ' ' + (map[err.code] || '(错误' + err.code + ')');
     }
-    st.textContent = '定位失败:' + (detail || '检查位置权限/系统定位后重试') + ',或点「🗺️ 地图」选';
+    st.textContent = '定位失败:' + (detail || '检查位置权限/系统定位后重试') + ',打开地图选点';
+    // 自动降级:非权限被拒(超时/服务不可用)自动打开地图选点器,点图即得坐标
+    if (!err || err.code !== 1) {
+      setTimeout(() => openPicker(), 600);
+    }
   };
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
@@ -314,7 +318,8 @@ function locateToField() {
         done(g.lat, g.lng);
       },
       (err) => fail(err),
-      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+      // enableHighAccuracy:false = 网络定位(基站/WiFi)1-3s 出结果;true 强制 GPS 室内常超时
+      { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 }
     );
   } else {
     fail();

@@ -138,50 +138,6 @@ function ensureAmap() {
   return amapReadyPromise;
 }
 
-/* ---------- 定位(高德 + 浏览器,只保留手势内唯一请求) ---------- */
-async function getPositionWithFallback() {
-  let amapReady = false;
-  try { await fetchConfig(); } catch { amapKey = ''; }
-  amapReady = await Promise.race([ensureAmap(), new Promise((r) => setTimeout(() => r(false), 6000))]);
-
-  const amapP = amapReady
-    ? new Promise((resolve) => {
-        try {
-          const gl = new AMap.Geolocation({ enableHighAccuracy: true, timeout: 10000 });
-          gl.getCurrentPosition((status, result) => {
-            if (status === 'complete' && result && result.position) {
-              resolve({ lat: result.position.getLat(), lng: result.position.getLng() });
-            } else resolve(null);
-          });
-        } catch { resolve(null); }
-      })
-    : Promise.resolve(null);
-
-  const browserP = navigator.geolocation
-    ? new Promise((resolve) => {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => resolve(wgs2gcj(pos.coords.latitude, pos.coords.longitude)),
-          () => resolve(null),
-          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-        );
-      })
-    : Promise.resolve(null);
-
-  return firstSuccess([amapP, browserP]);
-}
-
-async function firstSuccess(promises) {
-  const wrappers = promises.map((p, i) => p.then((v) => ({ i, v })));
-  const done = new Set();
-  while (done.size < wrappers.length) {
-    const remaining = wrappers.filter((_, i) => !done.has(i));
-    const { i, v } = await Promise.race(remaining);
-    done.add(i);
-    if (v) return v;
-  }
-  return null;
-}
-
 /* ---------- 选点器核心 ---------- */
 function placeMarker(lat, lng) {
   if (!pickerMap) return;
@@ -395,7 +351,8 @@ function locateCurrent() {
         settle(g.lat, g.lng);
       },
       (err) => failOnce(err),
-      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+      // enableHighAccuracy:false = 网络定位(基站/WiFi)1-3s 出结果;true 强制 GPS 室内常超时
+      { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 }
     );
   } else {
     failOnce();

@@ -928,7 +928,11 @@ function locateCheckin() {
         }
         st.textContent = denied === 'denied'
           ? '定位被拒绝:点地址栏左侧图标 → 网站设置 → 允许位置,再试'
-          : '定位失败:' + (detail || '请允许位置权限后重试') + ',或手动输入地点';
+          : '定位失败:' + (detail || '请允许位置权限后重试') + ',打开地图选点';
+        // 自动降级:非权限问题(超时/服务不可用)直接打开地图选点器,点图即得坐标,不依赖定位
+        if (denied !== 'denied') {
+          setTimeout(() => openCkinMap(), 600);
+        }
       });
     }
     ckinLat = null;
@@ -950,7 +954,9 @@ function locateCheckin() {
         done(g.lat, g.lng);
       },
       (err) => fail(err),
-      { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
+      // enableHighAccuracy:false = 网络定位(基站/WiFi),1-3s 出结果;
+      // true 强制 GPS 芯片,室内/阴天 5s 拿不到信号必然超时(用户高失败率根因)
+      { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 }
     );
   } else {
     fail();
