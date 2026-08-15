@@ -371,9 +371,17 @@ function locateCurrent() {
     st.textContent = '定位失败:' + (err ? { 1: '(权限被拒)', 2: '(定位服务不可用)', 3: '(定位超时)' }[err.code] || '' : '') + ',或直接搜索/点地图选';
   };
 
-  // 微信内置浏览器直接提示(微信禁 H5 定位,getCurrentPosition 挂起不回调,不等超时)
+  // 微信内置浏览器:禁用 H5 定位,自动降级 IP 城市级定位
   if (/MicroMessenger/i.test(navigator.userAgent)) {
-    st.textContent = '微信内无法定位:点右上角 ⋯ 选「在浏览器打开」后重试,或直接搜索/点地图选';
+    st.textContent = '微信内无法精确定位,改用 IP 定位(城市级)…';
+    lpIpLocate().then((ip) => {
+      if (ip) {
+        done(ip.lat, ip.lng);
+        st.textContent = 'IP 定位到城市,建议搜索或点地图选精确位置';
+      } else {
+        st.textContent = '微信内无法定位:点右上角 ⋯ 选「在浏览器打开」后重试,或直接搜索/点地图选';
+      }
+    });
     return;
   }
   // 串行降级(浏览器 → 高德 → IP):不并发,避免抢手势被拒

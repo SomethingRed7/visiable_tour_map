@@ -933,9 +933,18 @@ function locateCheckin() {
     ckinLng = null;
   };
 
-  // 微信内置浏览器直接提示(微信禁 H5 定位,getCurrentPosition 挂起不回调,不等超时)
+  // 微信内置浏览器:禁用 H5 定位(getCurrentPosition 被屏蔽),但 IP 定位(服务端)不受影响
+  // → 自动降级到 IP 城市级定位,并提示用地图选点精确定位
   if (/MicroMessenger/i.test(navigator.userAgent)) {
-    st.textContent = '微信内无法定位:点右上角 ⋯ 选「在浏览器打开」后重试';
+    st.textContent = '微信内无法精确定位,改用 IP 定位(城市级)…';
+    LocPicker.lpIpLocate().then((ip) => {
+      if (ip) {
+        done(ip.lat, ip.lng);
+        st.textContent = 'IP 定位到城市,建议用「🗺️ 地图」选精确位置';
+      } else {
+        st.textContent = '微信内无法定位:点右上角 ⋯ 选「在浏览器打开」后重试,或用「🗺️ 地图」选点';
+      }
+    });
     return;
   }
   // ① 浏览器原生定位(网络定位):同步启动,手势激活期内 Chrome 才会弹权限框
@@ -1277,7 +1286,10 @@ async function init() {
     currentMonth = urlDate.slice(0, 7);
     renderCalendar();
     selectDate(urlDate);
-  } else if (allEntries.some((e) => e.date === today)) {
+  } else {
+    // 初次打开/刷新:一律自动选中当天(待办/动态/日历默认从今天开始)
+    currentMonth = today.slice(0, 7);
+    renderCalendar();
     selectDate(today);
   }
 }

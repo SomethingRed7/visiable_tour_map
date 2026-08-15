@@ -273,8 +273,17 @@ function locateToField() {
   const st = $('#form-status');
   const input = $('#f-location');
   st.textContent = '定位中...';
+  // 微信内置浏览器:禁用 H5 定位,自动降级 IP 城市级定位
   if (/MicroMessenger/i.test(navigator.userAgent)) {
-    st.textContent = '微信内无法定位:点右上角 ⋯ 选「在浏览器打开」后重试,或用「🗺️ 地图」选点';
+    st.textContent = '微信内无法精确定位,改用 IP 定位(城市级)…';
+    LocPicker.lpIpLocate().then((ip) => {
+      if (ip) {
+        done(ip.lat, ip.lng);
+        st.textContent = 'IP 定位到城市,建议用「🗺️ 地图」选精确位置';
+      } else {
+        st.textContent = '微信内无法定位:点右上角 ⋯ 选「在浏览器打开」后重试,或用「🗺️ 地图」选点';
+      }
+    });
     return;
   }
   let settled = false;
