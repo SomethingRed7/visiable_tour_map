@@ -1049,7 +1049,7 @@ async function renderStream() {
     return (a.created_at || '') > (b.created_at || '') ? -1 : 1;
   });
   $('#stream-title').textContent = activeAlbum ? `专辑 · ${activeAlbum}` : '最近动态';
-  // 简要条目(类似管理界面):日期 时间 标题 · 专辑 一行,右侧编辑按钮
+  // 简要条目(两行式):meta 一行(日期 时间 专辑),标题一行完整显示,右侧编辑
   $('#stream').innerHTML = list
     .slice(0, 60)
     .map((e) => {
@@ -1059,8 +1059,13 @@ async function renderStream() {
       const editBtn = currentUser
         ? `<button type="button" class="btn-small entry-edit" data-date="${esc(e.date)}" data-ts="${esc(e.ts)}">✎ 编辑</button>`
         : '';
+      const title = e.title || '(无标题)';
+      const author = isCkin ? '' : ` · ${esc(e.author || '')}`;
       return `<div class="recent-item">
-        <span class="recent-info">${esc(e.date)} <span class="time-tag">${fmtTime(e.ts)}</span> ${visTag}${albumTag} <b>${esc(e.title || '')}</b>${isCkin ? '' : ` · ${esc(e.author || '')}`}</span>
+        <div class="recent-main">
+          <div class="recent-meta">${esc(e.date)} <span class="time-tag">${fmtTime(e.ts)}</span> ${visTag}${albumTag}</div>
+          <div class="recent-title"><b>${esc(title)}</b>${author}</div>
+        </div>
         <span class="recent-actions">${editBtn}</span>
       </div>`;
     })
