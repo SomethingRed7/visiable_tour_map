@@ -52,7 +52,7 @@
   <!-- 打卡弹窗(勾选待办时;照片/定位/备注均可选填) -->
   <div id="ckin-modal" class="ckin-modal" hidden>
     <div class="ckin-box">
-      <div class="ckin-head">打卡</div>
+      <div class="ckin-head"><span id="ckin-title">打卡</span><button type="button" id="ckin-del-record" class="btn-small btn-danger" hidden>删除打卡</button></div>
       <div class="ckin-todo" id="ckin-todo"></div>
       <div class="ckin-vis-row">
         <label class="ckin-vis-label" for="ckin-album">专辑</label>
@@ -73,6 +73,7 @@
         <label class="ckin-add" for="ckin-files">+ 照片(可选,≤9 张)</label>
         <input type="file" id="ckin-files" accept="image/*" multiple hidden>
       </div>
+      <div id="ckin-existing" class="ckin-existing" hidden></div>
       <div class="ckin-loc-row">
         <input id="ckin-loc" maxlength="80" placeholder="定位(可选,如:橘子洲)">
         <button type="button" id="ckin-locate" class="btn-small" title="自动定位">📍 定位</button>

@@ -228,8 +228,11 @@ function renderDayTodos(ds) {
       const t = allTodos.find((x) => x.id === Number(el.dataset.id));
       if (!t) return;
       if (t.done) {
-        // 已勾选 → 取消打卡(有记录先确认,照片删除不可逆)
-        if (confirm(t.checkin_ts ? '取消打卡?已生成的打卡记录(照片)将一并删除。' : '取消勾选?')) {
+        if (t.checkin_ts) {
+          // 已打卡 → 打开编辑态(改内容/补照片/删照片/删除打卡)
+          const ck = allEntries.find((e) => String(e.ts) === String(t.checkin_ts));
+          openCheckinModal(t, ds, ck || null);
+        } else if (confirm('取消勾选?')) {
           toggleTodo(t.id, ds);
         }
       } else {
@@ -366,6 +369,8 @@ async function toggleTodo(id, ds, extra = {}) {
 /* ---------- 打卡弹窗(勾选未完成待办时;照片/定位/备注可选填) ---------- */
 let ckinTodo = null;
 let ckinDs = null;
+let ckinEdit = null; // 编辑态:已有打卡 entry
+let ckinRemove = []; // 编辑态:要删除的已有照片路径
 let ckinFulls = [];
 let ckinThumbs = [];
 let ckinLat = null;  // 自动定位得到的坐标(随保存提交,服务端直存不再 geocode)
@@ -400,18 +405,59 @@ function compressImage(file, maxLen, quality) {
   });
 }
 
-function openCheckinModal(t, ds) {
+function openCheckinModal(t, ds, editEntry) {
   ckinTodo = t;
   ckinDs = ds;
+  ckinEdit = editEntry || null; // 编辑态:已有打卡记录
   ckinFulls = [];
   ckinThumbs = [];
   ckinLat = null;
   ckinLng = null;
+  ckinRemove = []; // 编辑态:要删除的已有照片路径
   $('#ckin-todo').textContent = `「${t.text}」`;
   loadCkinAlbums(); // 专辑下拉(已有专辑+新建)
-  $('#ckin-vis').value = 'public'; // 打卡默认公开,可改私有
-  $('#ckin-note').value = '';
-  $('#ckin-loc').value = '';
+  if (editEntry) {
+    // ---- 编辑态:预填已有内容 ----
+    $('#ckin-title').textContent = '编辑打卡';
+    $('#ckin-vis').value = editEntry.visibility === 'private' ? 'private' : 'public';
+    $('#ckin-note').value = editEntry.text || '';
+    $('#ckin-loc').value = (editEntry.location && editEntry.location.name) || '';
+    ckinLat = editEntry.location && editEntry.location.lat != null ? editEntry.location.lat : null;
+    ckinLng = editEntry.location && editEntry.location.lng != null ? editEntry.location.lng : null;
+    $('#ckin-save').textContent = '保存修改';
+    $('#ckin-del-record').hidden = false;
+    // 专辑预选
+    const sel = $('#ckin-album');
+    const setAlbum = () => {
+      if (editEntry.album && [...sel.options].some((o) => o.value === editEntry.album)) sel.value = editEntry.album;
+    };
+    if (sel.options.length > 2) setAlbum();
+    else setTimeout(setAlbum, 400);
+    // 已有照片预览(可单独删除)
+    const existing = editEntry.photos || [];
+    const box = $('#ckin-existing');
+    if (existing.length) {
+      box.hidden = false;
+      box.innerHTML = existing.map((p, i) =>
+        `<div class="ckin-old"><img src="${thumbUrl(p)}" data-full="${p}" alt="已有照片" loading="lazy"><button type="button" class="ckin-old-x" data-i="${i}" aria-label="删除照片">✕</button></div>`).join('');
+      [...box.querySelectorAll('.ckin-old-x')].forEach((b) => b.addEventListener('click', () => {
+        const i = Number(b.dataset.i);
+        ckinRemove.push(existing[i]);
+        b.closest('.ckin-old').remove();
+        if (!box.querySelector('.ckin-old')) box.hidden = true;
+      }));
+    } else box.hidden = true;
+  } else {
+    // ---- 新建态 ----
+    $('#ckin-title').textContent = '打卡';
+    $('#ckin-vis').value = 'public'; // 打卡默认公开,可改私有
+    $('#ckin-note').value = '';
+    $('#ckin-loc').value = '';
+    $('#ckin-save').textContent = '保存打卡';
+    $('#ckin-del-record').hidden = true;
+    $('#ckin-existing').hidden = true;
+    $('#ckin-existing').innerHTML = '';
+  }
   $('#ckin-status').textContent = '';
   $('#ckin-photos').innerHTML =
     '<label class="ckin-add" for="ckin-files">+ 照片(可选,≤9 张)</label><input type="file" id="ckin-files" accept="image/*" multiple hidden>';
@@ -519,9 +565,42 @@ async function submitCheckin() {
   const vis = $('#ckin-vis').value === 'private' ? 'private' : 'public';
   const st = $('#ckin-status');
   st.textContent = '提交中…';
-  // 无内容(公开+空)→ 仅勾选完成;有内容 → 生成打卡记录
-  const hasContent = Boolean(note || location || ckinFulls.length || album || vis === 'private');
   try {
+    if (ckinEdit) {
+      // ---- 编辑态:更新已有打卡记录(不走 toggle,保留 done/checkin_ts)----
+      const fd = new FormData();
+      fd.append('date', ckinEdit.date);
+      fd.append('ts', String(ckinEdit.ts));
+      fd.append('title', ckinEdit.title || '');
+      fd.append('text', note);
+      fd.append('album', album);
+      fd.append('visibility', vis);
+      fd.append('location', location);
+      if (ckinLat != null) fd.append('lat', String(ckinLat));
+      if (ckinLng != null) fd.append('lng', String(ckinLng));
+      if (ckinRemove.length) fd.append('photos_to_remove', JSON.stringify(ckinRemove));
+      (ckinFulls || []).forEach((f) => fd.append('photo_full', f));
+      (ckinThumbs || []).forEach((f) => fd.append('photo_thumb', f));
+      const res = await fetch('/api/update', { method: 'POST', body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        if (res.status === 401) { location.href = '/'; return; }
+        st.textContent = data.error || `保存失败(HTTP ${res.status})`;
+        return;
+      }
+      // 本地同步更新
+      const idx = allEntries.findIndex((e) => String(e.ts) === String(ckinEdit.ts));
+      if (idx >= 0) {
+        allEntries[idx] = { ...allEntries[idx], text: note, album: album || null, visibility: vis, location: data.entry ? data.entry.location : allEntries[idx].location, photos: data.entry ? data.entry.photos : allEntries[idx].photos };
+      }
+      closeCheckinModal();
+      renderDayTodos(ds);
+      if (ds === selectedDate) renderDayEntries(ds);
+      renderCalendar();
+      return;
+    }
+    // ---- 新建态:生成打卡记录(无内容=仅勾选完成)----
+    const hasContent = Boolean(note || location || ckinFulls.length || album || vis === 'private');
     const r = await toggleTodo(t.id, ds, hasContent ? { note, location, album, vis, lat: ckinLat, lng: ckinLng, fulls: ckinFulls, thumbs: ckinThumbs } : {});
     if (r.ok) closeCheckinModal();
     else st.textContent = r.error || '打卡失败';
@@ -529,6 +608,24 @@ async function submitCheckin() {
     btn.disabled = false;
   }
 }
+
+// 编辑态「删除打卡」:删除该打卡记录 + 取消待办勾选(与点击已勾选待办取消一致)
+$('#ckin-del-record').addEventListener('click', async () => {
+  const t = ckinTodo;
+  if (!t) return;
+  if (!confirm('删除这条打卡记录?照片会一起删除,无法恢复。')) return;
+  const st = $('#ckin-status');
+  st.textContent = '删除中…';
+  const btn = $('#ckin-del-record');
+  btn.disabled = true;
+  try {
+    const r = await toggleTodo(t.id, ckinDs); // 取消勾选 → 服务端删关联条目(照片)+清 checkin_ts
+    if (r.ok) closeCheckinModal();
+    else st.textContent = r.error || '删除失败';
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 // 自动定位:高德 + 浏览器并行竞争,谁先成功用谁(浏览器源在手机/微信内置经常失败,
 // 高德 Geolocation 失败还有 IP 定位兜底)→ 定位成功率大幅提升

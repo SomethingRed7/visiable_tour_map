@@ -381,7 +381,23 @@ body {
   overflow-y: auto;
   box-sizing: border-box;
 }
-.ckin-head { font-weight: 600; margin-bottom: 4px; }
+.ckin-head { font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.btn-danger { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
+.ckin-existing { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.ckin-existing .ckin-old {
+  position: relative;
+  width: 64px; height: 64px;
+}
+.ckin-existing img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; }
+.ckin-existing .ckin-old-x {
+  position: absolute; top: -6px; right: -6px;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: #dc2626; color: #fff;
+  font-size: 11px; line-height: 1;
+  cursor: pointer;
+}
 .ckin-todo { color: var(--text-soft); font-size: 0.9em; margin-bottom: 8px; }
 .ckin-box textarea,
 .ckin-box input,
