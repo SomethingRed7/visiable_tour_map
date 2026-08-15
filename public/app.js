@@ -1,7 +1,7 @@
 /* 咕咕嘎嘎 - 旅行日记 portal */
 'use strict';
 
-const $ = (s) => document.querySelector(s);
+var $ = (s) => document.querySelector(s);
 
 let allEntries = [];
 let currentMonth = null;   // 'YYYY-MM'
@@ -50,45 +50,6 @@ function fmtTime(ts) {
   const d = new Date(Number(ts));
   if (Number.isNaN(d.getTime())) return '';
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
-
-/* 坐标系统:存储=GCJ-02(高德瓦片系),OSRM 要 WGS-84,互转 */
-function transformLat(x, y) {
-  let ret = -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
-  ret += ((20.0 * Math.sin(6.0 * x * Math.PI) + 20.0 * Math.sin(2.0 * x * Math.PI)) * 2.0) / 3.0;
-  ret += ((20.0 * Math.sin(y * Math.PI) + 40.0 * Math.sin((y / 3.0) * Math.PI)) * 2.0) / 3.0;
-  ret += ((160.0 * Math.sin((y / 12.0) * Math.PI) + 320.0 * Math.sin((y * Math.PI) / 30.0)) * 2.0) / 3.0;
-  return ret;
-}
-function transformLng(x, y) {
-  let ret = 300.0 + x + 2.0 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
-  ret += ((20.0 * Math.sin(6.0 * x * Math.PI) + 20.0 * Math.sin(2.0 * x * Math.PI)) * 2.0) / 3.0;
-  ret += ((20.0 * Math.sin(x * Math.PI) + 40.0 * Math.sin((x / 3.0) * Math.PI)) * 2.0) / 3.0;
-  ret += ((150.0 * Math.sin((x / 12.0) * Math.PI) + 300.0 * Math.sin((x / 30.0) * Math.PI)) * 2.0) / 3.0;
-  return ret;
-}
-function wgs2gcj(lat, lng) {
-  const a = 6378245.0, ee = 0.00669342162296594323;
-  let dLat = transformLat(lng - 105.0, lat - 35.0);
-  let dLng = transformLng(lng - 105.0, lat - 35.0);
-  const radLat = (lat / 180.0) * Math.PI;
-  let magic = Math.sin(radLat);
-  magic = 1 - ee * magic * magic;
-  const sqrtMagic = Math.sqrt(magic);
-  dLat = (dLat * 180.0) / (((a * (1 - ee)) / (magic * sqrtMagic)) * Math.PI);
-  dLng = (dLng * 180.0) / ((a / sqrtMagic) * Math.cos(radLat) * Math.PI);
-  return { lat: lat + dLat, lng: lng + dLng };
-}
-function gcj2wgs(lat, lng) {
-  const g = wgs2gcj(lat, lng);
-  return { lat: lat * 2 - g.lat, lng: lng * 2 - g.lng };
-}
-
-/* 泪滴形图钉(内联 SVG,无外部依赖):橙红渐变不可行用纯色 + 白点 + 投影 */
-function ggPinSvg() {
-  return '<svg viewBox="0 0 24 24" width="28" height="28" style="display:block;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))">'
-    + '<path d="M12 1.8C7.4 1.8 3.7 5.5 3.7 10.1c0 5.6 6.8 12.6 7.4 13.3.5.5 1.3.5 1.8 0 .6-.7 7.4-7.7 7.4-13.3C20.3 5.5 16.6 1.8 12 1.8z" fill="#e11d48"/>'
-    + '<circle cx="12" cy="10" r="3.1" fill="#fff"/></svg>';
 }
 
 /* 地点名截短:只显示第一段短名(如「杭州东站」,忽略完整地址逗号串) */
@@ -825,171 +786,21 @@ async function commitTodoMove(ds, id, beforeId) {
   renderDayTodos(ds);
 }
 
-/* ---------- 打卡:地图选点(Leaflet + 高德瓦片;点图/搜索 → 反查 → 回填) ---------- */
-let ckinMapObj = null;
-let ckinMapMarker = null;
-let ckinMapPt = null; // { lat, lng, name }
-
-async function openCkinMap() {
-  $('#ckin-map-overlay').hidden = false;
-  $('#ckin-map-confirm').hidden = true;
-  $('#ckin-map-name').textContent = '';
-  $('#ckin-map-status').textContent = '';
-  $('#ckin-map-results').innerHTML = '';
-  try { await loadLeaflet(); } catch { $('#ckin-map-status').textContent = '地图加载失败'; return; }
-  if (!ckinMapObj) {
-    ckinMapObj = L.map('ckin-map-canvas', { scrollWheelZoom: true });
-    L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
-      maxZoom: 18,
-      subdomains: ['1', '2', '3', '4'],
-      attribution: '&copy; 高德地图',
-    }).addTo(ckinMapObj);
-    // 点图打点 + 反查地名
-    ckinMapObj.on('click', (e) => {
-      const lat = e.latlng.lat, lng = e.latlng.lng;
-      setCkinMapPoint(lat, lng, '');
-      ckinReverse(lat, lng);
-    });
-  }
-  // 地图容器隐藏时 Leaflet 尺寸错乱,需 invalidateSize
-  setTimeout(() => { if (ckinMapObj) ckinMapObj.invalidateSize(); }, 50);
-  // 初始视野:已定位坐标优先,否则全国
-  if (ckinLat != null && ckinLng != null) {
-    ckinMapObj.setView([ckinLat, ckinLng], 14);
-    setCkinMapPoint(ckinLat, ckinLng, '');
-  } else {
-    ckinMapObj.setView([35, 105], 5);
-  }
+/* ---------- 打卡:地图选点(共享 loc-picker.js,与写日记页同一组件) ---------- */
+function openCkinMap() {
+  LocPicker.open({
+    lat: ckinLat != null ? ckinLat : undefined,
+    lng: ckinLng != null ? ckinLng : undefined,
+    onPick: (name, lat, lng) => {
+      $('#ckin-loc').value = String(name || '').slice(0, 80);
+      ckinLat = lat;
+      ckinLng = lng;
+    },
+  });
 }
-
-function setCkinMapPoint(lat, lng, name) {
-  ckinMapPt = { lat, lng, name };
-  if (!ckinMapMarker) {
-    // 与写日记页选点器同款 SVG 泪滴图钉
-    ckinMapMarker = L.marker([lat, lng], {
-      icon: L.divIcon({ className: 'gg-marker', html: ggPinSvg(), iconSize: [28, 28], iconAnchor: [14, 27] }),
-      draggable: true,
-    }).addTo(ckinMapObj);
-    ckinMapMarker.on('dragend', () => {
-      const p = ckinMapMarker.getLatLng();
-      setCkinMapPoint(p.lat, p.lng, '');
-      ckinReverse(p.lat, p.lng);
-    });
-  } else {
-    ckinMapMarker.setLatLng([lat, lng]);
-  }
-  $('#ckin-map-confirm').hidden = false;
-  $('#ckin-map-name').textContent = name || '选择的位置';
-  $('#ckin-map-status').textContent = `坐标 ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-}
-
-// 反查地名 + 附近地点:服务端 /api/geocode(高德 regeo 优先,失败 Nominatim+Overpass)
-async function ckinReverse(lat, lng) {
-  const st = $('#ckin-map-status');
-  st.textContent = '反查中…';
-  try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 20000);
-    const r = await (await fetch(`/api/geocode?lat=${lat}&lng=${lng}`, { signal: ctrl.signal })).json();
-    clearTimeout(timer);
-    const res = r.results && r.results[0];
-    if (res && res.name) {
-      ckinMapPt.name = res.name;
-      $('#ckin-map-name').textContent = res.name;
-    }
-    // 附近地点推荐:点击用它的名字+坐标(与写日记页选点器一致)
-    // crs: 'gcj'=高德(已是 GCJ-02 勿转);'wgs'=Overpass(WGS-84 需转 GCJ-02 才对得上高德瓦片)
-    const nearby = ((res && res.nearby) || []).map((n) => {
-      const p = n.crs === 'wgs' ? wgs2gcj(n.lat, n.lng) : { lat: n.lat, lng: n.lng };
-      return { name: n.name, lat: p.lat, lng: p.lng };
-    }).slice(0, 12);
-    const nb = $('#ckin-map-nearby');
-    if (nearby.length) {
-      nb.hidden = false;
-      nb.innerHTML = '<div class="loc-nearby-title">附近:点一个用它的名字</div>' +
-        nearby.map((n, i) => `<button type="button" class="loc-nearby-chip" data-i="${i}">${esc(n.name)}</button>`).join('');
-      [...nb.querySelectorAll('.loc-nearby-chip')].forEach((b) => {
-        b.addEventListener('click', () => {
-          const n = nearby[Number(b.dataset.i)];
-          setCkinMapPoint(n.lat, n.lng, n.name);
-          if (ckinMapObj) ckinMapObj.setView([n.lat, n.lng], Math.max(ckinMapObj.getZoom(), 15));
-        });
-      });
-    } else {
-      nb.hidden = true;
-      nb.innerHTML = '';
-    }
-    st.textContent = `坐标 ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-  } catch {
-    $('#ckin-map-nearby').hidden = true;
-    st.textContent = `坐标 ${lat.toFixed(5)}, ${lng.toFixed(5)}(反查失败,可直接确认)`;
-  }
-}
-
-// 搜索:输入即搜(300ms 防抖),服务端 /api/geocode
-let ckinMapSearchTimer = null;
-$('#ckin-map-search').addEventListener('input', () => {
-  clearTimeout(ckinMapSearchTimer);
-  const q = $('#ckin-map-search').value.trim();
-  if (!q) { $('#ckin-map-results').innerHTML = ''; return; }
-  ckinMapSearchTimer = setTimeout(async () => {
-    try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 6000);
-      const r = await (await fetch(`/api/geocode?q=${encodeURIComponent(q)}`, { signal: ctrl.signal })).json();
-      clearTimeout(timer);
-      const results = (r.results || []).map((x) => wgs2gcj(x.lat, x.lng)).map((g, i) => ({ ...g, name: r.results[i].name }));
-      $('#ckin-map-results').innerHTML = results.length
-        ? results.map((x, i) => `<button type="button" class="loc-result" data-i="${i}">${esc(x.name)}</button>`).join('')
-        : '<p class="empty">没有找到,试试点地图选</p>';
-      [...$('#ckin-map-results').querySelectorAll('.loc-result')].forEach((b) => {
-        b.addEventListener('click', () => {
-          const x = results[Number(b.dataset.i)];
-          setCkinMapPoint(x.lat, x.lng, x.name);
-          if (ckinMapObj) ckinMapObj.setView([x.lat, x.lng], 15);
-          ckinReverse(x.lat, x.lng);
-          $('#ckin-map-search').value = '';
-          $('#ckin-map-results').innerHTML = '';
-        });
-      });
-    } catch {
-      $('#ckin-map-results').innerHTML = '<p class="empty">搜索失败,试试点地图选</p>';
-    }
-  }, 300);
-});
-
-// 确认选点 → 回填打卡定位框 + 坐标
-$('#ckin-map-ok').addEventListener('click', () => {
-  if (!ckinMapPt) return;
-  const name = ckinMapPt.name || $('#ckin-map-name').textContent || `${ckinMapPt.lat.toFixed(5)},${ckinMapPt.lng.toFixed(5)}`;
-  $('#ckin-loc').value = name.slice(0, 80);
-  ckinLat = ckinMapPt.lat;
-  ckinLng = ckinMapPt.lng;
-  $('#ckin-map-overlay').hidden = true;
-});
-$('#ckin-map-close').addEventListener('click', () => { $('#ckin-map-overlay').hidden = true; });
-$('#ckin-map-overlay').addEventListener('click', (e) => { if (e.target.id === 'ckin-map-overlay') $('#ckin-map-overlay').hidden = true; });
-$('#ckin-map').addEventListener('click', openCkinMap);
 
 /* ---------- 专辑地图(Leaflet + 高德瓦片,懒加载) ---------- */
 let albumMap = null;
-
-function loadLeaflet() {
-  return new Promise((resolve, reject) => {
-    if (window.L) return resolve();
-    const s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js';
-    s.onload = () => {
-      const l = document.createElement('link');
-      l.rel = 'stylesheet';
-      l.href = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';
-      document.head.appendChild(l);
-      resolve();
-    };
-    s.onerror = reject;
-    document.head.appendChild(s);
-  });
-}
 
 async function renderAlbumMap(list) {
   const box = $('#album-map');
@@ -1122,6 +933,7 @@ async function init() {
   // 打卡弹窗按钮(静态元素,只绑一次)
   $('#ckin-save').addEventListener('click', () => submitCheckin());
   $('#ckin-locate').addEventListener('click', locateCheckin);
+  $('#ckin-map').addEventListener('click', openCkinMap);
   // 点击阴影区关闭(e.target 是遮罩本身,弹窗内部点击不触发)
   $('#ckin-modal').addEventListener('click', (e) => {
     if (e.target === $('#ckin-modal')) closeCheckinModal();

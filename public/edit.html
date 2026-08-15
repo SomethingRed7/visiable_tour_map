@@ -121,8 +121,9 @@
         <label>
           地点
           <div class="loc-row">
-            <input type="text" id="f-location" placeholder="点「定位」选地点" readonly>
+            <input type="text" id="f-location" placeholder="点「定位」自动定位,或「地图」选点" readonly>
             <button type="button" id="btn-loc" class="btn-small" title="自动定位">📍 定位</button>
+            <button type="button" id="btn-loc-map" class="btn-small" title="地图选点">🗺️ 地图</button>
           </div>
           <input type="hidden" id="f-lat">
           <input type="hidden" id="f-lng">
@@ -180,6 +181,7 @@
 
   <footer class="site-footer">咕咕嘎嘎 · 记录每一段在路上</footer>
 
+  <script src="loc-picker.js"></script>
   <script src="edit.js"></script>
 </body>
 </html>
