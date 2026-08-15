@@ -15,21 +15,42 @@ async function amapRegeo(env, lat, lng) {
   if (!key) return null;
   try {
     const res = await fetch(
-      `https://restapi.amap.com/v3/geocode/regeo?key=${key}&location=${lng},${lat}&radius=300&extensions=all`,
+      `https://restapi.amap.com/v3/geocode/regeo?key=${key}&location=${lng},${lat}&radius=1000&extensions=all`,
       { signal: AbortSignal.timeout(8000) }
     );
     if (!res.ok) return null;
     const d = await res.json();
     if (d.status !== '1' || !d.regeocode) return null;
-    const pois = (d.regeocode.pois || [])
-      .filter((p) => p && p.name)
-      .sort((a, b) => parseFloat(a.distance || 99999) - parseFloat(b.distance || 99999))
-      .slice(0, 6);
-    const name = pois[0] ? pois[0].name : (d.regeocode.formatted_address || '自定义位置').slice(0, 80);
-    const nearby = pois.slice(1).map((p) => {
-      const [lngN, latN] = String(p.location || '').split(',').map(Number);
-      return { name: p.name, lat: Number.isFinite(latN) ? latN : null, lng: Number.isFinite(lngN) ? lngN : null };
-    });
+    // 主名:regeo 的 formatted_address(带行政区划,比 poi[0] 更稳)
+    const name = (d.regeocode.formatted_address || '自定义位置').slice(0, 80);
+    // 附近地点:PlaceSearch 周边搜索(types=050000 餐饮+生活服务,按距离排)
+    // —— regeo 的 pois 是有限集合常漏店铺(实测丹丹热卤 16m 却不在 regeo 列表),around 全且按距离
+    let nearby = [];
+    try {
+      const ar = await fetch(
+        `https://restapi.amap.com/v3/place/around?key=${key}&location=${lng},${lat}&radius=500&types=050000&offset=20&sortrule=distance`,
+        { signal: AbortSignal.timeout(8000) }
+      );
+      const ad = await ar.json();
+      if (ad.status === '1' && ad.pois) {
+        nearby = ad.pois.slice(0, 12).map((p) => {
+          const [lngN, latN] = String(p.location || '').split(',').map(Number);
+          return { name: p.name, lat: Number.isFinite(latN) ? latN : null, lng: Number.isFinite(lngN) ? lngN : null, dist: p.distance };
+        }).filter((n) => n.lat != null);
+      }
+    } catch { /* 周边失败就空列表 */ }
+    // around 无结果(CF Worker 出口 IP 可能被高德风控)→ 回退 regeo 自带的 pois
+    if (!nearby.length) {
+      const pois = (d.regeocode.pois || [])
+        .filter((p) => p && p.name)
+        .sort((a, b) => parseFloat(a.distance || 99999) - parseFloat(b.distance || 99999))
+        .slice(0, 12)
+        .map((p) => {
+          const [lngN, latN] = String(p.location || '').split(',').map(Number);
+          return { name: p.name, lat: Number.isFinite(latN) ? latN : null, lng: Number.isFinite(lngN) ? lngN : null, dist: p.distance };
+        });
+      nearby = pois;
+    }
     return { name: name.slice(0, 80), lat: parseFloat(lat), lng: parseFloat(lng), nearby };
   } catch { return null; }
 }
