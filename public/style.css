@@ -569,6 +569,32 @@ body {
   margin-bottom: 12px;
 }
 
+/* 面板 Tab(当日待办/当日动态/专辑查看) */
+.panel-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 8px;
+  flex-wrap: wrap;
+}
+.tab-btn {
+  font: inherit;
+  font-size: 0.88rem;
+  padding: 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--text-soft);
+  cursor: pointer;
+}
+.tab-btn.active {
+  background: var(--brand, #e11d48);
+  color: #fff;
+  border-color: var(--brand, #e11d48);
+  font-weight: 600;
+}
+
 .stream-head .panel-heading { margin: 0; }
 
 .album-chips { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -1153,6 +1179,4 @@ body {
     grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
     align-items: start;
   }
-  /* 动态流跨两列,避免被挤进左列日历下方 */
-  .stream-panel { grid-column: 1 / -1; }
 }

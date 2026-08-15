@@ -247,8 +247,8 @@ async function initPortalUser() {
     box.hidden = false;
     // 登录态:用户名 + 管理按钮(btn-write 样式,同原「写日记」入口)
     box.innerHTML = `<span class="user-name">${esc(currentUser)}</span><a class="btn-write" href="/write">管理</a>`;
-    const sp = $('#stream-panel');
-    if (sp) sp.hidden = false; // 专辑面板仅登录可见
+    const albumTab = document.querySelector('#panel-tabs .tab-btn[data-tab="album"]');
+    if (albumTab) albumTab.hidden = false; // 专辑 tab 仅登录可见
     try {
       const d = await (await fetch('/api/todos')).json();
       allTodos = d.todos || [];
@@ -261,7 +261,46 @@ async function initPortalUser() {
     box.hidden = false;
     // 未登录:仅一个醒目的「登录」按钮(btn-write 样式)
     box.innerHTML = '<a class="btn-write" href="/write">登录</a>';
+    const albumTab = document.querySelector('#panel-tabs .tab-btn[data-tab="album"]');
+    if (albumTab) albumTab.hidden = true; // 未登录无专辑
+    if (activeTab === 'todos') switchTab('entries'); // 未登录默认动态
   }
+}
+
+/* ---------- 面板 Tab 切换(当日待办/当日动态/专辑查看) ---------- */
+let activeTab = 'todos'; // 默认当日待办
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('#panel-tabs .tab-btn').forEach((b) => {
+    b.classList.toggle('active', b.dataset.tab === tab);
+  });
+  ['todos', 'entries', 'album'].forEach((t) => {
+    const pane = $('#tab-' + t);
+    if (pane) pane.hidden = t !== tab;
+  });
+  if (tab === 'album') {
+    // 切到专辑:地图容器刚显示,需校正尺寸
+    const box = $('#album-map');
+    if (box && albumMap && box.style.display !== 'none') {
+      setTimeout(() => albumMap.invalidateSize(), 150);
+    }
+    // 未选专辑时默认选第一个(专辑 tab 打开即有内容)
+    if (activeAlbum === null) {
+      const albums = [...new Set(allEntries.map((e) => e.album).filter(Boolean))];
+      if (albums.length) { activeAlbum = albums[0]; }
+    }
+    renderAlbums();
+    renderStream();
+  }
+  if (tab === 'todos' && selectedDate) renderDayTodos(selectedDate);
+  if (tab === 'entries' && selectedDate) renderDayEntries(selectedDate);
+}
+
+function initTabs() {
+  $('#panel-tabs').addEventListener('click', (e) => {
+    const b = e.target.closest('.tab-btn');
+    if (b && !b.hidden) switchTab(b.dataset.tab);
+  });
 }
 
 function renderDayTodos(ds) {
@@ -1178,6 +1217,7 @@ async function init() {
     if (e.target === $('#ckin-modal')) closeCheckinModal();
   });
   initCalendar();
+  initTabs();
   renderAlbums();
   renderStream();
   initPortalUser(); // 探测登录态 + 拉私有待办(待办橙点/待办区仅登录可见)
