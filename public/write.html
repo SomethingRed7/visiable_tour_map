@@ -3,24 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>写日记 · 咕咕嘎嘎</title>
+  <title>管理 · 咕咕嘎嘎</title>
   <link rel="stylesheet" href="style.css">
   <style>
-    /* 记录界面正文总体不加粗(2026-08-14 用户要求);标题与主页保持一致(左上角 site-title=800、各小标题 panel-heading=700 用全局样式,不覆盖) */
-    .write-page .upload-form label,
-    .write-page .btn-submit,
+    /* 管理界面正文总体不加粗;标题与主页保持一致(site-title=800、panel-heading=700 用全局样式) */
     .write-page .login-hint a,
-    .write-page .loc-overlay-title,
     .write-page .user-name,
-    .write-page .manage-hint,
-    .write-page .loc-confirm-name { font-weight: 400; }
+    .write-page .manage-hint { font-weight: 400; }
   </style>
 </head>
 <body class="write-page">
   <header class="site-header">
     <div class="header-main">
       <h1 class="site-title"><a href="/">咕咕嘎嘎</a></h1>
-      <p class="site-subtitle">写日记</p>
+      <p class="site-subtitle">管理</p>
     </div>
     <div id="user-area" class="user-area" hidden>
       <span id="current-user" class="user-name"></span>
@@ -74,111 +70,12 @@
       </form>
     </section>
 
-    <!-- 编辑器(登录后可见) -->
+    <!-- 管理区(登录后可见) -->
     <div id="editor-area" hidden>
-      <form id="diary-form" class="panel upload-form">
-        <h2 class="panel-heading">写日记</h2>
-        <label>
-          日期
-          <input type="text" id="f-date" readonly placeholder="选择日期" required>
-          <div id="date-picker" class="date-picker" hidden>
-            <div class="dp-head">
-              <button type="button" id="dp-prev" aria-label="上月">‹</button>
-              <span id="dp-title"></span>
-              <button type="button" id="dp-next" aria-label="下月">›</button>
-            </div>
-            <div class="dp-weekdays">日 一 二 三 四 五 六</div>
-            <div id="dp-grid" class="dp-grid"></div>
-          </div>
-        </label>
-
-        <label>
-          标题
-          <input type="text" id="f-title" placeholder="今天去了哪?">
-        </label>
-
-        <label>
-          正文
-          <textarea id="f-text" rows="5" placeholder="记点什么吧..."></textarea>
-        </label>
-
-        <label>
-          可见性
-          <select id="f-visibility">
-            <option value="public" selected>公开</option>
-            <option value="private">私有</option>
-          </select>
-        </label>
-
-        <label>
-          专辑
-          <select id="f-album">
-            <option value="">不设专辑</option>
-            <option value="__new__">➕ 新建专辑…</option>
-          </select>
-        </label>
-
-        <label>
-          地点
-          <div class="loc-row">
-            <input type="text" id="f-location" placeholder="点「定位」选地点" readonly>
-            <button type="button" id="btn-loc" class="btn-small" title="自动定位">📍 定位</button>
-          </div>
-          <input type="hidden" id="f-lat">
-          <input type="hidden" id="f-lng">
-        </label>
-
-        <!-- 全屏选点器(搜索优先,微信/高德式) -->
-        <div id="loc-overlay" class="loc-overlay" hidden>
-          <div class="loc-overlay-card">
-            <div class="loc-overlay-head">
-              <span class="loc-overlay-title">选择位置</span>
-              <button type="button" id="btn-loc-close" class="btn-small">✕</button>
-            </div>
-            <div class="loc-search-row">
-              <input type="search" id="loc-search" placeholder="搜索地名/店铺,如:橘子洲" autocomplete="off" enterkeyhint="search">
-              <button type="button" id="btn-loc-current" class="btn-small">📍 定位</button>
-            </div>
-            <div id="loc-results" class="loc-results"></div>
-            <div id="loc-map" class="loc-map"></div>
-            <div id="loc-confirm" class="loc-confirm" hidden>
-              <span id="loc-confirm-name" class="loc-confirm-name"></span>
-              <button type="button" id="btn-loc-done" class="btn-small">确定选这个点</button>
-            </div>
-            <div id="loc-nearby" class="loc-nearby" hidden></div>
-            <p id="loc-status" class="form-status"></p>
-          </div>
-        </div>
-
-        <label>
-          照片
-          <div class="ckin-photos" id="photo-area">
-            <label class="ckin-add" for="f-photos">+ 照片</label>
-            <input type="file" id="f-photos" accept="image/*" multiple hidden>
-          </div>
-        </label>
-
-        <div id="edit-photos" class="edit-photos" hidden></div>
-        <div id="photo-preview" class="photo-preview"></div>
-        <p id="form-status" class="form-status"></p>
-
-        <div id="success-banner" class="success-banner" hidden>
-          ✅ 上传成功!
-          <div class="success-actions">
-            <a id="btn-view-day" class="btn-small" href="/">查看当天</a>
-            <button type="button" id="btn-again" class="btn-small">继续写</button>
-          </div>
-        </div>
-
-        <div class="form-actions">
-          <button type="submit" id="btn-submit" class="btn-submit">发布</button>
-          <button type="button" id="btn-cancel-edit" class="btn-small" hidden>取消编辑</button>
-        </div>
-      </form>
-
       <section class="panel manage-panel">
         <h2 class="panel-heading">管理条目</h2>
         <p class="manage-hint">预览 / 编辑 / 删除</p>
+        <a id="btn-write" class="btn-submit write-btn" href="/edit">✏️ 写日记</a>
         <h3 class="sub-panel-heading">打卡记录</h3>
         <div id="ckin-list" class="recent-list"></div>
         <h3 class="sub-panel-heading">日记条目</h3>

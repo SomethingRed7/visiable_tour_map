@@ -898,6 +898,13 @@ body {
 .success-actions .btn-small { background: #d1fae5; border-color: #a7f3d0; }
 
 .manage-panel { max-width: 640px; }
+/* 管理页「✏️ 写日记」跳转按钮(与发布按钮同款) */
+.write-btn {
+  display: inline-block;
+  text-align: center;
+  text-decoration: none;
+  margin-bottom: 14px;
+}
 .sub-panel-heading {
   margin: 16px 0 8px;
   font-size: 0.95rem;
