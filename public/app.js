@@ -856,7 +856,11 @@ async function openCkinMap() {
 function setCkinMapPoint(lat, lng, name) {
   ckinMapPt = { lat, lng, name };
   if (!ckinMapMarker) {
-    ckinMapMarker = L.marker([lat, lng], { draggable: true }).addTo(ckinMapObj);
+    // 与写日记页选点器同款 SVG 泪滴图钉
+    ckinMapMarker = L.marker([lat, lng], {
+      icon: L.divIcon({ className: 'gg-marker', html: ggPinSvg(), iconSize: [28, 28], iconAnchor: [14, 27] }),
+      draggable: true,
+    }).addTo(ckinMapObj);
     ckinMapMarker.on('dragend', () => {
       const p = ckinMapMarker.getLatLng();
       setCkinMapPoint(p.lat, p.lng, '');
