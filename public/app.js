@@ -925,16 +925,9 @@ function locateCheckin() {
         st.textContent = '定位被拒绝:点地址栏左侧图标 → 网站设置 → 允许位置,再试';
         return;
       }
-      // 浏览器定位失败(国内安卓常因 Google 服务不可达超时)→ 高德基站/WiFi 定位兜底
-      st.textContent = '浏览器定位失败,改用高德定位…';
-      LocPicker.lpAmapLocate().then((g) => {
-        if (g) {
-          done(g.lat, g.lng);
-        } else {
-          st.textContent = '定位失败:' + (err ? { 1: '(权限被拒)', 2: '(定位服务不可用)', 3: '(定位超时)' }[err.code] || '' : '') + ',打开地图选点';
-          setTimeout(() => openCkinMap(), 600);
-        }
-      });
+      // 高德+浏览器都失败 → 打开地图选点器兜底
+      st.textContent = '定位失败:' + (err ? { 1: '(权限被拒)', 2: '(定位服务不可用)', 3: '(定位超时)' }[err.code] || '' : '') + ',打开地图选点';
+      setTimeout(() => openCkinMap(), 600);
     });
     ckinLat = null;
     ckinLng = null;
@@ -945,23 +938,27 @@ function locateCheckin() {
     st.textContent = '微信内无法定位:点右上角 ⋯ 选「在浏览器打开」后重试';
     return;
   }
-  // 1) 浏览器定位:同步启动(手势激活期内,Chrome 才会弹权限框)
-  // ⚠️ 不再并行 ckinGetPosition:它内部会再发浏览器请求 + 高德加载,
-  // 并发 getCurrentPosition 会被部分浏览器(尤其 iOS)拒绝,反而全灭。
-  if (navigator.geolocation) {
+  // ① 先高德定位(基站/WiFi,国内可靠):异步加载插件后定位,失败再走浏览器
+  st.textContent = '高德定位中…';
+  LocPicker.lpAmapLocate().then((g) => {
+    if (g) {
+      done(g.lat, g.lng);
+      return;
+    }
+    // ② 高德失败 → 浏览器原生定位(网络定位)
+    if (!navigator.geolocation) {
+      fail();
+      return;
+    }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const g = wgs2gcj(pos.coords.latitude, pos.coords.longitude);
-        done(g.lat, g.lng);
+        const gg = wgs2gcj(pos.coords.latitude, pos.coords.longitude);
+        done(gg.lat, gg.lng);
       },
       (err) => fail(err),
-      // enableHighAccuracy:false = 网络定位(基站/WiFi),1-3s 出结果;
-      // true 强制 GPS 芯片,室内/阴天 5s 拿不到信号必然超时(用户高失败率根因)
-      { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 }
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
     );
-  } else {
-    fail();
-  }
+  });
 }
 
 /* ---------- 待办拖拽排序(桌面 HTML5 DnD + 触屏长按) ---------- */

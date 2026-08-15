@@ -350,15 +350,8 @@ function locateCurrent() {
       st.textContent = '微信内无法定位:点右上角 ⋯ 选「在浏览器打开」后重试,或直接搜索/点地图选';
       return;
     }
-    // 浏览器定位失败(国内安卓常因 Google 服务不可达超时)→ 高德基站/WiFi 定位兜底
-    st.textContent = '浏览器定位失败,改用高德定位…';
-    lpAmapLocate().then((g) => {
-      if (g) {
-        done(g.lat, g.lng);
-      } else {
-        st.textContent = '定位失败:' + (err ? { 1: '(权限被拒)', 2: '(定位服务不可用)', 3: '(定位超时)' }[err.code] || '' : '') + ',或直接搜索/点地图选';
-      }
-    });
+    // 高德+浏览器都失败 → 提示搜索/点图选
+    st.textContent = '定位失败:' + (err ? { 1: '(权限被拒)', 2: '(定位服务不可用)', 3: '(定位超时)' }[err.code] || '' : '') + ',或直接搜索/点地图选';
   };
 
   // 微信内置浏览器直接提示(微信禁 H5 定位,getCurrentPosition 挂起不回调,不等超时)
@@ -366,23 +359,31 @@ function locateCurrent() {
     st.textContent = '微信内无法定位:点右上角 ⋯ 选「在浏览器打开」后重试,或直接搜索/点地图选';
     return;
   }
-  // 手势内唯一请求(不并行高德,避免并发被拒)
+  // 串行降级(高德 → 浏览器):不并发,避免抢手势被拒
   let settled = false;
   const settle = (lat, lng) => { if (settled) return; settled = true; done(lat, lng); };
   const failOnce = (err) => { if (settled) return; settled = true; fail(err); };
-  if (navigator.geolocation) {
+  // ① 先高德定位(基站/WiFi,国内可靠),失败再走浏览器
+  st.textContent = '高德定位中…';
+  lpAmapLocate().then((g) => {
+    if (g) {
+      done(g.lat, g.lng);
+      return;
+    }
+    // ② 高德失败 → 浏览器原生定位(网络定位)
+    if (!navigator.geolocation) {
+      failOnce();
+      return;
+    }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const g = wgs2gcj(pos.coords.latitude, pos.coords.longitude);
-        settle(g.lat, g.lng);
+        const gg = wgs2gcj(pos.coords.latitude, pos.coords.longitude);
+        settle(gg.lat, gg.lng);
       },
       (err) => failOnce(err),
-      // enableHighAccuracy:false = 网络定位(基站/WiFi)1-3s 出结果;true 强制 GPS 室内常超时
-      { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 }
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
     );
-  } else {
-    failOnce();
-  }
+  });
 }
 
 /* ---------- 打开 / 关闭 ---------- */

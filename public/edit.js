@@ -304,30 +304,31 @@ function locateToField() {
       st.textContent = '微信内无法定位,请点右上角 ⋯ 选「在浏览器打开」后重试';
       return;
     }
-    // 浏览器定位失败(国内安卓常因 Google 服务不可达超时)→ 高德基站/WiFi 定位兜底
-    st.textContent = '浏览器定位失败,改用高德定位…';
-    LocPicker.lpAmapLocate().then((g) => {
-      if (g) {
-        done(g.lat, g.lng);
-      } else {
-        st.textContent = '定位失败:' + (err ? { 1: '(权限被拒)', 2: '(定位服务不可用)', 3: '(定位超时)' }[err.code] || '' : '') + ',打开地图选点';
-        setTimeout(() => openPicker(), 600);
-      }
-    });
+    // 高德+浏览器都失败 → 打开地图选点器兜底
+    st.textContent = '定位失败:' + (err ? { 1: '(权限被拒)', 2: '(定位服务不可用)', 3: '(定位超时)' }[err.code] || '' : '') + ',打开地图选点';
+    setTimeout(() => openPicker(), 600);
   };
-  if (navigator.geolocation) {
+  // ① 先高德定位(基站/WiFi,国内可靠),失败再走浏览器
+  st.textContent = '高德定位中…';
+  LocPicker.lpAmapLocate().then((g) => {
+    if (g) {
+      done(g.lat, g.lng);
+      return;
+    }
+    // ② 高德失败 → 浏览器原生定位(网络定位)
+    if (!navigator.geolocation) {
+      fail();
+      return;
+    }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const g = wgs2gcj(pos.coords.latitude, pos.coords.longitude);
-        done(g.lat, g.lng);
+        const gg = wgs2gcj(pos.coords.latitude, pos.coords.longitude);
+        done(gg.lat, gg.lng);
       },
       (err) => fail(err),
-      // enableHighAccuracy:false = 网络定位(基站/WiFi)1-3s 出结果;true 强制 GPS 室内常超时
-      { enableHighAccuracy: false, timeout: 12000, maximumAge: 60000 }
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
     );
-  } else {
-    fail();
-  }
+  });
 }
 
 $('#btn-loc').addEventListener('click', locateToField);
