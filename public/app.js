@@ -947,39 +947,57 @@ function locateCheckin() {
     });
     return;
   }
-  // ① 浏览器原生定位(网络定位):同步启动,手势激活期内 Chrome 才会弹权限框
+  // ① 浏览器原生定位:同步启动,手势激活期内 Chrome 才会弹权限框
   if (!navigator.geolocation) {
     fail();
   } else {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        // ⚠️ 检查精度:accuracy>300m 视为低精度(夸克等国产浏览器常返回网络估位飘几个街区)
+        // → 不直接用,继续走高德精确定位
+        if (pos.coords.accuracy != null && pos.coords.accuracy > 300) {
+          st.textContent = '浏览器定位精度低,改用高德精确定位…';
+          tryAmap();
+          return;
+        }
         const g = wgs2gcj(pos.coords.latitude, pos.coords.longitude);
         done(g.lat, g.lng);
       },
-      (err) => {
-        // ② 浏览器失败 → 高德定位(基站/WiFi)
-        st.textContent = '浏览器定位失败,改用高德定位…';
-        LocPicker.lpAmapLocate().then((g) => {
-          if (g) {
-            done(g.lat, g.lng);
-            return;
-          }
-          // ③ 高德也失败 → IP 定位(城市级兜底,必成功)
-          st.textContent = '高德定位失败,改用 IP 定位…';
-          LocPicker.lpIpLocate().then((ip) => {
-            if (ip) {
-              // 城市级坐标:回填位置名(城市),选点器从城市中心开始
-              done(ip.lat, ip.lng);
-            } else {
-              fail(err);
-            }
-          });
-        });
-      },
+      (err) => tryAmap(),
       // enableHighAccuracy:true = GPS 精确定位(户外 10-50m);false 网络定位会飘几个街区
       // 超时 12s(GPS 冷启动需时;原 5s 太短导致失败率高——之前误判为 highAccuracy 的锅)
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
     );
+  }
+
+  // ② 高德定位(基站/WiFi 三角,国内更准);也检查精度,低精度才降级 IP
+  function tryAmap() {
+    st.textContent = '改用高德定位…';
+    LocPicker.lpAmapLocate().then((g) => {
+      if (g) {
+        // 高德 result.accuracy 有值且>300m → 低精度,继续降级
+        if (g.accuracy != null && g.accuracy > 300) {
+          st.textContent = '高德定位精度低,改用 IP 定位…';
+          tryIp();
+          return;
+        }
+        done(g.lat, g.lng);
+        return;
+      }
+      tryIp();
+    });
+  }
+
+  // ③ IP 定位(城市级兜底,必成功)
+  function tryIp() {
+    st.textContent = '改用 IP 定位(城市级)…';
+    LocPicker.lpIpLocate().then((ip) => {
+      if (ip) {
+        done(ip.lat, ip.lng);
+      } else {
+        fail();
+      }
+    });
   }
 }
 

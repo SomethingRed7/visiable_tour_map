@@ -151,7 +151,7 @@ async function lpAmapLocate() {
         const gl = new AMap.Geolocation({ enableHighAccuracy: true, timeout: 10000, zoomToAccuracy: false });
         gl.getCurrentPosition((status, result) => {
           if (status === 'complete' && result && result.position) {
-            resolve({ lat: result.position.getLat(), lng: result.position.getLng() });
+            resolve({ lat: result.position.getLat(), lng: result.position.getLng(), accuracy: result.accuracy || null });
           } else resolve(null);
         });
       } catch { resolve(null); }
@@ -388,37 +388,54 @@ function locateCurrent() {
   let settled = false;
   const settle = (lat, lng) => { if (settled) return; settled = true; done(lat, lng); };
   const failOnce = (err) => { if (settled) return; settled = true; fail(err); };
-  // ① 浏览器原生定位(网络定位):同步启动,手势激活期内 Chrome 才会弹权限框
+  // ① 浏览器原生定位:同步启动,手势激活期内 Chrome 才会弹权限框
   if (!navigator.geolocation) {
     failOnce();
   } else {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        // ⚠️ accuracy>300m 视为低精度(国产浏览器常返回网络估位)→ 走高德
+        if (pos.coords.accuracy != null && pos.coords.accuracy > 300) {
+          st.textContent = '浏览器定位精度低,改用高德精确定位…';
+          tryAmap();
+          return;
+        }
         const g = wgs2gcj(pos.coords.latitude, pos.coords.longitude);
         settle(g.lat, g.lng);
       },
-      (err) => {
-        // ② 浏览器失败 → 高德定位(基站/WiFi)
-        st.textContent = '浏览器定位失败,改用高德定位…';
-        lpAmapLocate().then((g) => {
-          if (g) {
-            settle(g.lat, g.lng);
-            return;
-          }
-          // ③ 高德也失败 → IP 定位(城市级兜底)
-          st.textContent = '高德定位失败,改用 IP 定位…';
-          lpIpLocate().then((ip) => {
-            if (ip) {
-              settle(ip.lat, ip.lng);
-            } else {
-              failOnce(err);
-            }
-          });
-        });
-      },
+      (err) => tryAmap(),
       // enableHighAccuracy:true = GPS 精确定位;false 网络定位飘几个街区
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
     );
+  }
+
+  // ② 高德定位(国内更准);低精度才降级 IP
+  function tryAmap() {
+    st.textContent = '改用高德定位…';
+    lpAmapLocate().then((g) => {
+      if (g) {
+        if (g.accuracy != null && g.accuracy > 300) {
+          st.textContent = '高德定位精度低,改用 IP 定位…';
+          tryIp();
+          return;
+        }
+        settle(g.lat, g.lng);
+        return;
+      }
+      tryIp();
+    });
+  }
+
+  // ③ IP 定位(城市级兜底)
+  function tryIp() {
+    st.textContent = '改用 IP 定位(城市级)…';
+    lpIpLocate().then((ip) => {
+      if (ip) {
+        settle(ip.lat, ip.lng);
+      } else {
+        failOnce();
+      }
+    });
   }
 }
 
