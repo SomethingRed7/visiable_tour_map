@@ -241,8 +241,17 @@ function renderDayTodos(ds) {
       // 点待办其他区域 → 已打卡=编辑,未打卡=打卡
       if (t.done) {
         if (t.checkin_ts) {
-          const ck = allEntries.find((e) => String(e.ts) === String(t.checkin_ts));
-          openCheckinModal(t, ds, ck || null);
+          let ck = allEntries.find((e) => String(e.ts) === String(t.checkin_ts));
+          if (ck) {
+            openCheckinModal(t, ds, ck);
+          } else {
+            // 本地没找到对应打卡条目 → 重新拉取(打卡记录可能在别人设备/刷新后产生)
+            fetch('/api/entries').then((r) => r.json()).then((data) => {
+              allEntries = data.entries || [];
+              const fresh = allEntries.find((e) => String(e.ts) === String(t.checkin_ts));
+              openCheckinModal(t, ds, fresh || null);
+            }).catch(() => openCheckinModal(t, ds, null));
+          }
         } else if (confirm('取消勾选?')) {
           toggleTodo(t.id, ds);
         }
@@ -437,15 +446,15 @@ function openCheckinModal(t, ds, editEntry) {
     ckinLng = editEntry.location && editEntry.location.lng != null ? editEntry.location.lng : null;
     $('#ckin-save').textContent = '保存修改';
     $('#ckin-del-record').hidden = false;
-    // 专辑预选
+    // 专辑预选:等 loadCkinAlbums 完成后设置(不用 setTimeout,手机网络慢时 400ms 不够)
     const sel = $('#ckin-album');
-    const setAlbum = () => {
+    loadCkinAlbums().then(() => {
       if (editEntry.album && [...sel.options].some((o) => o.value === editEntry.album)) sel.value = editEntry.album;
-    };
-    if (sel.options.length > 2) setAlbum();
-    else setTimeout(setAlbum, 400);
-    // 已有照片预览(可单独删除)
-    const existing = editEntry.photos || [];
+    });
+    // 已有照片预览(可单独删除);photos 可能是字符串(防御 API 序列化差异)
+    let existing = editEntry.photos;
+    if (typeof existing === 'string') { try { existing = JSON.parse(existing); } catch { existing = []; } }
+    if (!Array.isArray(existing)) existing = [];
     const box = $('#ckin-existing');
     if (existing.length) {
       box.hidden = false;
