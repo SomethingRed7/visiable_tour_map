@@ -58,7 +58,7 @@ function shortLoc(name) {
   return (s || String(name || '')).slice(0, 30);
 }
 
-function entryCard(e) {
+function entryCard(e, opts) {
   // 打卡记录不区分用户:标题以「打卡:」开头的条目不显示作者
   const isCkin = (e.title || '').startsWith('打卡:');
   const authorTag = !isCkin && e.author
@@ -69,8 +69,11 @@ function entryCard(e) {
     : '';
   const timeTag = e.ts ? `<span class="time-tag">${fmtTime(e.ts)}</span>` : '';
   const visTag = e.visibility === 'private' ? '<span class="vis-tag">私有</span>' : '';
+  const editBtn = opts && opts.editBtn
+    ? `<button type="button" class="entry-edit" data-date="${esc(e.date)}" data-ts="${esc(e.ts)}" title="编辑">✎ 编辑</button>`
+    : '';
   return `<article class="entry">
-    <div class="entry-meta">${timeTag}${authorTag}${visTag}${e.album ? `<span class="album-tag">${esc(e.album)}</span>` : ''}${locTag}</div>
+    <div class="entry-meta">${timeTag}${authorTag}${visTag}${e.album ? `<span class="album-tag">${esc(e.album)}</span>` : ''}${locTag}${editBtn}</div>
     ${e.title ? `<h3 class="entry-title">${esc(e.title)}</h3>` : ''}
     ${e.text ? `<div class="entry-text">${esc(e.text).replace(/\n/g, '<br>')}</div>` : ''}
     ${photoGridHtml(e.photos, e.date)}
@@ -144,6 +147,28 @@ function selectDate(ds) {
 }
 
 // 当天动态渲染(selectDate 与打卡后刷新共用)
+/* 已登录:动态/流条目「✎ 编辑」(打卡 → 编辑打卡弹窗;日记 → 跳 /edit) */
+function bindStreamEditBtns(container) {
+  if (!currentUser) return;
+  container.querySelectorAll('.entry-edit').forEach((b) => {
+    b.addEventListener('click', () => {
+      const date = b.dataset.date;
+      const ts = Number(b.dataset.ts);
+      const e = allEntries.find((x) => String(x.ts) === String(ts) && x.date === date);
+      if (!e) return alert('条目不存在');
+      if ((e.title || '').startsWith('打卡:')) {
+        // 打卡条目:找到对应 todo 打开编辑打卡弹窗
+        const todo = allTodos.find((t) => t.date === date && `打卡:${t.text}` === e.title && String(t.checkin_ts) === String(ts));
+        if (todo) openCheckinModal(todo, date, e);
+        else alert('找不到对应的待办,可到管理页编辑');
+      } else {
+        // 日记条目:跳转写日记页编辑态
+        location.href = `/edit?date=${date}&ts=${ts}`;
+      }
+    });
+  });
+}
+
 function renderDayEntries(ds) {
   const dayEntries = allEntries
     .filter((e) => e.date === ds)
@@ -151,9 +176,10 @@ function renderDayEntries(ds) {
   const [y, m, d] = ds.split('-');
   $('#day-title').textContent = `${y} 年 ${Number(m)} 月 ${Number(d)} 日`;
   $('#day-entries').innerHTML = dayEntries.length
-    ? dayEntries.map(entryCard).join('')
+    ? dayEntries.map((e) => entryCard(e, currentUser ? { editBtn: true } : null)).join('')
     : '<p class="empty">当日无事发生</p>';
   bindPhotoGridFallback($('#day-entries'));
+  bindStreamEditBtns($('#day-entries'));
 }
 
 /* ---------- 私有待办(规划打卡;仅登录用户可见) ---------- */
@@ -174,6 +200,8 @@ async function initPortalUser() {
     } catch { allTodos = []; }
     renderCalendar();
     if (selectedDate) { renderDayTodos(selectedDate); }
+    if (selectedDate) renderDayEntries(selectedDate); // 登录后刷新动态(带编辑按钮)
+    renderStream(); // 最近动态流同步刷新
   } else {
     box.hidden = false;
     // 未登录:仅一个醒目的「登录」按钮(btn-write 样式)
@@ -1021,10 +1049,11 @@ async function renderStream() {
   $('#stream-title').textContent = activeAlbum ? `专辑 · ${activeAlbum}` : '最近动态';
   $('#stream').innerHTML = list
     .slice(0, 60)
-    .map((e) => `<article class="entry stream-entry"><div class="stream-date">${esc(e.date)}</div>${entryCard(e)}</article>`)
+    .map((e) => `<article class="entry stream-entry"><div class="stream-date">${esc(e.date)}</div>${entryCard(e, currentUser ? { editBtn: true } : null)}</article>`)
     .join('')
     || '<p class="empty">还没有日记 ✏️</p>';
   bindPhotoGridFallback($('#stream'));
+  bindStreamEditBtns($('#stream'));
   // 地图仅在选中专辑时显示
   if (activeAlbum) await renderAlbumMap(list);
   else $('#album-map').style.display = 'none';
