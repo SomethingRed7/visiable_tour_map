@@ -1137,26 +1137,14 @@ async function renderAlbumMap(list) {
   if (bounds.length === 1) {
     map.setView(bounds[0], 12);
   } else if (bounds.length > 1) {
-    // 沿路规划(CF 边缘 OSRM 代理,失败回退直线),按日期+时间排序连线
-    // ⚠️ 之前只按 date 排序,同一天多条打卡顺序不稳定(V8 sort 不稳定)→ 连线乱/漏
+    // 打卡轨迹连线:按日期+时间排序直线连接(不是道路导航)
+    // ⚠️ 曾用 OSRM driving 规划:①橘子洲等步行景区无驾车路,点被吸附到远处道路→视觉断线
+    // ②跨江/绕路导致线段异常;打卡轨迹是「去过的地方」,直线连接直观且永不断线
     const ordered = withLoc.slice().sort((a, b) => {
       if (a.date !== b.date) return a.date < b.date ? -1 : 1;
       return (entryTs(a) || 0) - (entryTs(b) || 0);
     });
-    // 存储坐标=GCJ-02(高德系),OSRM 要 WGS-84,请求前转换
-    const wgsPts = ordered.map((e) => gcj2wgs(e.location.lat, e.location.lng));
-    let line = ordered.map((e) => [e.location.lat, e.location.lng]);
-    try {
-      const ptsStr = wgsPts.map((p) => `${p.lat},${p.lng}`).join('|');
-      const route = await (await fetch(`/api/route?pts=${encodeURIComponent(ptsStr)}`)).json();
-      if (route.coordinates && route.coordinates.length > 1) {
-        // 响应几何是 WGS-84,转回 GCJ-02 才与瓦片/图钉对齐
-        line = route.coordinates.map(([lat, lng]) => {
-          const g = wgs2gcj(lat, lng);
-          return [g.lat, g.lng];
-        });
-      }
-    } catch { /* 直线 */ }
+    const line = ordered.map((e) => [e.location.lat, e.location.lng]);
     // 轨迹线:品牌红醒目(原 #d97706 琥珀色太淡)
     L.polyline(line, { color: '#e11d48', weight: 4, opacity: 0.9 }).addTo(map);
     map.fitBounds(line, { padding: [30, 30] });
