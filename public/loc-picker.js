@@ -138,6 +138,27 @@ function ensureAmap() {
   return amapReadyPromise;
 }
 
+/* 高德定位(基站/WiFi 三角,国内可靠;浏览器原生定位在国内安卓常因 Google 服务不可达超时)
+ * 返回 GCJ-02 坐标 {lat,lng};失败 resolve(null)。安全:高德插件内部自己调 getCurrentPosition,
+ * 但它在浏览器定位之后串行触发(不并发),避免抢手势被拒。 */
+async function lpAmapLocate() {
+  try {
+    await fetchConfig();
+    const ready = await Promise.race([ensureAmap(), new Promise((r) => setTimeout(() => r(false), 8000))]);
+    if (!ready || !window.AMap || !window.AMap.Geolocation) return null;
+    return await new Promise((resolve) => {
+      try {
+        const gl = new AMap.Geolocation({ enableHighAccuracy: false, timeout: 10000, zoomToAccuracy: false });
+        gl.getCurrentPosition((status, result) => {
+          if (status === 'complete' && result && result.position) {
+            resolve({ lat: result.position.getLat(), lng: result.position.getLng() });
+          } else resolve(null);
+        });
+      } catch { resolve(null); }
+    });
+  } catch { return null; }
+}
+
 /* ---------- 选点器核心 ---------- */
 function placeMarker(lat, lng) {
   if (!pickerMap) return;
@@ -325,14 +346,19 @@ function locateCurrent() {
     st.textContent = '已定位,确认后点「确定选这个点」';
   };
   const fail = (err) => {
-    let detail = '';
-    if (err) {
-      const map = { 1: '(权限被拒)', 2: '(定位服务不可用)', 3: '(定位超时)' };
-      detail = ' ' + (map[err.code] || '(错误' + err.code + ')');
+    if (/MicroMessenger/i.test(navigator.userAgent)) {
+      st.textContent = '微信内无法定位:点右上角 ⋯ 选「在浏览器打开」后重试,或直接搜索/点地图选';
+      return;
     }
-    st.textContent = (/MicroMessenger/i.test(navigator.userAgent)
-      ? '微信内无法定位:点右上角 ⋯ 选「在浏览器打开」后重试,或直接搜索/点地图选'
-      : '定位失败:' + (detail || '检查位置权限/系统定位后重试') + ',或直接搜索/点地图选');
+    // 浏览器定位失败(国内安卓常因 Google 服务不可达超时)→ 高德基站/WiFi 定位兜底
+    st.textContent = '浏览器定位失败,改用高德定位…';
+    lpAmapLocate().then((g) => {
+      if (g) {
+        done(g.lat, g.lng);
+      } else {
+        st.textContent = '定位失败:' + (err ? { 1: '(权限被拒)', 2: '(定位服务不可用)', 3: '(定位超时)' }[err.code] || '' : '') + ',或直接搜索/点地图选';
+      }
+    });
   };
 
   // 微信内置浏览器直接提示(微信禁 H5 定位,getCurrentPosition 挂起不回调,不等超时)
@@ -437,4 +463,5 @@ window.LocPicker = {
     window.__locOnPick = (opts && opts.onPick) || null;
     lpOpenPicker(opts && opts.lat, opts && opts.lng);
   },
+  lpAmapLocate, // 高德定位兜底(打卡/写日记定位失败时复用)
 };

@@ -918,23 +918,24 @@ function locateCheckin() {
     settled = true;
     if (isWechatBrowser()) {
       st.textContent = '微信内无法定位,请点右上角 ⋯ 选「在浏览器打开」后重试';
-    } else {
-      geolocDeniedReason().then((denied) => {
-        // 显示具体错误码:1=权限被拒 2=定位服务不可用 3=超时
-        let detail = '';
-        if (err) {
-          const map = { 1: '(权限被拒)', 2: '(定位服务不可用)', 3: '(定位超时)' };
-          detail = ' ' + (map[err.code] || '(错误' + err.code + ')');
-        }
-        st.textContent = denied === 'denied'
-          ? '定位被拒绝:点地址栏左侧图标 → 网站设置 → 允许位置,再试'
-          : '定位失败:' + (detail || '请允许位置权限后重试') + ',打开地图选点';
-        // 自动降级:非权限问题(超时/服务不可用)直接打开地图选点器,点图即得坐标,不依赖定位
-        if (denied !== 'denied') {
+      return;
+    }
+    geolocDeniedReason().then((denied) => {
+      if (denied === 'denied') {
+        st.textContent = '定位被拒绝:点地址栏左侧图标 → 网站设置 → 允许位置,再试';
+        return;
+      }
+      // 浏览器定位失败(国内安卓常因 Google 服务不可达超时)→ 高德基站/WiFi 定位兜底
+      st.textContent = '浏览器定位失败,改用高德定位…';
+      LocPicker.lpAmapLocate().then((g) => {
+        if (g) {
+          done(g.lat, g.lng);
+        } else {
+          st.textContent = '定位失败:' + (err ? { 1: '(权限被拒)', 2: '(定位服务不可用)', 3: '(定位超时)' }[err.code] || '' : '') + ',打开地图选点';
           setTimeout(() => openCkinMap(), 600);
         }
       });
-    }
+    });
     ckinLat = null;
     ckinLng = null;
   };
