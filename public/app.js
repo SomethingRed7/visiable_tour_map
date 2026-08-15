@@ -1028,8 +1028,9 @@ async function renderAlbumMap(list) {
   if (albumMap) albumMap.remove();
   const map = L.map('album-map', { scrollWheelZoom: false });
   albumMap = map;
-  // 容器从 display:none 切到显示后立即初始化会尺寸错位 → 延时校正(瓦片偏移根因)
+  // 容器从 display:none 切到显示后立即初始化会尺寸错位 → 延时校正(瓦片偏移/突出根因)
   setTimeout(() => map.invalidateSize(), 120);
+  setTimeout(() => map.invalidateSize(), 400);
   L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
     maxZoom: 18,
     subdomains: ['1', '2', '3', '4'],
