@@ -19,11 +19,12 @@ export async function onRequestPost(context) {
     .bind(id).first();
   if (!old) return Response.json({ error: '待办不存在' }, { status: 404 });
 
-  // 已打卡 → 联动更新打卡条目标题(旧「打卡:旧文本」→「打卡:新文本」)
+  // 已打卡 → 联动更新打卡条目标题(「打卡:旧文本」→「打卡:新文本」)
+  // 按 date+ts 定位(不匹配 title——用户可能改过打卡标题,title 条件会漏更新)
   if (old.done === 1 && old.checkin_ts) {
     await context.env.DB
-      .prepare('UPDATE entries SET title = ?1 WHERE date = ?2 AND ts = ?3 AND title = ?4')
-      .bind(`打卡:${text}`, old.date, old.checkin_ts, `打卡:${old.text}`)
+      .prepare("UPDATE entries SET title = ?1 WHERE date = ?2 AND ts = ?3 AND title LIKE '打卡:%'")
+      .bind(`打卡:${text}`, old.date, old.checkin_ts)
       .run();
   }
 

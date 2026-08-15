@@ -570,7 +570,7 @@ function openCheckinModal(t, ds, editEntry) {
     $('#ckin-title').textContent = '编辑打卡';
     const ti = $('#ckin-title-input');
     ti.hidden = false;
-    ti.value = editEntry.title || `打卡:${t.text}`;
+    ti.value = t.text; // 编辑待办标题;保存后打卡标题同步更新
     $('#ckin-vis').value = editEntry.visibility === 'private' ? 'private' : 'public';
     $('#ckin-note').value = editEntry.text || '';
     $('#ckin-loc').value = (editEntry.location && editEntry.location.name) || '';
@@ -723,11 +723,25 @@ async function submitCheckin() {
   try {
     if (ckinEdit) {
       // ---- 编辑态:更新已有打卡记录(不走 toggle,保留 done/checkin_ts)----
-      const newTitle = $('#ckin-title-input').value.trim() || `打卡:${t.text}`;
+      // 标题框 = 待办标题:改待办 + 服务端联动更新打卡标题(打卡标题不单独改)
+      const newTodoText = $('#ckin-title-input').value.trim();
+      if (newTodoText && newTodoText !== t.text) {
+        const tfd = new FormData();
+        tfd.append('id', String(t.id));
+        tfd.append('text', newTodoText);
+        const tres = await fetch('/api/todos/update', { method: 'POST', body: tfd });
+        const tdata = await tres.json().catch(() => ({}));
+        if (tres.ok && tdata.todo) {
+          t.text = tdata.todo.text;
+          // 本地同步打卡条目标题(服务端已联动更新)
+          const ck = allEntries.find((e) => String(e.ts) === String(ckinEdit.ts));
+          if (ck) ck.title = `打卡:${newTodoText}`;
+        }
+      }
       const fd = new FormData();
       fd.append('date', ckinEdit.date);
       fd.append('ts', String(ckinEdit.ts));
-      fd.append('title', newTitle);
+      fd.append('title', `打卡:${t.text}`);
       fd.append('text', note);
       fd.append('album', album);
       fd.append('visibility', vis);
@@ -747,7 +761,7 @@ async function submitCheckin() {
       // 本地同步更新
       const idx = allEntries.findIndex((e) => String(e.ts) === String(ckinEdit.ts));
       if (idx >= 0) {
-        allEntries[idx] = { ...allEntries[idx], title: newTitle, text: note, album: album || null, visibility: vis, location: data.entry ? data.entry.location : allEntries[idx].location, photos: data.entry ? data.entry.photos : allEntries[idx].photos };
+        allEntries[idx] = { ...allEntries[idx], title: `打卡:${t.text}`, text: note, album: album || null, visibility: vis, location: data.entry ? data.entry.location : allEntries[idx].location, photos: data.entry ? data.entry.photos : allEntries[idx].photos };
       }
       closeCheckinModal();
       renderDayTodos(ds);
