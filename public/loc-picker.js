@@ -148,7 +148,7 @@ async function lpAmapLocate() {
     if (!ready || !window.AMap || !window.AMap.Geolocation) return null;
     return await new Promise((resolve) => {
       try {
-        const gl = new AMap.Geolocation({ enableHighAccuracy: false, timeout: 10000, zoomToAccuracy: false });
+        const gl = new AMap.Geolocation({ enableHighAccuracy: true, timeout: 10000, zoomToAccuracy: false });
         gl.getCurrentPosition((status, result) => {
           if (status === 'complete' && result && result.position) {
             resolve({ lat: result.position.getLat(), lng: result.position.getLng() });
@@ -377,7 +377,7 @@ function locateCurrent() {
     lpIpLocate().then((ip) => {
       if (ip) {
         done(ip.lat, ip.lng);
-        st.textContent = 'IP 定位到城市,建议搜索或点地图选精确位置';
+        st.textContent = 'IP 定位(城市级),点下方附近店铺可快速选精确位置';
       } else {
         st.textContent = '微信内无法定位:点右上角 ⋯ 选「在浏览器打开」后重试,或直接搜索/点地图选';
       }
@@ -416,7 +416,8 @@ function locateCurrent() {
           });
         });
       },
-      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
+      // enableHighAccuracy:true = GPS 精确定位;false 网络定位飘几个街区
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
     );
   }
 }

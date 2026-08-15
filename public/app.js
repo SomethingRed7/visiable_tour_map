@@ -940,7 +940,7 @@ function locateCheckin() {
     LocPicker.lpIpLocate().then((ip) => {
       if (ip) {
         done(ip.lat, ip.lng);
-        st.textContent = 'IP 定位到城市,建议用「🗺️ 地图」选精确位置';
+        st.textContent = 'IP 定位(城市级,可能偏差几个街区),建议直接点地图选精确位置';
       } else {
         st.textContent = '微信内无法定位:点右上角 ⋯ 选「在浏览器打开」后重试,或用「🗺️ 地图」选点';
       }
@@ -976,7 +976,9 @@ function locateCheckin() {
           });
         });
       },
-      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
+      // enableHighAccuracy:true = GPS 精确定位(户外 10-50m);false 网络定位会飘几个街区
+      // 超时 12s(GPS 冷启动需时;原 5s 太短导致失败率高——之前误判为 highAccuracy 的锅)
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
     );
   }
 }
