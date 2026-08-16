@@ -150,6 +150,25 @@ function selectDate(ds) {
 /* 已登录:动态/流条目按钮(改公开/预览/编辑/删除,与管理界面一致) */
 function bindStreamEditBtns(container) {
   if (!currentUser) return;
+  // 当日动态的「✎ 编辑」(.entry-edit):打卡→编辑打卡弹窗;日记→跳 /edit
+  // ⚠️ 曾漏绑:专辑条目重构加四按钮后,.entry-edit 没有对应监听,当日动态编辑点了没反应
+  container.querySelectorAll('.entry-edit').forEach((b) => {
+    b.addEventListener('click', () => {
+      const date = b.dataset.date;
+      const ts = Number(b.dataset.ts);
+      const e = allEntries.find((x) => String(x.ts) === String(ts) && x.date === date);
+      if (!e) return alert('条目不存在');
+      if ((e.title || '').startsWith('打卡:')) {
+        // 先按 checkin_ts 精确匹配;失败回退「同日期+同标题去前缀」(手动创建/历史数据无 checkin_ts 关联)
+        const todo = allTodos.find((t) => t.date === date && `打卡:${t.text}` === e.title && String(t.checkin_ts) === String(ts))
+          || allTodos.find((t) => t.date === date && `打卡:${t.text}` === e.title);
+        if (todo) openCheckinModal(todo, date, e);
+        else alert('找不到对应的待办,可到管理页编辑');
+      } else {
+        location.href = `/edit?date=${date}&ts=${ts}`;
+      }
+    });
+  });
   container.querySelectorAll('.btn-vis').forEach((b) => {
     b.addEventListener('click', async () => {
       const fd = new FormData();
