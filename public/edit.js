@@ -259,11 +259,16 @@ function renderPreview() {
 
 /* ---------- 地点:📍 自动定位 + 🗺️ 地图选点(共享 loc-picker.js,与打卡弹窗同一组件) ---------- */
 function openPicker() {
+  // 与打卡弹窗一致:已有地点坐标时地图从该点开始
+  const lat = parseFloat($('#f-lat').value);
+  const lng = parseFloat($('#f-lng').value);
   LocPicker.open({
-    onPick: (name, lat, lng) => {
+    lat: Number.isFinite(lat) ? lat : undefined,
+    lng: Number.isFinite(lng) ? lng : undefined,
+    onPick: (name, lat2, lng2) => {
       $('#f-location').value = name;
-      $('#f-lat').value = lat;
-      $('#f-lng').value = lng;
+      $('#f-lat').value = lat2;
+      $('#f-lng').value = lng2;
     },
   });
 }
@@ -313,9 +318,15 @@ function locateToField() {
       st.textContent = '微信内无法定位,请点右上角 ⋯ 选「在浏览器打开」后重试';
       return;
     }
-    // 高德+浏览器都失败 → 打开地图选点器兜底
-    st.textContent = '定位失败:' + (err ? { 1: '(权限被拒)', 2: '(定位服务不可用)', 3: '(定位超时)' }[err.code] || '' : '') + ',打开地图选点';
-    setTimeout(() => openPicker(), 600);
+    // 与打卡弹窗一致:权限被拒给出明确指引;其余失败打开地图选点器兜底
+    LocPicker.lpDeniedCheck().then((denied) => {
+      if (denied === 'denied') {
+        st.textContent = '定位被拒绝:点地址栏左侧图标 → 网站设置 → 允许位置,再试';
+        return;
+      }
+      st.textContent = '定位失败:' + (err ? { 1: '(权限被拒)', 2: '(定位服务不可用)', 3: '(定位超时)' }[err.code] || '' : '') + ',打开地图选点';
+      setTimeout(() => openPicker(), 600);
+    });
   };
   // ① 浏览器原生定位:同步启动,手势激活期内 Chrome 才会弹权限框
   if (!navigator.geolocation) {

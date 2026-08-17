@@ -193,6 +193,17 @@ async function lpCalibrate(lat, lng) {
   // 标准浏览器:WGS-84 → 转换 GCJ-02
   return wgs2gcj(lat, lng);
 }
+/* 定位权限被拒检测(打卡/写日记共用):navigator.permissions → 'denied'|'prompt'|'unknown' */
+async function lpDeniedCheck() {
+  try {
+    if (navigator.permissions && navigator.permissions.query) {
+      const st = await navigator.permissions.query({ name: 'geolocation' });
+      if (st.state === 'denied') return 'denied';
+      if (st.state === 'prompt') return 'prompt';
+    }
+  } catch { /* 老浏览器无 permissions API */ }
+  return 'unknown';
+}
 
 /* 路线获取(driving → walking → 直线):高德 v3/direction(国内稳定,GCJ-02 直接匹配瓦片)
  * 高德精确经过 waypoints,无需吸附检测;仅高德完全失败(极少)才直线兜底。
@@ -571,4 +582,5 @@ window.LocPicker = {
   lpAmapLocate, // 高德定位兜底(打卡/写日记定位失败时复用)
   lpIpLocate,   // IP 定位城市级兜底(精确定位失败后,选点器从城市中心开始)
   lpCalibrate,  // 坐标系自检(WGS-84 vs GCJ-02 双重偏移纠正)
+  lpDeniedCheck, // 定位权限被拒检测(打卡/写日记共用)
 };

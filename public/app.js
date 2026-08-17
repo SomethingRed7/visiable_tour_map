@@ -895,16 +895,6 @@ function isWechatBrowser() {
 }
 // 定位失败原因探测:Chrome 拒绝过权限后 getCurrentPosition 直接失败不再弹框,
 // 用 permissions.query 区分「被拒/待授权」给出精确指引
-async function geolocDeniedReason() {
-  try {
-    if (navigator.permissions && navigator.permissions.query) {
-      const st = await navigator.permissions.query({ name: 'geolocation' });
-      if (st.state === 'denied') return 'denied';
-      if (st.state === 'prompt') return 'prompt';
-    }
-  } catch { /* 老浏览器无 permissions API */ }
-  return 'unknown';
-}
 // 关键时序:Chrome 要求 getCurrentPosition 在用户手势激活期内调用,
 // 一旦 await(网络/高德)激活窗口过期,直接拒绝不弹权限框。
 // 所以浏览器定位必须在点击回调里【同步】启动,高德并行不阻塞。
@@ -939,7 +929,7 @@ function locateCheckin() {
       st.textContent = '微信内无法定位,请点右上角 ⋯ 选「在浏览器打开」后重试';
       return;
     }
-    geolocDeniedReason().then((denied) => {
+    LocPicker.lpDeniedCheck().then((denied) => {
       if (denied === 'denied') {
         st.textContent = '定位被拒绝:点地址栏左侧图标 → 网站设置 → 允许位置,再试';
         return;
