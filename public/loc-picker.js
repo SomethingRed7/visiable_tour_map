@@ -178,6 +178,22 @@ async function lpIpLocate() {
   } catch { return null; }
 }
 
+/* 坐标系自检:浏览器返回的坐标可能是 WGS-84 也可能是 GCJ-02(夸克等国产 Chromium
+ * 浏览器自带偏移适配,返回 GCJ-02;标准 Chrome/iOS Safari 返回 WGS-84)。
+ * 双重转换 → 固定方向偏移几百米(用户实测东南,长沙/杭州一致)。
+ * 返回 {lat,lng}(GCJ-02,与高德瓦片对齐)。 */
+function lpLooksGcjNative() {
+  const ua = navigator.userAgent || '';
+  // 国产浏览器/安卓厂商浏览器:geolocation 返回 GCJ-02(自带偏移适配)
+  return /Quark|UCBrowser|QQBrowser|MicroMessenger|MiuiBrowser|HUAWEI|HwBrowser|OPPO|Vivo|vivo|XiaoMi|Redmi|OnePlus|honor|HONOR|Xiaomi/i.test(ua);
+}
+async function lpCalibrate(lat, lng) {
+  // 国产浏览器:已返回 GCJ-02,免转换(否则双重偏移)
+  if (lpLooksGcjNative()) return { lat, lng };
+  // 标准浏览器:WGS-84 → 转换 GCJ-02
+  return wgs2gcj(lat, lng);
+}
+
 /* 路线获取(driving → walking → 直线):高德 v3/direction(国内稳定,GCJ-02 直接匹配瓦片)
  * 高德精确经过 waypoints,无需吸附检测;仅高德完全失败(极少)才直线兜底。
  * entries: [{date, ts, location:{lat,lng}}](GCJ-02)按时间排序;
@@ -432,8 +448,9 @@ function locateCurrent() {
           tryAmap();
           return;
         }
-        const g = wgs2gcj(pos.coords.latitude, pos.coords.longitude);
-        settle(g.lat, g.lng);
+        // 坐标系自检:夸克等国产浏览器可能已返回 GCJ-02,再 wgs2gcj 会双重偏移(东南几百米)
+        st.textContent = '定位中,校正坐标…';
+        lpCalibrate(pos.coords.latitude, pos.coords.longitude).then((g) => settle(g.lat, g.lng));
       },
       (err) => tryAmap(),
       // enableHighAccuracy:true = GPS 精确定位;false 网络定位飘几个街区
@@ -553,4 +570,5 @@ window.LocPicker = {
   },
   lpAmapLocate, // 高德定位兜底(打卡/写日记定位失败时复用)
   lpIpLocate,   // IP 定位城市级兜底(精确定位失败后,选点器从城市中心开始)
+  lpCalibrate,  // 坐标系自检(WGS-84 vs GCJ-02 双重偏移纠正)
 };

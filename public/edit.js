@@ -329,8 +329,9 @@ function locateToField() {
           tryAmap();
           return;
         }
-        const g = wgs2gcj(pos.coords.latitude, pos.coords.longitude);
-        done(g.lat, g.lng);
+        // 坐标系自检:夸克等国产浏览器可能已返回 GCJ-02,再 wgs2gcj 会双重偏移(东南几百米)
+        st.textContent = '定位中,校正坐标…';
+        LocPicker.lpCalibrate(pos.coords.latitude, pos.coords.longitude).then((g) => done(g.lat, g.lng));
       },
       (err) => tryAmap(),
       // enableHighAccuracy:true = GPS 精确定位;false 网络定位飘几个街区
