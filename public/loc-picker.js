@@ -178,7 +178,51 @@ async function lpIpLocate() {
   } catch { return null; }
 }
 
-/* ---------- 选点器核心 ---------- */
+/* 路线三级获取(driving → walking → 直线),带吸附检测:
+ * OSRM 会把步行景区(橘子洲)的点吸附到远处驾车路 → 检查每个原始点到路线最近点距离,
+ * 任一点偏离 > 200m 判定不合格,降级 walking(步行导航);walking 也失败/不合格才直线。
+ * entries: [{date, ts, location:{lat,lng}}](GCJ-02)按时间排序;
+ * 返回 [[lat,lng],...](GCJ-02,与瓦片对齐) */
+async function getRouteLine(entries) {
+  const pts = entries.map((e) => [e.location.lat, e.location.lng]);
+  const straight = () => pts;
+  // 点(GCJ)到路线(WGS→GCJ)最近距离,米
+  const maxDeviation = (routeGcj, origPts) => {
+    let worst = 0;
+    for (const [lat, lng] of origPts) {
+      let best = Infinity;
+      for (const [rlat, rlng] of routeGcj) {
+        const dy = (lat - rlat) * 111320;
+        const dx = (lng - rlng) * 111320 * Math.cos(lat * Math.PI / 180);
+        const d = Math.sqrt(dx * dx + dy * dy);
+        if (d < best) best = d;
+      }
+      if (best > worst) worst = best;
+    }
+    return worst;
+  };
+  const tryProfile = async (profile) => {
+    try {
+      // 存储=GCJ-02,OSRM 要 WGS-84
+      const wgsPts = entries.map((e) => gcj2wgs(e.location.lat, e.location.lng));
+      const ptsStr = wgsPts.map((p) => `${p.lat},${p.lng}`).join('|');
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 15000);
+      const route = await (await fetch(`/api/route?profile=${profile}&pts=${encodeURIComponent(ptsStr)}`, { signal: ctrl.signal })).json();
+      clearTimeout(timer);
+      if (route.coordinates && route.coordinates.length > 1 && route.source.startsWith('osrm')) {
+        // 响应几何是 WGS-84,转回 GCJ-02 才与瓦片/图钉对齐
+        const gcj = route.coordinates.map(([lat, lng]) => {
+          const g = wgs2gcj(lat, lng);
+          return [g.lat, g.lng];
+        });
+        if (maxDeviation(gcj, pts) <= 200) return gcj; // 所有点都经过路线(偏差≤200m)
+      }
+    } catch { /* 下一级 */ }
+    return null;
+  };
+  return (await tryProfile('driving')) || (await tryProfile('walking')) || straight();
+}
 function placeMarker(lat, lng) {
   if (!pickerMap) return;
   if (pickerMarker) pickerMap.removeLayer(pickerMarker);

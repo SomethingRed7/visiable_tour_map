@@ -263,13 +263,12 @@ async function renderMap(list, box, noteEl) {
     mk.on('click', () => map.setView([p.lat, p.lng], Math.max(map.getZoom(), 12)));
   });
   if (pts.length > 1) {
-    // 与专辑预览一致:按时间排序直线连接(弃用 OSRM——橘子洲等步行景区无驾车路会吸附远处致断线)
-    // 打卡轨迹是「去过的地方」,直线连接直观且永不断线
+    // 与专辑预览一致:driving → walking → 直线三级(带吸附检测,步行景区自动降级步行导航)
     const ordered = pts.slice().sort((a, b) => {
       if (a.date !== b.date) return a.date < b.date ? -1 : 1;
       return (a.ts || 0) - (b.ts || 0);
     });
-    const line = ordered.map((p) => [p.lat, p.lng]);
+    const line = await getRouteLine(ordered.map((p) => ({ location: { lat: p.lat, lng: p.lng } })));
     // 轨迹线:品牌红(与专辑预览同款)
     L.polyline(line, { color: '#e11d48', weight: 4, opacity: 0.9 }).addTo(map);
     map.fitBounds(line, { padding: [40, 40] });

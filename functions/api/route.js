@@ -1,5 +1,5 @@
-// 路线 API:GET /api/route?pts=lat,lng|lat,lng|... → OSRM 真实道路折线
-// 返回 { coordinates: [[lat,lng],...], source: 'osrm'|'straight' }
+// 路线 API:GET /api/route?pts=lat,lng|lat,lng|...&profile=driving|walking
+// 返回 { coordinates: [[lat,lng],...], source: 'osrm:driving'|'osrm:walking'|'straight' }
 // 国内浏览器直连 router.project-osrm.org 不可达 → 走 CF 边缘代理(与 Nominatim geocode 同理)
 // 抽稀到 MAX_POINTS 控制分享页体积;OSRM 失败/点位不足回退直线
 const MAX_POINTS = 250;
@@ -7,6 +7,7 @@ const MAX_POINTS = 250;
 export async function onRequestGet(context) {
   const url = new URL(context.request.url);
   const ptsRaw = url.searchParams.get('pts') || '';
+  const profile = url.searchParams.get('profile') || 'driving';
   const pts = ptsRaw
     .split('|')
     .map((s) => {
@@ -18,9 +19,11 @@ export async function onRequestGet(context) {
   if (pts.length < 2) return Response.json({ coordinates: null, source: 'none' });
 
   const coords = pts.map(([lat, lng]) => `${lng},${lat}`).join(';');
+  // profile 白名单:driving/walking(防任意字符串注入 OSRM 路径)
+  const safe = profile === 'walking' ? 'walking' : 'driving';
   try {
     const res = await fetch(
-      `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=false`,
+      `https://router.project-osrm.org/route/v1/${safe}/${coords}?overview=full&geometries=geojson&steps=false`,
       { signal: AbortSignal.timeout(12000) }
     );
     if (res.ok) {
@@ -32,7 +35,7 @@ export async function onRequestGet(context) {
         const step = Math.max(1, Math.ceil(raw.length / MAX_POINTS));
         const out = [];
         for (let i = 0; i < raw.length; i += step) out.push([raw[i][1], raw[i][0]]);
-        return Response.json({ coordinates: out, source: 'osrm' });
+        return Response.json({ coordinates: out, source: `osrm:${safe}` });
       }
     }
   } catch { /* 回退 */ }

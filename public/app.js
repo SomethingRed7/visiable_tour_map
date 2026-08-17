@@ -1185,15 +1185,14 @@ async function renderAlbumMap(list) {
   if (bounds.length === 1) {
     map.setView(bounds[0], 12);
   } else if (bounds.length > 1) {
-    // 打卡轨迹连线:按日期+时间排序直线连接(不是道路导航)
-    // ⚠️ 曾用 OSRM driving 规划:①橘子洲等步行景区无驾车路,点被吸附到远处道路→视觉断线
-    // ②跨江/绕路导致线段异常;打卡轨迹是「去过的地方」,直线连接直观且永不断线
+    // 路线三级:driving → walking → 直线
+    // ⚠️ driving 在步行景区(橘子洲)会把点吸附到远处驾车路 → 检测到某点偏离>200m 即不合格
     const ordered = withLoc.slice().sort((a, b) => {
       if (a.date !== b.date) return a.date < b.date ? -1 : 1;
       return (entryTs(a) || 0) - (entryTs(b) || 0);
     });
-    const line = ordered.map((e) => [e.location.lat, e.location.lng]);
-    // 轨迹线:品牌红醒目(原 #d97706 琥珀色太淡)
+    const line = await getRouteLine(ordered);
+    // 轨迹线:品牌红醒目
     L.polyline(line, { color: '#e11d48', weight: 4, opacity: 0.9 }).addTo(map);
     map.fitBounds(line, { padding: [30, 30] });
   }
