@@ -207,21 +207,31 @@ async function getRouteLine(entries) {
       const wgsPts = entries.map((e) => gcj2wgs(e.location.lat, e.location.lng));
       const ptsStr = wgsPts.map((p) => `${p.lat},${p.lng}`).join('|');
       const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 15000);
+      const timer = setTimeout(() => ctrl.abort(), 8000);
       const route = await (await fetch(`/api/route?profile=${profile}&pts=${encodeURIComponent(ptsStr)}`, { signal: ctrl.signal })).json();
       clearTimeout(timer);
-      if (route.coordinates && route.coordinates.length > 1 && route.source.startsWith('osrm')) {
+      if (route.coordinates && route.coordinates.length > 1) {
+        if (route.source !== 'osrm:driving' && route.source !== 'osrm:walking') {
+          // OSRM 服务不可达(返回 straight)→ 直接放弃路线,直线兜底(不白等下一级)
+          return { failed: true };
+        }
         // 响应几何是 WGS-84,转回 GCJ-02 才与瓦片/图钉对齐
         const gcj = route.coordinates.map(([lat, lng]) => {
           const g = wgs2gcj(lat, lng);
           return [g.lat, g.lng];
         });
-        if (maxDeviation(gcj, pts) <= 200) return gcj; // 所有点都经过路线(偏差≤200m)
+        if (maxDeviation(gcj, pts) <= 200) return { line: gcj }; // 所有点都经过路线(偏差≤200m)
+        return { failed: false }; // OSRM 在线但吸附不合格 → 试下一级(仅当 OSRM 可用才有意义)
       }
-    } catch { /* 下一级 */ }
-    return null;
+      return { failed: true };
+    } catch { return { failed: true }; }
   };
-  return (await tryProfile('driving')) || (await tryProfile('walking')) || straight();
+  const d = await tryProfile('driving');
+  if (d && d.line) return d.line;
+  if (d && d.failed) return straight(); // OSRM 挂了 → 直线,不试 walking(会同样失败白等)
+  const w = await tryProfile('walking');
+  if (w && w.line) return w.line;
+  return straight();
 }
 function placeMarker(lat, lng) {
   if (!pickerMap) return;
