@@ -263,21 +263,15 @@ async function renderMap(list, box, noteEl) {
     mk.on('click', () => map.setView([p.lat, p.lng], Math.max(map.getZoom(), 12)));
   });
   if (pts.length > 1) {
-    // 沿路规划:CF 边缘 OSRM 代理,失败回退直线;存储=GCJ-02,OSRM 要 WGS-84
-    let line = latlngs;
-    try {
-      const wgsPts = pts.map((p) => gcj2wgs(p.lat, p.lng));
-      const ptsStr = wgsPts.map((p) => `${p.lat},${p.lng}`).join('|');
-      const route = await (await fetch(`/api/route?pts=${encodeURIComponent(ptsStr)}`)).json();
-      if (route.coordinates && route.coordinates.length > 1) {
-        // 响应几何是 WGS-84,转回 GCJ-02 才与瓦片/图钉对齐
-        line = route.coordinates.map(([lat, lng]) => {
-          const g = wgs2gcj(lat, lng);
-          return [g.lat, g.lng];
-        });
-      }
-    } catch { /* 直线 */ }
-    L.polyline(line, { color: '#d97706', weight: 3, opacity: 0.8 }).addTo(map);
+    // 与专辑预览一致:按时间排序直线连接(弃用 OSRM——橘子洲等步行景区无驾车路会吸附远处致断线)
+    // 打卡轨迹是「去过的地方」,直线连接直观且永不断线
+    const ordered = pts.slice().sort((a, b) => {
+      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+      return (a.ts || 0) - (b.ts || 0);
+    });
+    const line = ordered.map((p) => [p.lat, p.lng]);
+    // 轨迹线:品牌红(与专辑预览同款)
+    L.polyline(line, { color: '#e11d48', weight: 4, opacity: 0.9 }).addTo(map);
     map.fitBounds(line, { padding: [40, 40] });
   } else {
     map.setView(latlngs[0], 12);
