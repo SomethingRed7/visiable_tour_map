@@ -502,7 +502,18 @@ function bindPhotoGridFallback(container) {
     img.addEventListener('error', fb);
     if (img.complete && img.naturalWidth === 0) fb();
     // 横图(宽>高)加 landscape 类 → 单列占满整行(竖图保持双列)
-    const mark = () => { if (img.naturalWidth > img.naturalHeight) img.classList.add('landscape'); };
+    // 自动排列:横图移到「第一个竖图之前」(竖图两两成对在后,避免一行只有一张竖图)
+    const mark = () => {
+      if (img.naturalWidth > img.naturalHeight) {
+        img.classList.add('landscape');
+        const grid = img.closest('.photo-grid');
+        if (grid) {
+          const firstPortrait = grid.querySelector('img:not(.landscape)');
+          if (firstPortrait) firstPortrait.before(img);
+          else grid.appendChild(img);
+        }
+      }
+    };
     if (img.complete) mark();
     else img.addEventListener('load', mark);
   });
