@@ -178,57 +178,30 @@ async function lpIpLocate() {
   } catch { return null; }
 }
 
-/* 路线三级获取(driving → walking → 直线),带吸附检测:
- * OSRM 会把步行景区(橘子洲)的点吸附到远处驾车路 → 检查每个原始点到路线最近点距离,
- * 任一点偏离 > 200m 判定不合格,降级 walking(步行导航);walking 也失败/不合格才直线。
+/* 路线获取(driving → walking → 直线):高德 v3/direction(国内稳定,GCJ-02 直接匹配瓦片)
+ * 高德精确经过 waypoints,无需吸附检测;仅高德完全失败(极少)才直线兜底。
  * entries: [{date, ts, location:{lat,lng}}](GCJ-02)按时间排序;
  * 返回 [[lat,lng],...](GCJ-02,与瓦片对齐) */
 async function getRouteLine(entries) {
   const pts = entries.map((e) => [e.location.lat, e.location.lng]);
   const straight = () => pts;
-  // 点(GCJ)到路线(WGS→GCJ)最近距离,米
-  const maxDeviation = (routeGcj, origPts) => {
-    let worst = 0;
-    for (const [lat, lng] of origPts) {
-      let best = Infinity;
-      for (const [rlat, rlng] of routeGcj) {
-        const dy = (lat - rlat) * 111320;
-        const dx = (lng - rlng) * 111320 * Math.cos(lat * Math.PI / 180);
-        const d = Math.sqrt(dx * dx + dy * dy);
-        if (d < best) best = d;
-      }
-      if (best > worst) worst = best;
-    }
-    return worst;
-  };
   const tryProfile = async (profile) => {
     try {
-      // 存储=GCJ-02,OSRM 要 WGS-84
-      const wgsPts = entries.map((e) => gcj2wgs(e.location.lat, e.location.lng));
-      const ptsStr = wgsPts.map((p) => `${p.lat},${p.lng}`).join('|');
+      const ptsStr = pts.map((p) => `${p[0]},${p[1]}`).join('|');
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 8000);
       const route = await (await fetch(`/api/route?profile=${profile}&pts=${encodeURIComponent(ptsStr)}`, { signal: ctrl.signal })).json();
       clearTimeout(timer);
       if (route.coordinates && route.coordinates.length > 1) {
-        if (route.source !== 'osrm:driving' && route.source !== 'osrm:walking') {
-          // OSRM 服务不可达(返回 straight)→ 直接放弃路线,直线兜底(不白等下一级)
-          return { failed: true };
-        }
-        // 响应几何是 WGS-84,转回 GCJ-02 才与瓦片/图钉对齐
-        const gcj = route.coordinates.map(([lat, lng]) => {
-          const g = wgs2gcj(lat, lng);
-          return [g.lat, g.lng];
-        });
-        if (maxDeviation(gcj, pts) <= 200) return { line: gcj }; // 所有点都经过路线(偏差≤200m)
-        return { failed: false }; // OSRM 在线但吸附不合格 → 试下一级(仅当 OSRM 可用才有意义)
+        if (route.source.startsWith('amap')) return { line: route.coordinates }; // GCJ-02 直接用
+        return { failed: true }; // 高德不可达 → 直线(不白等下一级,高德比 OSRM 稳定得多)
       }
       return { failed: true };
     } catch { return { failed: true }; }
   };
   const d = await tryProfile('driving');
   if (d && d.line) return d.line;
-  if (d && d.failed) return straight(); // OSRM 挂了 → 直线,不试 walking(会同样失败白等)
+  // driving 失败/不可达 → 试 walking(高德 walking 覆盖面更广,如步行景区/禁车路段)
   const w = await tryProfile('walking');
   if (w && w.line) return w.line;
   return straight();
