@@ -511,14 +511,18 @@ body {
 .entry-edit {
   font: inherit;
   font-size: 0.75rem;
-  padding: 2px 8px;
+  padding: 3px 10px;
   margin-left: auto;
-  border: 1px solid var(--line);
+  border: 1px solid var(--brand);
   border-radius: 999px;
-  background: var(--card);
-  color: var(--text-soft);
+  background: transparent;
+  color: var(--brand);
   cursor: pointer;
+  font-weight: 600;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
 }
+.entry-edit:hover { background: var(--brand); color: #fff; }
 .entry-edit:active { opacity: 0.7; }
 .author-tag {
   display: inline-block;
