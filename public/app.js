@@ -88,7 +88,7 @@ function entryCard(e, opts) {
   const timeTag = e.ts ? `<span class="time-tag">${fmtTime(e.ts)}</span>` : '';
   const visTag = e.visibility === 'private' ? '<span class="vis-tag">私有</span>' : '';
   const editBtn = opts && opts.editBtn
-    ? `<button type="button" class="entry-edit" data-date="${esc(e.date)}" data-ts="${esc(e.ts)}" title="编辑">✎ 编辑</button>`
+    ? `<button type="button" class="entry-edit" data-date="${esc(e.date)}" data-ts="${esc(e.ts)}" title="编辑" aria-label="编辑"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>`
     : '';
   return `<article class="entry">
     <div class="entry-meta">${timeTag}${authorTag}${visTag}${e.album ? `<span class="album-tag">${esc(e.album)}</span>` : ''}${locTag}${editBtn}</div>

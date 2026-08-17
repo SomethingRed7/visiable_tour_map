@@ -477,6 +477,7 @@ body {
 .entries { display: flex; flex-direction: column; gap: 14px; }
 
 .entry {
+  position: relative;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 14px 16px;
@@ -507,22 +508,22 @@ body {
   gap: 6px;
   flex-wrap: wrap;
   margin-bottom: 4px;
+  padding-right: 24px; /* 右上角编辑按钮占位,避免文字被遮挡 */
 }
 .entry-edit {
-  font: inherit;
-  font-size: 0.75rem;
-  padding: 3px 10px;
-  margin-left: auto;
-  border: 1px solid var(--brand);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--brand);
+  background: none;
+  border: none;
+  color: var(--text-soft);
   cursor: pointer;
-  font-weight: 600;
-  transition: background 0.15s, color 0.15s;
-  white-space: nowrap;
+  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+  /* 右上角:绝对定位贴卡片右上,不挤 meta 行 */
+  position: absolute;
+  top: 10px;
+  right: 12px;
 }
-.entry-edit:hover { background: var(--brand); color: #fff; }
+.entry-edit:hover { color: var(--brand, #e11d48); }
 .entry-edit:active { opacity: 0.7; }
 .author-tag {
   display: inline-block;
