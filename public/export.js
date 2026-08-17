@@ -69,6 +69,7 @@ function ggPinSvg() {
 /* 导出的数据与勾选状态(登录后加载) */
 let exFrom = '';
 let exTo = '';
+let exAlbum = ''; // 专辑导出模式(可单独或与日期叠加)
 let exAllEntries = [];
 let exAllTodos = [];
 let exMapInstance = null;
@@ -77,6 +78,7 @@ async function init() {
   const params = new URLSearchParams(location.search);
   exFrom = params.get('from') || '';
   exTo = params.get('to') || '';
+  exAlbum = params.get('album') || '';
   const valid = /^\d{4}-\d{2}-\d{2}$/;
   const box = $('#ex-overview');
   const mapBox = $('#ex-map');
@@ -93,22 +95,38 @@ async function init() {
   $('#ex-login').hidden = true;
   $('#ex-controls').hidden = false;
 
-  if (!valid.test(exFrom) || !valid.test(exTo) || exFrom > exTo) {
+  // 模式:①专辑 ②起止日期 ③叠加;至少一个有效
+  const fromOk = valid.test(exFrom);
+  const toOk = valid.test(exTo);
+  const rangeOk = fromOk && toOk && exFrom <= exTo;
+  if (!exAlbum && !rangeOk) {
     $('#ex-title').textContent = '参数不对';
-    box.innerHTML = '<p class="empty">请在写日记页「导出行程」选择日期区间,或检查链接 ?from=YYYY-MM-DD&to=YYYY-MM-DD</p>';
+    box.innerHTML = '<p class="empty">请在写日记页「导出行程」选择专辑或日期区间,或检查链接 ?album=&from=&to=</p>';
+    mapBox.style.display = 'none';
+    return;
+  }
+  if ((exFrom || exTo) && !rangeOk) {
+    $('#ex-title').textContent = '日期区间不对';
+    box.innerHTML = '<p class="empty">起始/结束日期需成对且起始不晚于结束</p>';
     mapBox.style.display = 'none';
     return;
   }
 
-  $('#ex-subtitle').textContent = `${fmt(exFrom)} ~ ${fmt(exTo)}`;
-  document.title = `行程总览 ${exFrom} ~ ${exTo} · 咕咕嘎嘎`;
+  // 副标题:专辑名 / 区间 / 组合
+  const rangeText = rangeOk ? `${fmt(exFrom)} ~ ${fmt(exTo)}` : '';
+  $('#ex-subtitle').textContent = [exAlbum && `专辑 · ${exAlbum}`, rangeText].filter(Boolean).join('  ');
+  document.title = `行程总览 ${[exAlbum, rangeText].filter(Boolean).join(' ')} · 咕咕嘎嘎`;
 
   const [entriesData, todosData] = await Promise.all([
     fetch('/api/entries').then((r) => r.json()),
     fetch('/api/todos').then((r) => r.json()).catch(() => ({ todos: [] })),
   ]);
-  exAllEntries = (entriesData.entries || []).filter((e) => e.date >= exFrom && e.date <= exTo);
-  exAllTodos = (todosData.todos || []).filter((t) => t.date >= exFrom && t.date <= exTo);
+  let list = entriesData.entries || [];
+  if (exAlbum) list = list.filter((e) => e.album === exAlbum);
+  if (rangeOk) list = list.filter((e) => e.date >= exFrom && e.date <= exTo);
+  exAllEntries = list;
+  // 待办仅日期区间时参与;纯专辑模式待办不参与(待办无专辑概念)
+  exAllTodos = rangeOk ? (todosData.todos || []).filter((t) => t.date >= exFrom && t.date <= exTo) : [];
 
   // 勾选变化即时重渲染
   ['ck-public', 'ck-private', 'ck-todo', 'ck-checkin'].forEach((id) => {

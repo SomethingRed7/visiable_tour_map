@@ -84,8 +84,14 @@
 
       <section class="panel export-panel">
         <h2 class="panel-heading">导出行程</h2>
-        <p class="manage-hint">选一个日期区间,生成总览 + 地图路线分享页</p>
+        <p class="manage-hint">按专辑或日期区间导出,可叠加;留空 = 全部</p>
         <div class="export-form">
+          <label>
+            专辑
+            <select id="ex-album">
+              <option value="">全部专辑</option>
+            </select>
+          </label>
           <label>
             起始日期
             <input type="date" id="ex-from">

@@ -231,6 +231,14 @@ async function renderRecent() {
   const ckinBox = $('#ckin-list');
   try {
     const data = await (await fetch('/api/entries')).json();
+    // 填充导出专辑下拉(保留已选值;专辑列表来自全部条目去重)
+    const exSel = $('#ex-album');
+    if (exSel) {
+      const prev = exSel.value;
+      const albums = [...new Set((data.entries || []).map((e) => e.album).filter(Boolean))].sort();
+      exSel.innerHTML = '<option value="">全部专辑</option>' + albums.map((a) => `<option value="${esc(a)}">${esc(a)}</option>`).join('');
+      if (prev) exSel.value = prev;
+    }
     const all = (data.entries || [])
       .sort((a, b) => (a.date === b.date ? (a.created_at || '') > (b.created_at || '') ? -1 : 1 : a.date > b.date ? -1 : 1))
       .slice(0, 40);
@@ -304,16 +312,24 @@ async function doDelete(date, ts) {
   alert('已删除 ✅');
   renderRecent();
 }
-/* ---- 导出行程 ---- */
+/* ---- 导出行程(按专辑 / 按起止日期 / 叠加)---- */
 $('#btn-export').addEventListener('click', () => {
+  const album = $('#ex-album').value.trim();
   const from = $('#ex-from').value;
   const to = $('#ex-to').value;
   const st = $('#export-status');
-  if (!from || !to) { st.textContent = '请选择起始和结束日期'; st.className = 'form-status error'; return; }
-  if (from > to) { st.textContent = '起始日期不能晚于结束日期'; st.className = 'form-status error'; return; }
-  const days = Math.round((new Date(to) - new Date(from)) / 86400000) + 1;
-  if (days > 60) { st.textContent = '区间最多 60 天'; st.className = 'form-status error'; return; }
-  location.href = `/export?from=${from}&to=${to}`;
+  st.className = 'form-status';
+  if (!album && (!from || !to)) { st.textContent = '请选择专辑,或选择起止日期(可都选叠加)'; st.className = 'form-status error'; return; }
+  if (from && to && from > to) { st.textContent = '起始日期不能晚于结束日期'; st.className = 'form-status error'; return; }
+  if (from && to) {
+    const days = Math.round((new Date(to) - new Date(from)) / 86400000) + 1;
+    if (days > 60) { st.textContent = '区间最多 60 天'; st.className = 'form-status error'; return; }
+  }
+  const q = new URLSearchParams();
+  if (album) q.set('album', album);
+  if (from) q.set('from', from);
+  if (to) q.set('to', to);
+  location.href = `/export?${q.toString()}`;
 });
 function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
