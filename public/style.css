@@ -1129,14 +1129,17 @@ body {
   color: var(--text-soft);
 }
 
-.export-form input[type="date"] {
+.export-form input[type="date"],
+.export-form select {
   font: inherit;
   padding: 8px 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--card);
   color: var(--text);
+  min-height: 38px;
 }
+.export-form select { cursor: pointer; }
 
 /* ---------- 打印 ---------- */
 @media print {
