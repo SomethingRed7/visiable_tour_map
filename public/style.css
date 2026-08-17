@@ -270,6 +270,19 @@ body {
   margin-bottom: 8px;
 }
 
+/* 当日动态「＋ 记录」:小号按钮,登录可见,右侧 */
+.btn-add-entry {
+  margin-left: auto;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--brand);
+  border-radius: 999px;
+  padding: 5px 14px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
 .todo-progress {
   font-size: 0.78rem;
   font-weight: 600;

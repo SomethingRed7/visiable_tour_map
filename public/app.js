@@ -8,6 +8,13 @@ let currentMonth = null;   // 'YYYY-MM'
 let selectedDate = null;
 let activeAlbum = null;
 let currentUser = null;    // 登录用户;null=未登录(待办完全不可见)
+
+/* 今天日期字符串(本地时区,YYYY-MM-DD)——「＋ 记录」跳转带当天日期用 */
+function todayStr() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
 let allTodos = [];         // 私有待办(仅登录后拉取)
 // 暂不显示「最近动态」流:默认只保留专辑入口;true = 恢复(含「全部」chip)
 const SHOW_RECENT_FEED = false;
@@ -268,6 +275,12 @@ async function initPortalUser() {
     box.innerHTML = `<span class="user-name">${esc(currentUser)}</span><a class="btn-write" href="/write">管理</a>`;
     const albumTab = document.querySelector('#panel-tabs .tab-btn[data-tab="album"]');
     if (albumTab) albumTab.hidden = false; // 专辑 tab 仅登录可见
+    // 当日动态「＋ 记录」按钮(登录可见;带今天日期,写日记页直接定位到当天)
+    const addBtn = $('#btn-entry-add');
+    if (addBtn) {
+      addBtn.hidden = false;
+      addBtn.href = `/edit?date=${todayStr()}`;
+    }
     try {
       const d = await (await fetch('/api/todos')).json();
       allTodos = d.todos || [];
@@ -282,6 +295,8 @@ async function initPortalUser() {
     box.innerHTML = '<a class="btn-write" href="/write">登录</a>';
     const albumTab = document.querySelector('#panel-tabs .tab-btn[data-tab="album"]');
     if (albumTab) albumTab.hidden = true; // 未登录无专辑
+    const addBtn2 = $('#btn-entry-add');
+    if (addBtn2) addBtn2.hidden = true;
     if (activeTab === 'todos') switchTab('entries'); // 未登录默认动态
   }
 }
