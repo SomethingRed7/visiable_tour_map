@@ -861,7 +861,7 @@ body {
 .album-mgr-name { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .album-mgr-count { font-size: 0.8rem; color: var(--text-soft); white-space: nowrap; }
 .album-mgr-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-.album-mgr-rename {
+.btn-album-rename {
   background: none;
   border: none;
   color: var(--text-soft);
@@ -870,8 +870,8 @@ body {
   display: inline-flex;
   align-items: center;
 }
-.album-mgr-rename:hover { color: var(--brand, #e11d48); }
-.album-mgr-rename:active { opacity: 0.7; }
+.btn-album-rename:hover { color: var(--brand, #e11d48); }
+.btn-album-rename:active { opacity: 0.7; }
 
 .photo-preview {
   display: flex;

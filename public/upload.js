@@ -344,7 +344,7 @@ async function renderAlbums() {
         <span class="album-mgr-name" title="${esc(a.album)}">${esc(a.album)}</span>
         <span class="album-mgr-count">${a.count} 条</span>
         <span class="album-mgr-actions">
-          <button type="button" class="album-mgr-rename" data-album="${esc(a.album)}" title="改名" aria-label="改名"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+          <button type="button" class="btn-album-rename" data-album="${esc(a.album)}" title="改名" aria-label="改名"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
           <button type="button" class="btn-small btn-album-vis" data-album="${esc(a.album)}" data-vis="${visTarget}">${visLabel}</button>
         </span>
       </div>`;

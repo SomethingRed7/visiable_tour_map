@@ -1253,6 +1253,7 @@ async function renderAlbumMap(list) {
 /* ---------- 专辑 / 动态流 ---------- */
 function renderAlbums() {
   const albums = [...new Set(allEntries.map((e) => e.album).filter(Boolean))];
+  const hasUncat = allEntries.some((e) => !e.album); // 未分类:album 为空/NULL 的条目
   const chips = $('#album-chips');
   chips.innerHTML = '';
   const mk = (label, album, active) => {
@@ -1265,6 +1266,7 @@ function renderAlbums() {
   };
   if (SHOW_RECENT_FEED) mk('全部', null, activeAlbum === null);
   for (const a of albums) mk(a, a, activeAlbum === a);
+  if (hasUncat) mk('未分类', '', activeAlbum === '');
 }
 
 function setAlbum(album) {
@@ -1281,8 +1283,9 @@ async function renderStream() {
     if (activeAlbum) shareBtn.href = '/export?album=' + encodeURIComponent(activeAlbum);
   }
   let list = allEntries;
-  if (activeAlbum) list = list.filter((e) => e.album === activeAlbum);
-  if (!activeAlbum && !SHOW_RECENT_FEED) {
+  if (activeAlbum === '') list = list.filter((e) => !e.album); // 未分类:album 为空/NULL
+  else if (activeAlbum) list = list.filter((e) => e.album === activeAlbum);
+  if (activeAlbum == null && !SHOW_RECENT_FEED) {
     // 专辑入口:默认不渲染动态流
     $('#stream-title').textContent = '专辑';
     $('#stream').innerHTML = `<p class="empty">${allEntries.length ? '选择一个专辑查看' : '还没有日记 ✏️'}</p>`;
@@ -1290,11 +1293,11 @@ async function renderStream() {
     return;
   }
   list = [...list].sort((a, b) => {
-    if (activeAlbum) return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; // 专辑正序
+    if (activeAlbum != null) return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; // 专辑/未分类正序
     if (a.date !== b.date) return a.date > b.date ? -1 : 1;                 // 动态倒序
     return (a.created_at || '') > (b.created_at || '') ? -1 : 1;
   });
-  $('#stream-title').textContent = activeAlbum ? `专辑 · ${activeAlbum}` : '最近动态';
+  $('#stream-title').textContent = activeAlbum === '' ? '专辑 · 未分类' : activeAlbum ? `专辑 · ${activeAlbum}` : '最近动态';
   // 条目按日期分组:每日小标题 + 当日条目(样式与管理界面一致)
   const grouped = [];
   const byDate = {};
@@ -1328,8 +1331,8 @@ async function renderStream() {
     `).join('')
     : '<p class="empty">还没有日记 ✏️</p>';
   bindStreamEditBtns($('#stream'));
-  // 地图仅在选中专辑时显示
-  if (activeAlbum) await renderAlbumMap(list);
+  // 地图仅在选中专辑/未分类时显示(未分类条目有坐标同样画)
+  if (activeAlbum != null) await renderAlbumMap(list);
   else $('#album-map').style.display = 'none';
 }
 
