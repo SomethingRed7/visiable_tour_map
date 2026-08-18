@@ -349,6 +349,21 @@ async function renderAlbums() {
         </span>
       </div>`;
     }).join('');
+    // 未分类(无专辑条目):只支持一键可见性,无改名(没有 album 字段可改)
+    if (data.uncategorized && data.uncategorized.count > 0) {
+      const u = data.uncategorized;
+      const allPriv = u.privateCount === u.count;
+      const visTarget = allPriv ? 'public' : 'private';
+      const visLabel = allPriv ? '全部改公开' : '全部改私密';
+      box.insertAdjacentHTML('beforeend', `
+      <div class="album-mgr-item">
+        <span class="album-mgr-name" title="未分类">未分类</span>
+        <span class="album-mgr-count">${u.count} 条</span>
+        <span class="album-mgr-actions">
+          <button type="button" class="btn-small btn-album-vis" data-album="" data-vis="${visTarget}">${visLabel}</button>
+        </span>
+      </div>`);
+    }
     box.querySelectorAll('.btn-album-rename').forEach((b) => b.addEventListener('click', () => renameAlbum(b.dataset.album)));
     box.querySelectorAll('.btn-album-vis').forEach((b) => b.addEventListener('click', () => setAlbumVisibility(b.dataset.album, b.dataset.vis)));
   } catch { box.innerHTML = '<p class="empty">加载失败</p>'; }
@@ -372,7 +387,8 @@ async function renameAlbum(oldName) {
 
 async function setAlbumVisibility(album, vis) {
   const label = vis === 'private' ? '私密' : '公开';
-  if (!confirm(`把专辑「${album}」下所有条目设为${label}?`)) return;
+  const albumLabel = album ? `「${album}」` : '「未分类」';
+  if (!confirm(`把${albumLabel}下所有条目设为${label}?`)) return;
   try {
     const res = await (await fetch('/api/albums', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'visibility', album, vis }) })).json();
     if (res.ok) {
