@@ -286,6 +286,8 @@ async function initPortalUser() {
     box.innerHTML = `<span class="user-name">${esc(currentUser)}</span><a class="btn-write" href="/write">管理</a>`;
     const albumTab = document.querySelector('#panel-tabs .tab-btn[data-tab="album"]');
     if (albumTab) albumTab.hidden = false; // 专辑 tab 仅登录可见
+    const tabsBar = $('#panel-tabs');
+    if (tabsBar) tabsBar.hidden = false;   // 三 tab 面板仅登录可见(未登录无待办可看)
     // 当日动态「＋ 记录」按钮(登录可见;带今天日期,写日记页直接定位到当天)
     const addBtn = $('#btn-entry-add');
     if (addBtn) {
@@ -306,6 +308,8 @@ async function initPortalUser() {
     box.innerHTML = '<a class="btn-write" href="/write">登录</a>';
     const albumTab = document.querySelector('#panel-tabs .tab-btn[data-tab="album"]');
     if (albumTab) albumTab.hidden = true; // 未登录无专辑
+    const tabsBar2 = $('#panel-tabs');
+    if (tabsBar2) tabsBar2.hidden = true; // 未登录无 tab 栏:不显示「当日待办」,默认只展示当日动态
     const addBtn2 = $('#btn-entry-add');
     if (addBtn2) addBtn2.hidden = true;
     if (activeTab === 'todos') switchTab('entries'); // 未登录默认动态
