@@ -547,7 +547,12 @@ async function enterEdit(date, ts) {
   albumSel.value = e.album || '';
   $('#f-visibility').value = e.visibility === 'private' ? 'private' : 'public'; // 仅展示,保存走 doUpdate(不提交可见性)
   $('#f-location').value = (e.location && e.location.name) || '';
-  $('#f-lat').value = $('#f-lng').value = '';
+  // 回填坐标:点「🗺️ 地图」时选点器从已有地点开始(曾清空导致地图从全国中心开始)
+  const loc = e.location || {};
+  const locLat = loc.lat != null && Number.isFinite(Number(loc.lat)) ? loc.lat : '';
+  const locLng = loc.lng != null && Number.isFinite(Number(loc.lng)) ? loc.lng : '';
+  $('#f-lat').value = locLat;
+  $('#f-lng').value = locLng;
   $('#f-photos').value = '';
   $('#photo-preview').innerHTML = '';
   $('#success-banner').hidden = true;
