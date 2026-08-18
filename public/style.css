@@ -1153,6 +1153,21 @@ body {
 }
 .export-form select { cursor: pointer; }
 
+/* ---------- 生成分享快照按钮 + 结果弹层 ---------- */
+.share-btn { max-width: 640px; margin-top: 6px; }
+.share-link-row { display: flex; gap: 8px; align-items: center; }
+.share-link-row input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-height: 38px;
+}
+.share-qr { display: flex; justify-content: center; padding: 8px 0; }
+.share-qr canvas { border: 1px solid var(--line); border-radius: 8px; }
+
 /* ---------- 打印 ---------- */
 @media print {
   .site-header { position: static; }

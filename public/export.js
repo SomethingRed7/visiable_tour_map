@@ -94,6 +94,7 @@ async function init() {
   }
   $('#ex-login').hidden = true;
   $('#ex-controls').hidden = false;
+  $('#btn-share').hidden = false; // 生成分享快照按钮仅登录可见
 
   // 模式:①专辑 ②起止日期 ③叠加;至少一个有效
   const fromOk = valid.test(exFrom);
@@ -304,22 +305,88 @@ function loadLeaflet() {
   });
 }
 
-/* 打印:桌面/移动真弹出对话框时照常;浏览器吞掉 window.print(微信内置/部分国产如夸克)
- * 时用 beforeprint 事件探测:触发过 = 对话框真的弹了;600ms 内没触发 = 被吞 → 给可执行指引。
- * 桌面 Chrome window.print 是同步阻塞的,beforeprint 在对话框打开前必触发,不会误报。 */
-function doPrint() {
-  let fired = false;
-  const onBefore = () => { fired = true; };
-  window.addEventListener('beforeprint', onBefore);
-  try { window.print(); } catch (e) { /* 忽略 */ }
-  setTimeout(() => {
-    window.removeEventListener('beforeprint', onBefore);
-    if (!fired) {
-      alert('当前浏览器未弹出打印窗口。请点浏览器右上角菜单 →「打印」或「保存为 PDF」(微信内请先点右上角 ⋯ 选「在浏览器打开」)。');
-    }
-  }, 600);
+/* ---------- 生成分享快照(替代 PDF 导出) ---------- */
+let shareQrLoaded = null;
+function loadQrLib() {
+  if (!shareQrLoaded) {
+    shareQrLoaded = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js';
+      s.onload = resolve;
+      s.onerror = () => reject(new Error('二维码库加载失败'));
+      document.head.appendChild(s);
+    });
+  }
+  return shareQrLoaded;
 }
-$('#btn-print').addEventListener('click', doPrint);
+
+function showShareModal(data) {
+  const url = location.origin + data.url;
+  $('#share-url').value = url;
+  $('#share-status').textContent = '';
+  $('#share-modal').hidden = false;
+  const qrBox = $('#share-qr');
+  qrBox.innerHTML = '';
+  loadQrLib().then(() => {
+    const canvas = document.createElement('canvas');
+    new QRious({ element: canvas, value: url, size: 180 });
+    qrBox.appendChild(canvas);
+  }).catch(() => {
+    qrBox.innerHTML = '<p class="empty">二维码生成失败,直接复制链接分享</p>';
+  });
+}
+
+$('#btn-share').addEventListener('click', async () => {
+  const errEl = $('#share-err');
+  errEl.className = 'form-status';
+  errEl.textContent = '';
+  // 条件 = 当前 URL 参数(专辑/日期)+ 勾选状态(与预览一致)
+  const rangeOk = /^\d{4}-\d{2}-\d{2}$/.test(exFrom) && /^\d{4}-\d{2}-\d{2}$/.test(exTo) && exFrom <= exTo;
+  if (!exAlbum && !rangeOk) {
+    errEl.className = 'form-status error';
+    errEl.textContent = '请选择专辑,或选择起止日期(可都选叠加)';
+    return;
+  }
+  const fd = new FormData();
+  if (exAlbum) fd.append('album', exAlbum);
+  if (exFrom) fd.append('from', exFrom);
+  if (exTo) fd.append('to', exTo);
+  fd.append('ck_public', $('#ck-public').checked ? 'on' : '0');
+  fd.append('ck_private', $('#ck-private').checked ? 'on' : '0');
+  fd.append('ck_todo', $('#ck-todo').checked ? 'on' : '0');
+  fd.append('ck_checkin', $('#ck-checkin').checked ? 'on' : '0');
+  const btn = $('#btn-share');
+  btn.disabled = true; // 防连点重复生成
+  try {
+    const res = await fetch('/api/share', { method: 'POST', body: fd });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      errEl.className = 'form-status error';
+      errEl.textContent = data.error || `生成失败(HTTP ${res.status})`;
+      return;
+    }
+    showShareModal(data);
+  } catch {
+    errEl.className = 'form-status error';
+    errEl.textContent = '网络错误,请重试';
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$('#btn-share-copy').addEventListener('click', async () => {
+  const input = $('#share-url');
+  try {
+    await navigator.clipboard.writeText(input.value);
+  } catch {
+    input.select();
+    document.execCommand('copy');
+  }
+  $('#share-status').textContent = '已复制 ✅';
+});
+
+$('#btn-share-close').addEventListener('click', () => { $('#share-modal').hidden = true; });
+$('#share-modal').addEventListener('click', (e) => { if (e.target.id === 'share-modal') $('#share-modal').hidden = true; });
 
 init().catch((err) => {
   console.error(err);

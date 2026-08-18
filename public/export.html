@@ -14,7 +14,6 @@
     </div>
     <div class="header-side">
       <a class="btn-write" href="/">← 回首页</a>
-      <button type="button" id="btn-print" class="btn-write">🖨️ 打印</button>
     </div>
   </header>
 
@@ -33,6 +32,8 @@
         <label><input type="checkbox" id="ck-checkin" checked> 打卡记录</label>
         <span class="ex-hint">取消勾选的内容不导出</span>
       </div>
+      <button type="button" id="btn-share" class="btn-submit share-btn" hidden>生成分享快照</button>
+      <p id="share-err" class="form-status"></p>
       <div id="ex-overview" class="entries"></div>
     </section>
 
@@ -44,6 +45,21 @@
   </main>
 
   <footer class="site-footer">咕咕嘎嘎 · 记录每一段在路上</footer>
+
+  <!-- 生成分享快照结果弹层 -->
+  <div id="share-modal" class="modal" hidden>
+    <div class="modal-card">
+      <h3 class="sub-panel-heading">分享快照已生成</h3>
+      <p class="manage-hint">链接永久有效,内容固定;想刷新内容可在下方「已分享的快照」点「更新」(链接不变)。</p>
+      <div class="share-link-row">
+        <input type="text" id="share-url" readonly>
+        <button type="button" id="btn-share-copy" class="btn-small">复制</button>
+      </div>
+      <div id="share-qr" class="share-qr"></div>
+      <p id="share-status" class="form-status"></p>
+      <button type="button" id="btn-share-close" class="btn-small">关闭</button>
+    </div>
+  </div>
 
   <script src="loc-picker.js"></script>
   <script src="export.js"></script>
