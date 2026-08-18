@@ -304,7 +304,22 @@ function loadLeaflet() {
   });
 }
 
-$('#btn-print').addEventListener('click', () => window.print());
+/* 打印:桌面/移动真弹出对话框时照常;浏览器吞掉 window.print(微信内置/部分国产如夸克)
+ * 时用 beforeprint 事件探测:触发过 = 对话框真的弹了;600ms 内没触发 = 被吞 → 给可执行指引。
+ * 桌面 Chrome window.print 是同步阻塞的,beforeprint 在对话框打开前必触发,不会误报。 */
+function doPrint() {
+  let fired = false;
+  const onBefore = () => { fired = true; };
+  window.addEventListener('beforeprint', onBefore);
+  try { window.print(); } catch (e) { /* 忽略 */ }
+  setTimeout(() => {
+    window.removeEventListener('beforeprint', onBefore);
+    if (!fired) {
+      alert('当前浏览器未弹出打印窗口。请点浏览器右上角菜单 →「打印」或「保存为 PDF」(微信内请先点右上角 ⋯ 选「在浏览器打开」)。');
+    }
+  }, 600);
+}
+$('#btn-print').addEventListener('click', doPrint);
 
 init().catch((err) => {
   console.error(err);
