@@ -246,17 +246,15 @@ body {
 /* 当天待办区(私有,仅登录渲染) */
 .todo-section {
   margin-top: 14px;
-  border-top: 1px dashed var(--line);
   padding-top: 10px;
 }
 
 /* tab 内容区与 tab 栏留出呼吸间距 */
 .tab-pane { padding-top: 4px; }
 
-/* 当日动态区标题(与待办区分隔) */
+/* 当日动态/专辑查看区标题(三 tab 面板内容标题样式统一:1.1rem 加粗,无分隔线) */
 .day-head {
-  margin-top: 20px;
-  border-top: 1px dashed var(--line);
+  margin-top: 14px;
   padding-top: 10px;
 }
 
@@ -264,7 +262,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 0.92rem;
+  /* 小标题字号:与 panel-heading 一致(1.1rem)——用户:「调大一点,和修改前专辑查看一样大」 */
+  font-size: 1.1rem;
   font-weight: 700;
   color: var(--text);
   margin-bottom: 8px;
@@ -583,11 +582,10 @@ body {
 .empty { color: var(--text-soft); font-size: 0.9rem; }
 
 /* ---------- 动态流 ---------- */
-.stream-head {
+/* 专辑 chips 行(独立于标题行,与「记一把/生成分享页」按钮行区分) */
+.album-chips {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 6px;
   flex-wrap: wrap;
   margin-bottom: 12px;
 }
@@ -617,10 +615,6 @@ body {
   border-color: var(--brand, #e11d48);
   font-weight: 600;
 }
-
-.stream-head .panel-heading { margin: 0; }
-
-.album-chips { display: flex; gap: 6px; flex-wrap: wrap; }
 
 .chip {
   border: 1px solid var(--line);

@@ -1250,6 +1250,12 @@ function setAlbum(album) {
 }
 
 async function renderStream() {
+  // 专辑「生成分享页」按钮(与当日动态「记一把」同款):选中专辑时显示,链接带当前专辑;未选专辑隐藏
+  const shareBtn = $('#btn-album-share');
+  if (shareBtn) {
+    shareBtn.hidden = !(activeAlbum && currentUser);
+    if (activeAlbum) shareBtn.href = '/export?album=' + encodeURIComponent(activeAlbum);
+  }
   let list = allEntries;
   if (activeAlbum) list = list.filter((e) => e.album === activeAlbum);
   if (!activeAlbum && !SHOW_RECENT_FEED) {

@@ -1,7 +1,7 @@
 /* 咕咕嘎嘎 - 行程导出分享页(?from=YYYY-MM-DD&to=YYYY-MM-DD) */
 'use strict';
 
-const $ = (s) => document.querySelector(s);
+var $ = (s) => document.querySelector(s);
 
 function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

@@ -539,17 +539,18 @@ function initPickerMap() {
   });
 }
 
-/* 事件绑定(静态元素,只绑一次) */
-$('#btn-loc-close').addEventListener('click', () => { $('#loc-overlay').hidden = true; });
-$('#loc-overlay').addEventListener('click', (e) => { if (e.target.id === 'loc-overlay') $('#loc-overlay').hidden = true; });
-$('#btn-loc-current').addEventListener('click', locateCurrent);
-$('#btn-loc-done').addEventListener('click', () => {
+/* 事件绑定(静态元素,只绑一次;页面可能不含选点器 DOM——如导出页,判空防 TypeError) */
+const lpBind = (sel, evt, fn) => { const el = $(sel); if (el) el.addEventListener(evt, fn); };
+lpBind('#btn-loc-close', 'click', () => { $('#loc-overlay').hidden = true; });
+lpBind('#loc-overlay', 'click', (e) => { if (e.target.id === 'loc-overlay') $('#loc-overlay').hidden = true; });
+lpBind('#btn-loc-current', 'click', locateCurrent);
+lpBind('#btn-loc-done', 'click', () => {
   if (!picked) return $('#loc-status').textContent = '先在搜索列表选一条,或点一下地图';
   const cb = window.__locOnPick;
   $('#loc-overlay').hidden = true;
   if (cb) cb(picked.name || $('#loc-confirm-name').textContent || '自定义位置', picked.lat, picked.lng);
 });
-$('#loc-search').addEventListener('input', () => {
+lpBind('#loc-search', 'input', () => {
   clearTimeout(searchTimer);
   const q = $('#loc-search').value.trim();
   if (!q) { $('#loc-results').innerHTML = ''; return; }
