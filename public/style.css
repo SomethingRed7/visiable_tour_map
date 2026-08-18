@@ -851,17 +851,27 @@ body {
 .album-mgr-list { display: flex; flex-direction: column; gap: 8px; }
 .album-mgr-item {
   display: flex;
-  flex-wrap: wrap; /* 窄屏时按钮组换行到第二行,避免把专辑名挤没(曾 flex 单行被 actions 221px 挤压,名字 12px 宽被裁) */
   align-items: center;
-  gap: 8px 10px;
+  gap: 10px;
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--card, #fff);
 }
-.album-mgr-name { font-weight: 600; flex: 1 1 auto; min-width: 6em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.album-mgr-name { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .album-mgr-count { font-size: 0.8rem; color: var(--text-soft); white-space: nowrap; }
-.album-mgr-actions { display: flex; gap: 6px; flex-shrink: 0; width: 100%; justify-content: flex-end; }
+.album-mgr-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.album-mgr-rename {
+  background: none;
+  border: none;
+  color: var(--text-soft);
+  cursor: pointer;
+  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+}
+.album-mgr-rename:hover { color: var(--brand, #e11d48); }
+.album-mgr-rename:active { opacity: 0.7; }
 
 .photo-preview {
   display: flex;

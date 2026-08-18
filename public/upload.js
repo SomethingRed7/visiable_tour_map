@@ -334,16 +334,21 @@ async function renderAlbums() {
     const data = await (await fetch('/api/albums')).json();
     const list = data.albums || [];
     if (!list.length) { box.innerHTML = '<p class="empty">还没有专辑</p>'; return; }
-    box.innerHTML = list.map((a) => `
+    box.innerHTML = list.map((a) => {
+      // 可见性按钮:参考条目「改公开/改私密」切换;全私密 → 全部改公开,否则 → 全部改私密
+      const allPriv = a.privateCount === a.count;
+      const visTarget = allPriv ? 'public' : 'private';
+      const visLabel = allPriv ? '全部改公开' : '全部改私密';
+      return `
       <div class="album-mgr-item">
         <span class="album-mgr-name" title="${esc(a.album)}">${esc(a.album)}</span>
         <span class="album-mgr-count">${a.count} 条</span>
         <span class="album-mgr-actions">
-          <button type="button" class="btn-small btn-album-rename" data-album="${esc(a.album)}">改名</button>
-          <button type="button" class="btn-small btn-album-vis" data-album="${esc(a.album)}" data-vis="public">全部公开</button>
-          <button type="button" class="btn-small btn-album-vis" data-album="${esc(a.album)}" data-vis="private">全部私密</button>
+          <button type="button" class="album-mgr-rename" data-album="${esc(a.album)}" title="改名" aria-label="改名"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+          <button type="button" class="btn-small btn-album-vis" data-album="${esc(a.album)}" data-vis="${visTarget}">${visLabel}</button>
         </span>
-      </div>`).join('');
+      </div>`;
+    }).join('');
     box.querySelectorAll('.btn-album-rename').forEach((b) => b.addEventListener('click', () => renameAlbum(b.dataset.album)));
     box.querySelectorAll('.btn-album-vis').forEach((b) => b.addEventListener('click', () => setAlbumVisibility(b.dataset.album, b.dataset.vis)));
   } catch { box.innerHTML = '<p class="empty">加载失败</p>'; }

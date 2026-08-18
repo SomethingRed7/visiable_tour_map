@@ -14,15 +14,15 @@ export async function onRequestGet(context) {
   const user = await verifySession(context.env, context.request);
   if (!user) return Response.json({ error: '请先登录' }, { status: 401 });
 
-  // 专辑名 + 条目数(全部条目,含私有;管理场景需要看到全量)
+  // 专辑名 + 条目数 + 可见性分布(前端据此决定「全部改公开/全部改私密」按钮方向)
   const { results } = await context.env.DB
-    .prepare("SELECT album, COUNT(*) AS cnt FROM entries WHERE album IS NOT NULL AND album != '' GROUP BY album ORDER BY album ASC")
+    .prepare("SELECT album, COUNT(*) AS cnt, SUM(CASE WHEN visibility = 'private' THEN 1 ELSE 0 END) AS priv FROM entries WHERE album IS NOT NULL AND album != '' GROUP BY album ORDER BY album ASC")
     .all();
   const { results: total } = await context.env.DB
     .prepare('SELECT COUNT(*) AS c FROM entries')
     .all();
   return Response.json({
-    albums: results.map((r) => ({ album: r.album, count: r.cnt })),
+    albums: results.map((r) => ({ album: r.album, count: r.cnt, privateCount: r.priv || 0 })),
     total: total[0]?.c || 0,
   });
 }
