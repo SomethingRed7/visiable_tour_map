@@ -105,6 +105,9 @@ async function renderMap(list, box, noteEl) {
     subdomains: ['1', '2', '3', '4'],
     attribution: '&copy; 高德地图',
   }).addTo(map);
+  // 容器刚从 display:none 切到 block,立即初始化 Leaflet 尺寸未就绪 → 延时校正(与专辑地图同款)
+  setTimeout(() => map.invalidateSize(), 120);
+  setTimeout(() => map.invalidateSize(), 400);
   pts.forEach((p, i) => {
     const mk = L.marker([p.lat, p.lng], { icon: L.divIcon({ className: 'gg-marker', html: ggPinSvg(), iconSize: [28, 28], iconAnchor: [14, 27] }) }).addTo(map);
     mk.bindPopup(`<b>${esc(p.date)} ${fmtTime(p.ts)}</b> ${esc(p.title)}<br>${esc(p.name)}`);

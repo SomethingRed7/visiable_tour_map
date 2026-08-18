@@ -31,15 +31,15 @@ function snapshotPage(snap) {
 </header>
 <main class="layout">
   <section class="panel">
-    <h2 class="panel-heading">行程总览</h2>
+    <h2 class="panel-heading">地图路线</h2>
     <p class="manage-hint" id="sv-subtitle"></p>
     <p class="manage-hint" id="sv-meta"></p>
-    <div id="sv-overview" class="entries"></div>
-  </section>
-  <section class="panel">
-    <h2 class="panel-heading">地图路线</h2>
     <div id="sv-map" class="album-map"></div>
     <p id="sv-map-note" class="manage-hint"></p>
+  </section>
+  <section class="panel">
+    <h2 class="panel-heading">行程总览</h2>
+    <div id="sv-overview" class="entries"></div>
   </section>
 </main>
 <footer class="site-footer">咕咕嘎嘎 · 记录每一段在路上</footer>

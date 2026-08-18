@@ -20,7 +20,12 @@ function setAuthed(user) {
   $('#user-area').hidden = !loggedIn;
   if (user) {
     $('#current-user').textContent = user;
-  } else showLoginPanel();
+    renderShares(); // 已分享快照列表(仅登录)
+  } else {
+    showLoginPanel();
+    const sl = $('#share-list');
+    if (sl) sl.innerHTML = '';
+  }
 }
 
 /* ---------- 进入界面自动定位(后台,不打扰;失败静默,不覆盖已有值) ---------- */
@@ -323,7 +328,88 @@ async function doDelete(date, ts) {
   alert('已删除 ✅');
   renderRecent();
 }
-/* ---- 导出行程(按专辑 / 按起止日期 / 叠加)---- */
+/* ---- 已分享的快照管理(列表 / 复制 / 打开 / 更新 / 删除) ---- */
+function fmtDateTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function shareCond(s) {
+  const parts = [];
+  if (s.album) parts.push(`专辑 · ${s.album}`);
+  if (s.from && s.to) parts.push(`${s.from} ~ ${s.to}`);
+  return parts.join(' ');
+}
+
+async function renderShares() {
+  const box = $('#share-list');
+  if (!box) return;
+  try {
+    const res = await fetch('/api/shares');
+    if (res.status === 401) { bounceOn401(res); return; }
+    const data = await res.json().catch(() => ({}));
+    const list = data.shares || [];
+    if (!list.length) {
+      box.innerHTML = '<p class="empty">还没有分享过快照,去上方「导出行程」生成</p>';
+      return;
+    }
+    box.innerHTML = list.map((s) => `<div class="recent-item">
+        <span class="recent-info">${esc(shareCond(s) || '全部内容')} · 更新于 ${esc(fmtDateTime(s.updated_at))}</span>
+        <span class="recent-actions">
+          <button type="button" class="btn-small btn-share-copy" data-url="${esc(s.url)}">复制</button>
+          <button type="button" class="btn-small btn-share-open" data-url="${esc(s.url)}">打开</button>
+          <button type="button" class="btn-small btn-share-update" data-token="${esc(s.token)}">更新</button>
+          <button type="button" class="btn-small btn-share-del" data-token="${esc(s.token)}">删除</button>
+        </span>
+      </div>`).join('');
+    box.querySelectorAll('.btn-share-copy').forEach((b) => b.addEventListener('click', () => copyShare(b.dataset.url)));
+    box.querySelectorAll('.btn-share-open').forEach((b) => b.addEventListener('click', () => window.open(b.dataset.url, '_blank')));
+    box.querySelectorAll('.btn-share-update').forEach((b) => b.addEventListener('click', () => updateShare(b.dataset.token)));
+    box.querySelectorAll('.btn-share-del').forEach((b) => b.addEventListener('click', () => deleteShare(b.dataset.token)));
+  } catch { /* 忽略 */ }
+}
+
+async function copyShare(url) {
+  const full = location.origin + url;
+  try {
+    await navigator.clipboard.writeText(full);
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = full;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+  }
+  alert('链接已复制 ✅');
+}
+
+async function updateShare(token) {
+  if (!confirm('用最新数据重新生成这个快照?\n链接和二维码不变。')) return;
+  try {
+    const res = await fetch(`/api/share?token=${encodeURIComponent(token)}`, { method: 'POST' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { bounceOn401(res); return alert(data.error || `更新失败(HTTP ${res.status})`); }
+    alert('已更新 ✅');
+    renderShares();
+  } catch { alert('网络异常,请重试'); }
+}
+
+async function deleteShare(token) {
+  if (!confirm('删除这个快照后,链接将立即失效,无法恢复。确定删除?')) return;
+  try {
+    const res = await fetch(`/api/share?token=${encodeURIComponent(token)}`, { method: 'DELETE' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { bounceOn401(res); return alert(data.error || `删除失败(HTTP ${res.status})`); }
+    alert('已删除 ✅');
+    renderShares();
+  } catch { alert('网络异常,请重试'); }
+}
+
+/* ---- 导出行程(按专辑 / 按起止日期 / 叠加) ---- */
 $('#btn-export').addEventListener('click', () => {
   const album = $('#ex-album').value.trim();
   const from = $('#ex-from').value;
