@@ -598,6 +598,7 @@ function lpMapFullscreen(map, container) {
   btn.title = '全屏查看';
   btn.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
   btn.addEventListener('click', () => {
+    btn.style.display = 'none'; // 全屏内不再显示 ⛶,防嵌套打开(container 带着按钮移入遮罩)
     const overlay = document.createElement('div');
     overlay.className = 'map-fs-overlay';
     const head = document.createElement('div');
@@ -623,12 +624,17 @@ function lpMapFullscreen(map, container) {
       setTimeout(() => map.invalidateSize(), 350);
     });
     const exit = () => {
-      body.removeChild(container);
-      parent.appendChild(container);
-      overlay.remove();
+      // 防御:container 可能在嵌套残留的其它遮罩里(旧版可重复点 ⛶)→ 先摘出来
+      if (container.parentNode && container.parentNode !== parent) {
+        container.parentNode.removeChild(container);
+      }
+      // 清掉所有全屏遮罩(无论嵌套多少层,一次退出全恢复)
+      document.querySelectorAll('.map-fs-overlay').forEach((o) => o.remove());
+      if (parent && parent.isConnected) parent.appendChild(container);
       container.style.height = '';
       container.style.borderRadius = '';
       container.style.marginBottom = '';
+      btn.style.display = '';
       map.invalidateSize();
       setTimeout(() => map.invalidateSize(), 120);
     };
