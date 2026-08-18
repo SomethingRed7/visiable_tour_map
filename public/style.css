@@ -389,7 +389,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 60;
+  z-index: 1000;
 }
 .ckin-modal[hidden] { display: none; }
 .ckin-box {
@@ -564,6 +564,9 @@ body {
   border: 1px solid var(--line);
   margin-bottom: 14px;
   overflow: hidden;
+  position: relative;
+  isolation: isolate; /* 独立层叠上下文:Leaflet 瓦片 transform 合成层不穿透弹窗遮罩(夸克穿模) */
+  z-index: 0;
 }
 .album-map .leaflet-container { font: inherit; width: 100%; }
 
@@ -885,7 +888,7 @@ body {
   right: 0;
   bottom: 0;
   left: 0;
-  z-index: 300;
+  z-index: 1002;
   background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: stretch;
@@ -956,6 +959,9 @@ body {
   flex: 1;
   min-height: 200px;
   border-radius: 10px;
+  position: relative;
+  isolation: isolate;
+  z-index: 0;
   border: 1px solid var(--line);
 }
 
@@ -1070,7 +1076,7 @@ body {
   right: 0;
   bottom: 0;
   left: 0;
-  z-index: 200;
+  z-index: 1001;
   display: flex;
   align-items: center;
   justify-content: center;
