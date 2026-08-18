@@ -105,6 +105,8 @@ async function renderMap(list, box, noteEl) {
     subdomains: ['1', '2', '3', '4'],
     attribution: '&copy; 高德地图',
   }).addTo(map);
+  // 右上角全屏查看按钮(铺满视口 + 自动 fit 所有打卡点)
+  LocPicker.lpMapFullscreen(map, box);
   // 容器刚从 display:none 切到 block,立即初始化 Leaflet 尺寸未就绪 → 延时校正(与专辑地图同款)
   setTimeout(() => map.invalidateSize(), 120);
   setTimeout(() => map.invalidateSize(), 400);

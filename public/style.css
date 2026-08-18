@@ -561,6 +561,25 @@ body {
 }
 .album-map .leaflet-container { font: inherit; width: 100%; }
 
+/* 地图全屏查看(专辑/导出/快照三处共用):右上角 ⛶ 按钮 + 全屏遮罩 */
+.map-fs-btn {
+  position: absolute; top: 10px; right: 10px; z-index: 1000;
+  width: 34px; height: 34px; padding: 0; border: none; border-radius: 8px;
+  background: rgba(255, 255, 255, .92); box-shadow: 0 1px 4px rgba(0, 0, 0, .25);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  color: #374151;
+}
+.map-fs-btn:hover { color: var(--brand); }
+.map-fs-overlay {
+  position: fixed; inset: 0; z-index: 9999; background: #fff;
+  display: flex; flex-direction: column;
+}
+.map-fs-head {
+  display: flex; justify-content: flex-end; padding: 10px 14px;
+  background: #fff; border-bottom: 1px solid var(--line);
+}
+.map-fs-body { flex: 1; position: relative; min-height: 0; }
+
 /* 移动端适配(≤600px):主按钮全宽大点击区 + 输入字号≥16px 防 iOS 聚焦自动缩放 */
 @media (max-width: 600px) {
   .album-map { height: 160px; aspect-ratio: auto; } /* 固定高度:aspect-ratio auto 会让 Leaflet 初始化时高度为 0 导致瓦片错位/突出 */

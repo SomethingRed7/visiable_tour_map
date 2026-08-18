@@ -267,6 +267,8 @@ async function renderMap(list, box, noteEl) {
     subdomains: ['1', '2', '3', '4'],
     attribution: '&copy; 高德地图',
   }).addTo(map);
+  // 右上角全屏查看按钮(铺满视口 + 自动 fit 所有打卡点)
+  LocPicker.lpMapFullscreen(map, box);
 
   const latlngs = pts.map((p) => [p.lat, p.lng]);
   pts.forEach((p, i) => {

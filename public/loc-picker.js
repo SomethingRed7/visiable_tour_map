@@ -574,6 +574,73 @@ lpBind('#loc-search', 'input', () => {
   }, 300);
 });
 
+/* ---------- 地图全屏查看(专辑地图/导出页/快照页共用) ----------
+ * 点右上角 ⛶ 按钮 → 地图容器移入全屏遮罩铺满视口,自动 fit 所有打卡点;
+ * 「退出全屏」或点遮罩空白恢复。Leaflet 容器整体移动 + invalidateSize
+ * 是官方推荐做法(无需重建 map,trackResize 默认开,横竖屏切换自动校正)。 */
+function lpFitAllMarkers(map) {
+  if (typeof L === 'undefined') return;
+  const pts = [];
+  map.eachLayer((l) => {
+    if (l instanceof L.Marker) pts.push(l.getLatLng());
+  });
+  if (pts.length === 1) map.setView(pts[0], Math.max(map.getZoom(), 12));
+  else if (pts.length > 1) map.fitBounds(L.latLngBounds(pts), { padding: [40, 40] });
+}
+
+function lpMapFullscreen(map, container) {
+  container.style.position = 'relative';
+  // 防重:renderMap 每次重建 map 前清旧按钮(旧 closure 引用已 remove 的 map 会失效)
+  container.querySelectorAll('.map-fs-btn').forEach((b) => b.remove());
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'map-fs-btn';
+  btn.title = '全屏查看';
+  btn.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
+  btn.addEventListener('click', () => {
+    const overlay = document.createElement('div');
+    overlay.className = 'map-fs-overlay';
+    const head = document.createElement('div');
+    head.className = 'map-fs-head';
+    const exitBtn = document.createElement('button');
+    exitBtn.type = 'button';
+    exitBtn.className = 'btn-small map-fs-exit';
+    exitBtn.textContent = '退出全屏';
+    head.appendChild(exitBtn);
+    const body = document.createElement('div');
+    body.className = 'map-fs-body';
+    const parent = container.parentNode;
+    body.appendChild(container);
+    overlay.appendChild(head);
+    overlay.appendChild(body);
+    document.body.appendChild(overlay);
+    container.style.height = '100%'; // 覆盖 .album-map 固定高度(桌面 200px/移动 160px)
+    container.style.borderRadius = '0';
+    container.style.marginBottom = '0';
+    lpFitAllMarkers(map);
+    requestAnimationFrame(() => {
+      setTimeout(() => map.invalidateSize(), 60);
+      setTimeout(() => map.invalidateSize(), 350);
+    });
+    const exit = () => {
+      body.removeChild(container);
+      parent.appendChild(container);
+      overlay.remove();
+      container.style.height = '';
+      container.style.borderRadius = '';
+      container.style.marginBottom = '';
+      map.invalidateSize();
+      setTimeout(() => map.invalidateSize(), 120);
+    };
+    exitBtn.addEventListener('click', exit);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay || e.target === body) exit();
+    });
+  });
+  container.appendChild(btn);
+  return btn;
+}
+
 /* ---------- 公共 API ---------- */
 window.LocPicker = {
   open(opts) {
@@ -584,4 +651,5 @@ window.LocPicker = {
   lpIpLocate,   // IP 定位城市级兜底(精确定位失败后,选点器从城市中心开始)
   lpCalibrate,  // 坐标系自检(WGS-84 vs GCJ-02 双重偏移纠正)
   lpDeniedCheck, // 定位权限被拒检测(打卡/写日记共用)
+  lpMapFullscreen, // 地图全屏查看(专辑/导出/快照三处共用)
 };

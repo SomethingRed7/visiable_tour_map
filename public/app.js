@@ -1208,6 +1208,8 @@ async function renderAlbumMap(list) {
     subdomains: ['1', '2', '3', '4'],
     attribution: '&copy; 高德地图',
   }).addTo(map);
+  // 右上角全屏查看按钮(铺满视口 + 自动 fit 所有打卡点)
+  LocPicker.lpMapFullscreen(map, box);
   const bounds = [];
   for (const e of withLoc) {
     const mk = L.marker([e.location.lat, e.location.lng], { icon: L.divIcon({ className: 'gg-marker', html: ggPinSvg(), iconSize: [28, 28], iconAnchor: [14, 27] }) }).addTo(map);
