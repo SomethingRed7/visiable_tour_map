@@ -101,14 +101,35 @@
         <div id="share-list" class="recent-list"></div>
       </section>
 
+      <section class="panel album-manage-panel">
+        <h2 class="panel-heading">专辑管理</h2>
+        <p class="manage-hint">改名会同步该专辑下全部条目;一键设置整组公开/私密</p>
+        <div id="album-mgr-list" class="album-mgr-list"></div>
+      </section>
+
       <section class="panel manage-panel">
         <h2 class="panel-heading">管理条目</h2>
-        <p class="manage-hint">预览 / 编辑 / 删除</p>
+        <p class="manage-hint">预览 / 编辑 / 删除;支持日期过滤、翻页、按日期分组</p>
         <a id="btn-write" class="btn-submit write-btn" href="/edit">✏️ 写日记</a>
-        <h3 class="sub-panel-heading">打卡记录</h3>
-        <div id="ckin-list" class="recent-list"></div>
-        <h3 class="sub-panel-heading">日记条目</h3>
-        <div id="recent-list" class="recent-list"></div>
+        <div class="mgr-tools">
+          <label class="mgr-date">从 <input type="date" id="mgr-from"></label>
+          <label class="mgr-date">到 <input type="date" id="mgr-to"></label>
+          <label class="mgr-size">每页
+            <select id="mgr-size">
+              <option value="10">10 条</option>
+              <option value="20" selected>20 条</option>
+              <option value="50">50 条</option>
+              <option value="100">100 条</option>
+              <option value="all">所有</option>
+            </select>
+          </label>
+          <div class="mgr-pager">
+            <button type="button" id="mgr-prev" class="btn-small">‹ 上一页</button>
+            <span id="mgr-page">1 / 1</span>
+            <button type="button" id="mgr-next" class="btn-small">下一页 ›</button>
+          </div>
+        </div>
+        <div id="mgr-list" class="recent-list"></div>
       </section>
     </div>
   </main>

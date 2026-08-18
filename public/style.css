@@ -825,6 +825,43 @@ body {
 
 .upload-form input[type="file"] { font-size: 0.88rem; }
 
+/* 管理条目工具行:日期过滤 / 每页条数 / 翻页 */
+.mgr-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 12px;
+}
+.mgr-tools label { display: flex; align-items: center; gap: 4px; font-size: 0.85rem; color: var(--text-soft); }
+.mgr-tools input[type="date"],
+.mgr-tools select {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  background: #fff;
+  color: var(--text);
+}
+.mgr-pager { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.mgr-pager span { font-size: 0.85rem; color: var(--text-soft); white-space: nowrap; }
+
+/* 专辑管理列表 */
+.album-mgr-list { display: flex; flex-direction: column; gap: 8px; }
+.album-mgr-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card, #fff);
+}
+.album-mgr-name { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.album-mgr-count { font-size: 0.8rem; color: var(--text-soft); white-space: nowrap; }
+.album-mgr-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
 .photo-preview {
   display: flex;
   flex-wrap: wrap;

@@ -21,6 +21,7 @@ function setAuthed(user) {
   if (user) {
     $('#current-user').textContent = user;
     renderShares(); // 已分享快照列表(仅登录)
+    renderAlbums(); // 专辑管理列表(仅登录)
   } else {
     showLoginPanel();
     const sl = $('#share-list');
@@ -242,9 +243,13 @@ function bindPhotoGridFallback(container) {
     else img.addEventListener('load', mark);
   });
 }
+/* 管理条目状态:分页 */
+let mgrState = { page: 1, size: '20' };
+
+/* 管理条目列表:合并打卡/日记,支持起止日期过滤 + 每页条数 + 翻页 + 按日期分组(首页同款 .stream-date-head) */
 async function renderRecent() {
-  const box = $('#recent-list');
-  const ckinBox = $('#ckin-list');
+  const box = $('#mgr-list');
+  if (!box) return;
   try {
     const data = await (await fetch('/api/entries')).json();
     // 填充导出专辑下拉(保留已选值;专辑列表来自全部条目去重)
@@ -255,14 +260,27 @@ async function renderRecent() {
       exSel.innerHTML = '<option value="">全部专辑</option>' + albums.map((a) => `<option value="${esc(a)}">${esc(a)}</option>`).join('');
       if (prev) exSel.value = prev;
     }
-    const all = (data.entries || [])
-      .sort((a, b) => (a.date === b.date ? (a.created_at || '') > (b.created_at || '') ? -1 : 1 : a.date > b.date ? -1 : 1))
-      .slice(0, 40);
-    // 打卡记录 = 标题以「打卡:」开头;其余为日记
-    const ckin = all.filter((e) => (e.title || '').startsWith('打卡:'));
-    const diary = all.filter((e) => !(e.title || '').startsWith('打卡:')).slice(0, 20);
+    let all = (data.entries || [])
+      .sort((a, b) => (a.date === b.date ? (a.created_at || '') > (b.created_at || '') ? -1 : 1 : a.date > b.date ? -1 : 1));
+    // 起止日期过滤
+    const from = $('#mgr-from').value;
+    const to = $('#mgr-to').value;
+    if (from) all = all.filter((e) => e.date >= from);
+    if (to) all = all.filter((e) => e.date <= to);
+    // 分页
+    const total = all.length;
+    const sizeRaw = mgrState.size;
+    const size = sizeRaw === 'all' ? Math.max(total, 1) : Number(sizeRaw);
+    const pages = size > 0 ? Math.max(1, Math.ceil(total / size)) : 1;
+    if (mgrState.page > pages) mgrState.page = pages;
+    if (mgrState.page < 1) mgrState.page = 1;
+    const pageItems = sizeRaw === 'all' ? all : all.slice((mgrState.page - 1) * size, mgrState.page * size);
+    // 按日期分组(倒序)
+    const byDate = {};
+    for (const e of pageItems) (byDate[e.date] = byDate[e.date] || []).push(e);
+    const grouped = Object.keys(byDate).sort().reverse().map((date) => ({ date, items: byDate[date] }));
     const itemHtml = (e) => `<div class="recent-item">
-        <span class="recent-info">${esc(e.date)} <span class="time-tag">${fmtTime(entryTs(e))}</span> ${e.visibility === 'private' ? '<span class="vis-tag">私有</span>' : ''} <b>${esc(e.title || '')}</b>${(e.title || '').startsWith('打卡:') ? '' : ` · ${esc(e.author || '')}`}</span>
+        <span class="recent-info">${esc(e.date)} <span class="time-tag">${fmtTime(entryTs(e))}</span> ${e.visibility === 'private' ? '<span class="vis-tag">私有</span>' : ''} ${e.album ? `<span class="album-tag">${esc(e.album)}</span>` : ''} <b>${esc(e.title || '')}</b>${(e.title || '').startsWith('打卡:') ? '' : ` · ${esc(e.author || '')}`}</span>
         <span class="recent-actions">
           <button type="button" class="btn-small btn-vis" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}" data-vis="${e.visibility === 'private' ? 'private' : 'public'}">${e.visibility === 'private' ? '改公开' : '改私有'}</button>
           <button type="button" class="btn-small btn-prev" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}">预览</button>
@@ -270,29 +288,94 @@ async function renderRecent() {
           <button type="button" class="btn-small btn-del" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}">删除</button>
         </span>
       </div>`;
-    box.innerHTML = diary.length ? diary.map(itemHtml).join('') : '<p class="empty">还没有日记条目</p>';
-    ckinBox.innerHTML = ckin.length ? ckin.map(itemHtml).join('') : '<p class="empty">还没有打卡记录</p>';
-    [box, ckinBox].forEach((b) => {
-      bindPhotoGridFallback(b);
-      [...b.querySelectorAll('.btn-prev')].forEach((btn) => btn.addEventListener('click', () => openPreview(btn.dataset.date, btn.dataset.ts)));
-      [...b.querySelectorAll('.btn-edit')].forEach((btn) => btn.addEventListener('click', async () => {
-        const date = btn.dataset.date;
-        const ts = btn.dataset.ts;
-        const data = await (await fetch(`/api/entries?date=${date}`)).json();
-        const e = (data.entries || []).find((x) => String(x.ts) === String(ts));
-        if (!e) return alert('条目不存在');
-        if ((e.title || '').startsWith('打卡:')) {
-          // 打卡条目保持跳转写日记页(与首页打卡弹窗不同场景)
-          location.href = `/edit?date=${date}&ts=${ts}`;
-          return;
-        }
-        // 日记条目:弹窗编辑(打卡弹窗同款)
-        EntryModal.open({ date, entry: e, onSaved: () => renderRecent() });
-      }));
-      [...b.querySelectorAll('.btn-del')].forEach((btn) => btn.addEventListener('click', () => askDelete(btn)));
-      [...b.querySelectorAll('.btn-vis')].forEach((btn) => btn.addEventListener('click', () => toggleVisibility(btn)));
-    });
+    box.innerHTML = grouped.length
+      ? grouped.map((g) => `<div class="stream-date-head">${esc(g.date)}</div>${g.items.map(itemHtml).join('')}`).join('')
+      : '<p class="empty">没有符合条件的条目</p>';
+    const pageEl = $('#mgr-page');
+    if (pageEl) pageEl.textContent = `${mgrState.page} / ${pages}`;
+    const prevBtn = $('#mgr-prev');
+    const nextBtn = $('#mgr-next');
+    if (prevBtn) prevBtn.disabled = mgrState.page <= 1;
+    if (nextBtn) nextBtn.disabled = mgrState.page >= pages;
+    // 条目操作:预览 / 编辑(统一弹窗,打卡条目同样走 EntryModal)/ 删除 / 可见性
+    [...box.querySelectorAll('.btn-prev')].forEach((btn) => btn.addEventListener('click', () => openPreview(btn.dataset.date, btn.dataset.ts)));
+    [...box.querySelectorAll('.btn-edit')].forEach((btn) => btn.addEventListener('click', async () => {
+      const date = btn.dataset.date;
+      const ts = btn.dataset.ts;
+      const data = await (await fetch(`/api/entries?date=${date}`)).json();
+      const e = (data.entries || []).find((x) => String(x.ts) === String(ts));
+      if (!e) return alert('条目不存在');
+      EntryModal.open({ date, entry: e, onSaved: () => renderRecent() });
+    }));
+    [...box.querySelectorAll('.btn-del')].forEach((btn) => btn.addEventListener('click', () => askDelete(btn)));
+    [...box.querySelectorAll('.btn-vis')].forEach((btn) => btn.addEventListener('click', () => toggleVisibility(btn)));
   } catch { /* 忽略 */ }
+}
+
+/* 管理条目工具行绑定(一次性) */
+function initMgrTools() {
+  const from = $('#mgr-from');
+  const to = $('#mgr-to');
+  const size = $('#mgr-size');
+  if (from) from.addEventListener('change', () => { mgrState.page = 1; renderRecent(); });
+  if (to) to.addEventListener('change', () => { mgrState.page = 1; renderRecent(); });
+  if (size) size.addEventListener('change', () => { mgrState.size = size.value; mgrState.page = 1; renderRecent(); });
+  const prev = $('#mgr-prev');
+  const next = $('#mgr-next');
+  if (prev) prev.addEventListener('click', () => { if (mgrState.page > 1) { mgrState.page--; renderRecent(); } });
+  if (next) next.addEventListener('click', () => { mgrState.page++; renderRecent(); });
+}
+
+/* ---- 专辑管理 ---- */
+async function renderAlbums() {
+  const box = $('#album-mgr-list');
+  if (!box) return;
+  try {
+    const data = await (await fetch('/api/albums')).json();
+    const list = data.albums || [];
+    if (!list.length) { box.innerHTML = '<p class="empty">还没有专辑</p>'; return; }
+    box.innerHTML = list.map((a) => `
+      <div class="album-mgr-item">
+        <span class="album-mgr-name" title="${esc(a.album)}">${esc(a.album)}</span>
+        <span class="album-mgr-count">${a.count} 条</span>
+        <span class="album-mgr-actions">
+          <button type="button" class="btn-small btn-album-rename" data-album="${esc(a.album)}">改名</button>
+          <button type="button" class="btn-small btn-album-vis" data-album="${esc(a.album)}" data-vis="public">全部公开</button>
+          <button type="button" class="btn-small btn-album-vis" data-album="${esc(a.album)}" data-vis="private">全部私密</button>
+        </span>
+      </div>`).join('');
+    box.querySelectorAll('.btn-album-rename').forEach((b) => b.addEventListener('click', () => renameAlbum(b.dataset.album)));
+    box.querySelectorAll('.btn-album-vis').forEach((b) => b.addEventListener('click', () => setAlbumVisibility(b.dataset.album, b.dataset.vis)));
+  } catch { box.innerHTML = '<p class="empty">加载失败</p>'; }
+}
+
+async function renameAlbum(oldName) {
+  const newName = prompt(`专辑「${oldName}」改名为:`, oldName);
+  if (newName == null) return;
+  const n = newName.trim();
+  if (!n || n === oldName) return;
+  if (n.length > 50) return alert('专辑名最多 50 字');
+  try {
+    const res = await (await fetch('/api/albums', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'rename', old: oldName, new: n }) })).json();
+    if (res.ok) {
+      renderAlbums();
+      renderRecent();
+      alert(`已改名,${res.count} 条条目同步更新 ✅`);
+    } else alert(res.error || '改名失败');
+  } catch { alert('网络异常,请重试'); }
+}
+
+async function setAlbumVisibility(album, vis) {
+  const label = vis === 'private' ? '私密' : '公开';
+  if (!confirm(`把专辑「${album}」下所有条目设为${label}?`)) return;
+  try {
+    const res = await (await fetch('/api/albums', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'visibility', album, vis }) })).json();
+    if (res.ok) {
+      renderAlbums();
+      renderRecent();
+      alert(`已设置,${res.count} 条条目更新为${label} ✅`);
+    } else alert(res.error || '设置失败');
+  } catch { alert('网络异常,请重试'); }
 }
 
 /* 管理列表:公开/私有切换(轻量 update,仅改可见性) */
@@ -445,5 +528,6 @@ function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 /* 管理页初始化 */
+initMgrTools(); // 管理条目工具行(日期过滤/每页条数/翻页),静态元素,页面加载即绑定
 initAuth();
 renderRecent();
