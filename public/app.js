@@ -77,9 +77,8 @@ function shortLoc(name) {
 }
 
 function entryCard(e, opts) {
-  // 打卡记录不区分用户:标题以「打卡:」开头的条目不显示作者
-  const isCkin = (e.title || '').startsWith('打卡:');
-  const authorTag = !isCkin && e.author
+  // 打卡条目也显示上传人(用户 2026-08-18 要求,原「打卡不区分用户」已废止)
+  const authorTag = e.author
     ? `<span class="author-tag${e.author === '小红' ? ' rose' : ''}">${esc(e.author)}</span>`
     : '';
   const locTag = e.location && e.location.name
@@ -1309,7 +1308,6 @@ async function renderStream() {
     ? grouped.map((g) => `
       <div class="stream-date-head">${esc(g.date)}</div>
       ${g.items.map((e) => {
-        const isCkin = (e.title || '').startsWith('打卡:');
         const visTag = e.visibility === 'private' ? '<span class="vis-tag">私有</span>' : '';
         const visBtn = currentUser
           ? `<button type="button" class="btn-small btn-vis" data-date="${esc(e.date)}" data-ts="${esc(e.ts)}" data-vis="${e.visibility === 'private' ? 'private' : 'public'}">${e.visibility === 'private' ? '改公开' : '改私有'}</button>`
@@ -1324,7 +1322,7 @@ async function renderStream() {
           ? `<button type="button" class="btn-small btn-del" data-date="${esc(e.date)}" data-ts="${esc(e.ts)}">删除</button>`
           : '';
         return `<div class="recent-item">
-          <span class="recent-info">${esc(e.date)} <span class="time-tag">${fmtTime(e.ts)}</span> ${visTag} <b>${esc(e.title || '')}</b>${isCkin ? '' : ` · ${esc(e.author || '')}`}</span>
+          <span class="recent-info">${esc(e.date)} <span class="time-tag">${fmtTime(e.ts)}</span> ${visTag} <b>${esc(e.title || '')}</b>${e.author ? ` · ${esc(e.author)}` : ''}</span>
           <span class="recent-actions">${visBtn}${prevBtn}${editBtn}${delBtn}</span>
         </div>`;
       }).join('')}

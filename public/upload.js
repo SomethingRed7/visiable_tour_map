@@ -280,7 +280,7 @@ async function renderRecent() {
     for (const e of pageItems) (byDate[e.date] = byDate[e.date] || []).push(e);
     const grouped = Object.keys(byDate).sort().reverse().map((date) => ({ date, items: byDate[date] }));
     const itemHtml = (e) => `<div class="recent-item">
-        <span class="recent-info">${esc(e.date)} <span class="time-tag">${fmtTime(entryTs(e))}</span> ${e.visibility === 'private' ? '<span class="vis-tag">私有</span>' : ''} ${e.album ? `<span class="album-tag">${esc(e.album)}</span>` : ''} <b>${esc(e.title || '')}</b>${(e.title || '').startsWith('打卡:') ? '' : ` · ${esc(e.author || '')}`}</span>
+        <span class="recent-info">${esc(e.date)} <span class="time-tag">${fmtTime(entryTs(e))}</span> ${e.visibility === 'private' ? '<span class="vis-tag">私有</span>' : ''} ${e.album ? `<span class="album-tag">${esc(e.album)}</span>` : ''} <b>${esc(e.title || '')}</b>${e.author ? ` · ${esc(e.author)}` : ''}</span>
         <span class="recent-actions">
           <button type="button" class="btn-small btn-vis" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}" data-vis="${e.visibility === 'private' ? 'private' : 'public'}">${e.visibility === 'private' ? '改公开' : '改私有'}</button>
           <button type="button" class="btn-small btn-prev" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}">预览</button>
