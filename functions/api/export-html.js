@@ -45,6 +45,12 @@ function fmtTime(ts) {
 
 function thumbUrl(p) { return p.replace(/\.(jpg|jpeg|png)$/i, '-thumb.$1'); }
 
+/* photos 数组元素已是 /photos/... 绝对路径(勿再加 /photos/ 前缀,曾拼成 photos/photos 404) */
+function photoSrc(p, origin) {
+  const rel = p.startsWith('/') ? p : `/${p}`;
+  return `${origin}${rel}`;
+}
+
 export async function onRequestPost(context) {
   const user = await verifySession(context.env, context.request);
   if (!user) return Response.json({ error: '请先登录' }, { status: 401 });
@@ -90,11 +96,6 @@ export async function onRequestPost(context) {
   if (album) condParts.push(`专辑：${esc(album)}`);
   if (rangeOk) condParts.push(`${esc(from)} ~ ${esc(to)}`);
   if (!condParts.length) condParts.push('全部内容');
-  const ckParts = [];
-  if (ck.public) ckParts.push('公开');
-  if (ck.private) ckParts.push('私有');
-  if (ck.checkin) ckParts.push('打卡');
-  if (ck.todo) ckParts.push('待办');
 
   // 按日期分组
   const byDate = {};
@@ -110,7 +111,7 @@ export async function onRequestPost(context) {
       meta.push(e.visibility === 'private' ? '私有' : '公开');
       if (e.album) meta.push(esc(e.album));
       if (e.location && e.location.name) meta.push(`📍 ${esc(String(e.location.name).split(/[,，]/)[0])}`);
-      const photos = (e.photos || []).map((p) => `<img src="${esc(origin)}/photos/${esc(p)}" loading="lazy" alt="照片">`).join('');
+      const photos = (e.photos || []).map((p) => `<img src="${esc(photoSrc(thumbUrl(p), origin))}" loading="lazy" alt="照片">`).join('');
       return `
       <div class="item">
         <div class="meta">${meta.join(' · ')}</div>
@@ -126,19 +127,29 @@ export async function onRequestPost(context) {
     ${todos.map((t) => `<div class="item"><div class="meta">${esc(t.date)}${t.done ? ' · 已完成 ✅' : ' · 未完成'}</div><div class="title">${esc(t.text)}</div></div>`).join('')}
   ` : '';
 
+  // 标题:专辑名/日期区间/兜底,加粗
+  const docTitle = album || (rangeOk ? `${from} ~ ${to}` : '咕咕嘎嘎 · 行程导出');
+
+  // 地图数据:有条目坐标的点(标题/日期已 esc,防 </script> 注入)
+  const mapPts = entries
+    .filter((e) => e.location && e.location.lat != null && e.location.lng != null)
+    .map((e) => ({ lat: Number(e.location.lat), lng: Number(e.location.lng), t: esc(e.title || ''), d: esc(e.date), h: e.ts ? esc(fmtTime(e.ts)) : '' }));
+
   const html = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>咕咕嘎嘎 · 行程导出</title>
+<title>${esc(docTitle)} · 咕咕嘎嘎</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
   body { margin: 0; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; color: #1f2937; background: #f5f5f7; }
   .wrap { max-width: 720px; margin: 0 auto; padding: 16px; }
   header { background: #111827; color: #fff; padding: 18px 16px; }
-  header h1 { margin: 0; font-size: 1.1rem; }
+  header h1 { margin: 0; font-size: 1.3rem; font-weight: 800; }
   header .sub { font-size: 0.8rem; color: #9ca3af; margin-top: 4px; }
-  .cond { background: #fff; border-radius: 10px; padding: 10px 12px; margin: 12px 0; font-size: 0.85rem; color: #6b7280; }
+  #map { height: 240px; border-radius: 10px; margin: 12px 0; z-index: 0; }
   .date-head { font-weight: 700; font-size: 0.9rem; margin: 16px 0 6px; display: flex; align-items: center; gap: 8px; }
   .date-head::after { content: ''; flex: 1; height: 1px; background: #e5e7eb; }
   .item { background: #fff; border-radius: 10px; padding: 12px; margin-bottom: 8px; }
@@ -152,16 +163,37 @@ export async function onRequestPost(context) {
 </head>
 <body>
 <header>
-  <h1>咕咕嘎嘎 · 行程导出</h1>
-  <div class="sub">${condParts.join(' · ')} · 共 ${entries.length} 条${todos.length ? ` · 待办 ${todos.length} 项` : ''}</div>
+  <h1>${esc(docTitle)}</h1>
+  <div class="sub">咕咕嘎嘎 · 共 ${entries.length} 条${todos.length ? ` · 待办 ${todos.length} 项` : ''}</div>
 </header>
 <div class="wrap">
-  <div class="cond">包含：${ckParts.join(' / ')} · 生成于 ${new Date().toLocaleString('zh-CN', { hour12: false })}</div>
+  <div id="map"></div>
   ${entriesHtml}
   ${todosHtml}
   ${entries.length || todos.length ? '' : '<p style="text-align:center;color:#9ca3af;">没有符合条件的内容</p>'}
 </div>
 <footer>由咕咕嘎嘎生成</footer>
+<script>
+(function () {
+  var pts = ${JSON.stringify(mapPts)};
+  var box = document.getElementById('map');
+  if (!window.L || !pts.length) { if (box) box.style.display = 'none'; return; }
+  var map = L.map(box).setView([35, 105], 5);
+  L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
+    maxZoom: 18,
+    subdomains: ['1', '2', '3', '4'],
+    attribution: '&copy; 高德地图',
+  }).addTo(map);
+  var marks = [];
+  pts.forEach(function (p) {
+    var mk = L.marker([p.lat, p.lng]).addTo(map);
+    mk.bindPopup('<b>' + p.d + (p.h ? ' ' + p.h : '') + '</b> ' + p.t);
+    marks.push(mk);
+  });
+  if (marks.length > 1) map.fitBounds(L.featureGroup(marks).getBounds(), { padding: [30, 30] });
+  else map.setView([pts[0].lat, pts[0].lng], 14);
+})();
+</script>
 </body>
 </html>`;
 
