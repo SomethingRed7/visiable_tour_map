@@ -95,6 +95,7 @@ async function init() {
   $('#ex-login').hidden = true;
   $('#ex-controls').hidden = false;
   $('#btn-share').hidden = false; // 生成分享快照按钮仅登录可见
+  $('#btn-export-html').hidden = false; // 导出 HTML 同样仅登录可见
 
   // 模式:①专辑 ②起止日期 ③叠加;至少一个有效
   const fromOk = valid.test(exFrom);
@@ -337,6 +338,38 @@ function showShareModal(data) {
     qrBox.innerHTML = '<p class="empty">二维码生成失败,直接复制链接分享</p>';
   });
 }
+
+/* 导出 HTML:同条件 POST /api/export-html,隐藏表单提交让浏览器直接下载(文件名由服务端 Content-Disposition 决定) */
+$('#btn-export-html').addEventListener('click', () => {
+  const errEl = $('#share-err');
+  errEl.className = 'form-status';
+  errEl.textContent = '';
+  const rangeOk = /^\d{4}-\d{2}-\d{2}$/.test(exFrom) && /^\d{4}-\d{2}-\d{2}$/.test(exTo) && exFrom <= exTo;
+  if (!exAlbum && !rangeOk) {
+    errEl.className = 'form-status error';
+    errEl.textContent = '请选择专辑,或选择起止日期(可都选叠加)';
+    return;
+  }
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = '/api/export-html';
+  form.style.display = 'none';
+  const add = (n, v) => {
+    const i = document.createElement('input');
+    i.name = n;
+    i.value = v;
+    form.appendChild(i);
+  };
+  if (exAlbum) add('album', exAlbum);
+  if (exFrom) add('from', exFrom);
+  if (exTo) add('to', exTo);
+  add('ck_public', $('#ck-public').checked ? 'on' : '0');
+  add('ck_private', $('#ck-private').checked ? 'on' : '0');
+  add('ck_todo', $('#ck-todo').checked ? 'on' : '0');
+  add('ck_checkin', $('#ck-checkin').checked ? 'on' : '0');
+  document.body.appendChild(form);
+  form.submit();
+});
 
 $('#btn-share').addEventListener('click', async () => {
   const errEl = $('#share-err');
