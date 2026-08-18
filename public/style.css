@@ -408,6 +408,9 @@ body {
   position: relative;
   width: 64px; height: 64px;
 }
+.ckin-old.removed { opacity: 0.45; }
+.em-mark { display: block; text-align: center; font-size: 10px; color: #b91c1c; line-height: 1.2; }
+.ckin-new-preview { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .ckin-existing img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; }
 .ckin-existing .ckin-old-x {
   position: absolute; top: -6px; right: -6px;

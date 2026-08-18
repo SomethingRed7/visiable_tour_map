@@ -65,6 +65,46 @@
     </div>
   </div>
 
+  <!-- 日记弹窗(新建/编辑普通条目,「记一把」与编辑入口共用;打卡弹窗同款) -->
+  <div id="entry-modal" class="ckin-modal" hidden>
+    <div class="ckin-box">
+      <div class="ckin-head"><span id="em-title">写日记</span><button type="button" id="em-close" class="btn-small">✕</button></div>
+      <label class="ckin-vis-label" for="em-date">日期</label>
+      <input type="date" id="em-date">
+      <input type="text" id="em-title-input" maxlength="200" placeholder="标题(可选)">
+      <textarea id="em-text" maxlength="5000" rows="4" placeholder="正文"></textarea>
+      <div class="ckin-vis-row">
+        <label class="ckin-vis-label" for="em-vis">可见性</label>
+        <select id="em-vis">
+          <option value="public" selected>公开</option>
+          <option value="private">私有</option>
+        </select>
+      </div>
+      <div class="ckin-vis-row">
+        <label class="ckin-vis-label" for="em-album">专辑</label>
+        <select id="em-album">
+          <option value="">不设专辑</option>
+          <option value="__new__">➕ 新建专辑…</option>
+        </select>
+      </div>
+      <div class="ckin-loc-row">
+        <input id="em-loc" maxlength="80" placeholder="地点(可选)">
+        <button type="button" id="em-locate" class="btn-small" title="自动定位">📍 定位</button>
+        <button type="button" id="em-map" class="btn-small" title="地图选点">🗺️ 地图</button>
+      </div>
+      <div class="ckin-photos" id="em-photos">
+        <label class="ckin-add" for="em-files">+ 照片(可选,≤20 张)</label>
+        <input type="file" id="em-files" accept="image/*" multiple hidden>
+      </div>
+      <div id="em-existing" class="ckin-existing" hidden></div>
+      <div id="em-new-preview" class="ckin-new-preview" hidden></div>
+      <div class="ckin-actions">
+        <button type="button" id="em-save" class="btn-small">发布</button>
+      </div>
+      <div id="em-status" class="form-status"></div>
+    </div>
+  </div>
+
   <!-- 打卡弹窗(勾选待办时;照片/定位/备注均可选填) -->
   <div id="ckin-modal" class="ckin-modal" hidden>
     <div class="ckin-box">
@@ -126,6 +166,7 @@
   </div>
 
   <script src="loc-picker.js"></script>
+  <script src="entry-modal.js"></script>
   <script src="app.js?v=2.0"></script>
 </body>
 </html>

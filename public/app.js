@@ -165,6 +165,20 @@ function selectDate(ds) {
 }
 
 // 当天动态渲染(selectDate 与打卡后刷新共用)
+/* 日记弹窗保存后刷新(重拉条目 + 日历/当日动态/专辑流) */
+async function refreshAll() {
+  try {
+    const data = await (await fetch('/api/entries')).json();
+    allEntries = data.entries || [];
+  } catch { /* 保留旧数据 */ }
+  renderCalendar();
+  if (selectedDate) {
+    renderDayEntries(selectedDate);
+    renderDayTodos(selectedDate);
+  }
+  renderStream();
+}
+
 /* 已登录:动态/流条目按钮(改公开/预览/编辑/删除,与管理界面一致) */
 function bindStreamEditBtns(container) {
   if (!currentUser) return;
@@ -183,7 +197,8 @@ function bindStreamEditBtns(container) {
         if (todo) openCheckinModal(todo, date, e);
         else alert('找不到对应的待办,可到管理页编辑');
       } else {
-        location.href = `/edit?date=${date}&ts=${ts}`;
+        // 日记条目:弹窗编辑(与编辑打卡弹窗一致,不跳转写日记页)
+        EntryModal.open({ date, entry: e, onSaved: refreshAll });
       }
     });
   });
@@ -215,8 +230,8 @@ function bindStreamEditBtns(container) {
         if (todo) openCheckinModal(todo, date, e);
         else alert('找不到对应的待办,可到管理页编辑');
       } else {
-        // 日记条目:跳转写日记页编辑态
-        location.href = `/edit?date=${date}&ts=${ts}`;
+        // 日记条目:弹窗编辑(与编辑打卡弹窗一致,不跳转写日记页)
+        EntryModal.open({ date, entry: e, onSaved: refreshAll });
       }
     });
   });
@@ -288,11 +303,14 @@ async function initPortalUser() {
     if (albumTab) albumTab.hidden = false; // 专辑 tab 仅登录可见
     const tabsBar = $('#panel-tabs');
     if (tabsBar) tabsBar.hidden = false;   // 三 tab 面板仅登录可见(未登录无待办可看)
-    // 当日动态「＋ 记录」按钮(登录可见;带今天日期,写日记页直接定位到当天)
+    // 当日动态「记一把」按钮(登录可见;点击打开日记弹窗,不跳转写日记页)
     const addBtn = $('#btn-entry-add');
     if (addBtn) {
       addBtn.hidden = false;
-      addBtn.href = `/edit?date=${todayStr()}`;
+      addBtn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        EntryModal.open({ date: selectedDate || todayStr(), onSaved: refreshAll });
+      });
     }
     try {
       const d = await (await fetch('/api/todos')).json();

@@ -1,7 +1,7 @@
 /* 咕咕嘎嘎 - 写日记(前端压缩 + 地图选点 + 上传 + 删除管理) */
 'use strict';
 
-const $ = (s) => document.querySelector(s);
+var $ = (s) => document.querySelector(s);
 
 /* ---------- 登录 / 会话 ---------- */
 let pendingUser = ''; // 第二步(密码)所属的已确认用户名
@@ -275,7 +275,20 @@ async function renderRecent() {
     [box, ckinBox].forEach((b) => {
       bindPhotoGridFallback(b);
       [...b.querySelectorAll('.btn-prev')].forEach((btn) => btn.addEventListener('click', () => openPreview(btn.dataset.date, btn.dataset.ts)));
-      [...b.querySelectorAll('.btn-edit')].forEach((btn) => btn.addEventListener('click', () => { location.href = `/edit?date=${btn.dataset.date}&ts=${btn.dataset.ts}`; }));
+      [...b.querySelectorAll('.btn-edit')].forEach((btn) => btn.addEventListener('click', async () => {
+        const date = btn.dataset.date;
+        const ts = btn.dataset.ts;
+        const data = await (await fetch(`/api/entries?date=${date}`)).json();
+        const e = (data.entries || []).find((x) => String(x.ts) === String(ts));
+        if (!e) return alert('条目不存在');
+        if ((e.title || '').startsWith('打卡:')) {
+          // 打卡条目保持跳转写日记页(与首页打卡弹窗不同场景)
+          location.href = `/edit?date=${date}&ts=${ts}`;
+          return;
+        }
+        // 日记条目:弹窗编辑(打卡弹窗同款)
+        EntryModal.open({ date, entry: e, onSaved: () => renderRecent() });
+      }));
       [...b.querySelectorAll('.btn-del')].forEach((btn) => btn.addEventListener('click', () => askDelete(btn)));
       [...b.querySelectorAll('.btn-vis')].forEach((btn) => btn.addEventListener('click', () => toggleVisibility(btn)));
     });
