@@ -22,9 +22,12 @@ SESSION_SECRET = "cfef4e321f670a2026dcd0fcea5ff1396b84a18af981b09e"
 AMAP_KEY = "c89c48432f7c8a0f2408cffc4a535d15"
 AMAP_SECURITY = "5aaffe1e328474981800c46a0e5bdc90"
 AMAP_WEB_KEY = "69998348ddc40d7d814ca8eb34ca17b0"
+# 播报接口密钥(serverchan_push.py 用 SC_GG_BRIEF_KEY 读取)
+BRIEF_KEY = "b7a28015f4445849cd8dc6aa71aebf3d"
 
 # 条目存储:D1(SQLite,强一致;KV 最终一致性曾导致上传后查不到)
 [[d1_databases]]
 binding = "DB"
 database_name = "gugugaga-db"
 database_id = "b21d8bcd-1383-4eda-9a14-3f9a5ea4a1d3"
+
