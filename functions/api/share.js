@@ -56,7 +56,7 @@ async function ghDeletePage(env, token) {
 
 // 冻结后写 KV + 尽力写 github.io 静态页;返回 { url }
 async function persistSnapshot(env, snap, token) {
-  const html = buildSnapshotHtml(snap, { cspMeta: true });
+  const html = buildSnapshotHtml(snap, { cspMeta: true, origin: 'https://gugugaga-viw.pages.dev' });
   const ghOk = await ghWritePage(env, token, html);
   snap.url = ghOk ? `/share/${token}.html` : `/s/${token}`;
   await env.ENTRIES.put(`share:${token}`, JSON.stringify(snap));
