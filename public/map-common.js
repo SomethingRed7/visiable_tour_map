@@ -176,6 +176,14 @@
       if (window.ResizeObserver) {
         panel._ro = new ResizeObserver(() => reposition());
       }
+      // 点非弹窗处 → 关闭弹窗
+      document.addEventListener('click', (ev) => {
+        if (panel.style.display === 'none') return;
+        if (!panel.contains(ev.target)) {
+          panel.style.display = 'none';
+          if (panel._ro) panel._ro.disconnect();
+        }
+      });
     }
     // 锚定当前地图容器并跟随其位置变化
     if (panel._ro) panel._ro.observe(container);
@@ -266,7 +274,8 @@
       const btn = el ? el.querySelector('.popup-detail-btn') : null;
       if (btn && !btn.dataset.bound) {
         btn.dataset.bound = '1';
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', (ev) => {
+          ev.stopPropagation(); // 阻止冒泡到 document,否则刚打开的面板会被「点非弹窗处关闭」立即关掉
           map.closePopup();
           const e = withLoc[Number(btn.dataset.i)];
           if (e) onClick(e);
