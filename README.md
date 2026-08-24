@@ -1,20 +1,28 @@
 # 咕咕嘎嘎 (gugugaga)
 
-通用旅行日记 portal:日历 + 每日动态 + 专辑聚合 + 公开上传。纯静态前端 + Cloudflare Pages Functions(R2 存照片,KV 存条目),上传即时可见、零重建。
+通用旅行日记 portal:日历 + 每日动态 + 专辑聚合 + 公开上传。**双宿主架构**:
+
+- **门户(只读)**:https://somethingred7.github.io/visiable_tour_map/ —— 静态托管于 GitHub Pages,公开浏览
+- **登录/写日记/管理/API**:https://gugugaga-viw.pages.dev/ —— Cloudflare Pages Functions(R2 存照片、D1 存条目),同源 cookie 登录
+- 门户跨域读取 API 由 `functions/_middleware.js` 放开 CORS;登录后在 pages.dev 操作,无需 token 鉴权
 
 ## 线上地址
 
-https://gugugaga-viw.pages.dev/ (二维码:qr-gugugaga.png)
+- 门户(二维码:qr-gugugaga.png → 建议改指向 github.io):https://somethingred7.github.io/visiable_tour_map/
+- 管理入口:https://gugugaga-viw.pages.dev/edit.html(门户底部有「管理」链接)
 
 ## 架构
 
-- `public/` — 静态前端(index.html portal / upload.html 写日记)
-- `functions/` — serverless:
-  - `GET /api/entries?date=|month=|album=` — seed(预置条目)+ KV 合并查询
-  - `POST /api/upload` — multipart(前端已压缩 1600+480 两版),照片→R2,条目→KV
+- `public/` — 静态前端:
+  - 发布到 github.io:index.html 门户 + app.js/loc-picker.js/entry-modal.js/api.js/style.css(只读)
+  - 保留在 Cloudflare:write.html/edit.html/export.html(登录、写日记、导出,同源 cookie 鉴权)
+- `functions/` — serverless(Cloudflare):
+  - `_middleware.js` — CORS(github.io 门户读取 API)
+  - `GET /api/entries?date=|month=|album=` — seed(预置条目)+ D1 合并查询,未登录只返回公开
+  - `POST /api/upload` — multipart(前端已压缩 1600+480 两版),照片→R2,条目→D1
   - `GET /photos/<key>` — R2 直出,长缓存
 - `functions/seed.js` — 预置条目(新西兰蜜月 2026,16 条),只读
-- `wrangler.toml` — KV `ENTRIES` + R2 `PHOTOS` 绑定
+- `wrangler.toml` — KV `ENTRIES` + R2 `PHOTOS` + D1 `DB` 绑定;`[vars]` 仅 USERS(密钥在 `.dev.vars`/CF Secrets)
 
 ## 本地开发
 

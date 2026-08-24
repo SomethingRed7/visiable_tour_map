@@ -1,0 +1,33 @@
+# 咕咕嘎嘎 GitHub Pages 部署:只发布公开只读门户(管理/写日记仍跑在 Cloudflare pages.dev)
+# 详见 README「架构」:github.io 门户 → API/登录/照片全走 pages.dev(跨域 CORS 由 functions/_middleware.js 放开)
+name: Deploy portal to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare portal files (github.io 仅只读门户;write/edit/export 留在 Cloudflare)
+        run: |
+          mkdir -p _site
+          cp public/index.html public/style.css public/api.js public/app.js public/entry-modal.js public/loc-picker.js _site/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4

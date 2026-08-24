@@ -15,10 +15,11 @@ This file provides guidance to Claude Code (and other coding agents) when workin
 
 ## Project overview
 
-通用旅行日记 portal「咕咕嘎嘎」:纯静态前端 + Cloudflare Pages Functions(R2 存照片、D1 存条目),上传即时可见零重建。用户自行网页上传,公开查看,家人随时可看。仓库 `SomethingRed7/visiable_tour_map`(**private**)。线上 https://gugugaga-viw.pages.dev/。
+通用旅行日记 portal「咕咕嘎嘎」:双宿主架构——github.io 只读门户 + Cloudflare Pages Functions(R2 存照片、D1 存条目)。上传即时可见零重建。用户自行网页上传,公开查看,家人随时可看。仓库 `SomethingRed7/visiable_tour_map`(**公开**)。门户 https://somethingred7.github.io/visiable_tour_map/;登录/写日记/API 全在 https://gugugaga-viw.pages.dev/(跨域读取由 `functions/_middleware.js` 放开 CORS)。
 
 - 架构/运维/数据维护:见 skill `tour-map-site`(权威);Cloudflare 平台细节见 skill `cloudflare-pages`
-- 本仓库实现:前端 `public/`(index.html 门户 / write.html 写日记页 / export.html 导出分享页)+ `functions/`(API)+ `wrangler.toml`(D1/R2 绑定 + `[vars]` USERS/SESSION_SECRET)+ `schema.sql`(D1 建表,含 users 表)+ `public/_redirects`(旧写日记链 301)
+- 本仓库实现:前端 `public/`(index.html 门户 / write.html 管理页 / edit.html 写日记页 / export.html 导出分享页)+ `functions/`(API + `_middleware.js` 跨域)+ `wrangler.toml`(D1/R2 绑定 + `[vars]` 仅 USERS)+ `schema.sql`(D1 建表,含 users 表)
+- 密钥:repo 公开前已移出 `wrangler.toml`——本地 `.dev.vars`(gitignore),生产以 Cloudflare Secrets 存放(`wrangler secret put SESSION_SECRET` 等,变量名 SESSION_SECRET/AMAP_KEY/AMAP_SECURITY/AMAP_WEB_KEY/BRIEF_KEY)
 - 数据模型:{date, ts, title, text, album, author(球|小红), location{name,lat,lng,display}, photos[], photo_hashes[], created_at};照片存 R2(路径不带 photos/ 前缀),条目存 D1(强一致)
 - 权限:写日记页(/write)需登录,白名单「球」「小红」(无注册);首次登录凭一次性设置码设密码;上传/编辑/删除走会话认证(author=登录者,无 PIN)
 - 开发循环:`npm run dev`(wrangler pages dev public,本地 miniflare 模拟 D1/R2)/ `npm run deploy`;测试接缝=API 契约(curl),部署后等 ~60s 传播期再验收

@@ -12,18 +12,18 @@ binding = "PHOTOS"
 bucket_name = "gugugaga-photos"
 
 # 登录白名单(逗号分隔;密码不预置,首次登录凭一次性设置码自助设置,哈希存 D1 users 表)
+# 密钥类配置已移出本文件:
+#   - 本地开发:同值写入 .dev.vars(已 gitignore)
+#   - 生产环境:以 Cloudflare Secrets 存放(`wrangler secret put SESSION_SECRET` 等,勿写进公开仓库)
+#   变量名:SESSION_SECRET / AMAP_KEY / AMAP_SECURITY / AMAP_WEB_KEY / BRIEF_KEY
 [vars]
 USERS = "球,小红"
-SESSION_SECRET = "cfef4e321f670a2026dcd0fcea5ff1396b84a18af981b09e"
-# 高德开放平台 key(定位/地理编码;留空=纯浏览器定位+OSM 回退)
-# AMAP_KEY = Web端(JS API)key —— 前端定位/搜索/反查(AMap.Geolocation/PlaceSearch/Geocoder),白名单 gugugaga-viw.pages.dev
-# AMAP_SECURITY = 同 key 的「安全密钥」(securityJsCode)——2021 后 JS API 服务必须,缺了报 INVALID_USER_SCODE
-# AMAP_WEB_KEY = Web服务 key —— 服务端 regeo(restapi.amap.com),无需白名单
-AMAP_KEY = "c89c48432f7c8a0f2408cffc4a535d15"
-AMAP_SECURITY = "5aaffe1e328474981800c46a0e5bdc90"
-AMAP_WEB_KEY = "69998348ddc40d7d814ca8eb34ca17b0"
-# 播报接口密钥(serverchan_push.py 用 SC_GG_BRIEF_KEY 读取)
-BRIEF_KEY = "b7a28015f4445849cd8dc6aa71aebf3d"
+# 微信推送(WxPusher 第三方服务,无需自建公众号/企业资质):
+# 用平时不用的微信号登录 https://wxpusher.zjiecode.com 注册应用拿到 AppToken(AT_ 开头)
+# 家人扫码关注应用(或主题)拿到接收身份;topic 与 uids 二选一,topic 优先
+# WXPUSHER_APPTOKEN = "AT_xxxxxxxxxxxxxxxxxxxxxxxx"
+# WXPUSHER_TOPIC_ID = ""            # 可选:主题 ID,家人扫码关注主题后群发
+# WXPUSHER_UIDS = ""                # 可选:接收人 UID,逗号分隔(与 topic 二选一)
 
 # 条目存储:D1(SQLite,强一致;KV 最终一致性曾导致上传后查不到)
 [[d1_databases]]

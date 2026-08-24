@@ -15,7 +15,7 @@
 <body class="write-page">
   <header class="site-header">
     <div class="header-main">
-      <h1 class="site-title"><a href="/">咕咕嘎嘎</a></h1>
+      <h1 class="site-title"><a href="./">咕咕嘎嘎</a></h1>
       <p class="site-subtitle">管理</p>
     </div>
     <div id="user-area" class="user-area" hidden>
@@ -101,6 +101,19 @@
         <div id="share-list" class="recent-list"></div>
       </section>
 
+      <section class="panel wechat-push-panel">
+        <h2 class="panel-heading">微信推送</h2>
+        <p class="manage-hint">把当天公开动态推到微信(家人关注后可收到)。可选日期,默认今天</p>
+        <div class="export-form">
+          <label>
+            日期
+            <input type="date" id="wx-date">
+          </label>
+          <button type="button" id="btn-wx-push" class="btn-submit">推送到微信</button>
+        </div>
+        <p id="wx-status" class="form-status"></p>
+      </section>
+
       <section class="panel album-manage-panel">
         <h2 class="panel-heading">专辑管理</h2>
         <p class="manage-hint">改名会同步该专辑下全部条目;一键设置整组公开/私密</p>
@@ -110,7 +123,7 @@
       <section class="panel manage-panel">
         <h2 class="panel-heading">管理条目</h2>
         <p class="manage-hint">预览 / 编辑 / 删除;支持日期过滤、翻页、按日期分组</p>
-        <a id="btn-write" class="btn-submit write-btn" href="/edit">✏️ 写日记</a>
+        <a id="btn-write" class="btn-submit write-btn" href="edit.html">✏️ 写日记</a>
         <div class="mgr-tools">
           <label class="mgr-date">从 <input type="date" id="mgr-from"></label>
           <label class="mgr-date">到 <input type="date" id="mgr-to"></label>
@@ -184,6 +197,7 @@
 
   <footer class="site-footer">咕咕嘎嘎 · 记录每一段在路上</footer>
 
+  <script src="api.js?v=20260818f"></script>
   <script src="loc-picker.js?v=20260818f"></script>
   <script src="entry-modal.js?v=20260818f"></script>
   <script src="upload.js?v=20260818f"></script>

@@ -324,6 +324,9 @@ function initMgrTools() {
   const next = $('#mgr-next');
   if (prev) prev.addEventListener('click', () => { if (mgrState.page > 1) { mgrState.page--; renderRecent(); } });
   if (next) next.addEventListener('click', () => { mgrState.page++; renderRecent(); });
+
+  const wxDate = $('#wx-date');
+  if (wxDate) wxDate.value = localToday(); // 微信推送默认今天
 }
 
 /* ---- 专辑管理 ---- */
@@ -545,8 +548,39 @@ $('#btn-export').addEventListener('click', () => {
   if (to) q.set('to', to);
   location.href = `/export?${q.toString()}`;
 });
+
+/* ---- 微信推送(把当天公开动态推到 WxPusher) ---- */
+$('#btn-wx-push').addEventListener('click', async () => {
+  const st = $('#wx-status');
+  const btn = $('#btn-wx-push');
+  const date = $('#wx-date').value || localToday();
+  st.className = 'form-status';
+  st.textContent = '推送中…';
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date }),
+    });
+    if (res.status === 401) { bounceOn401(res); return; }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { st.className = 'form-status error'; st.textContent = data.error || `推送失败(HTTP ${res.status})`; return; }
+    st.textContent = data.message || '已推送 ✅';
+  } catch {
+    st.className = 'form-status error';
+    st.textContent = '网络异常,请重试';
+  } finally {
+    btn.disabled = false;
+  }
+});
 function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function localToday() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 /* 管理页初始化 */
 initMgrTools(); // 管理条目工具行(日期过滤/每页条数/翻页),静态元素,页面加载即绑定
