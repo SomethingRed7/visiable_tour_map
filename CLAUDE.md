@@ -15,7 +15,7 @@ This file provides guidance to Claude Code (and other coding agents) when workin
 
 ## Project overview
 
-通用旅行日记 portal「咕咕嘎嘎」:双宿主架构——github.io 只读门户 + Cloudflare Pages Functions(R2 存照片、D1 存条目)。上传即时可见零重建。用户自行网页上传,公开查看,家人随时可看。仓库 `SomethingRed7/visiable_tour_map`(**公开**)。门户 https://somethingred7.github.io/visiable_tour_map/;登录/写日记/API 全在 https://gugugaga-viw.pages.dev/(跨域读取由 `functions/_middleware.js` 放开 CORS)。
+通用旅行日记 portal「咕咕嘎嘎」:双宿主架构——github.io 只读门户 + Cloudflare Pages Functions(R2 存照片、D1 存条目)。上传即时可见零重建。用户自行网页上传,公开查看,家人随时可看。仓库 `SomethingRed7/visiable_tour_map`(**公开**)。门户 https://somethingred7.github.io/(用户主页仓库 `somethingred7.github.io`,`/write` `/edit` `/export` 由 404 页自动跳转);登录/写日记/API 全在 https://gugugaga-viw.pages.dev/(跨域读取由 `functions/_middleware.js` 放开 CORS)。门户文件改动 → push 主仓库后,用户主页仓库的 sync workflow(每日/手动)自动同步。
 
 - 架构/运维/数据维护:见 skill `tour-map-site`(权威);Cloudflare 平台细节见 skill `cloudflare-pages`
 - 本仓库实现:前端 `public/`(index.html 门户 / write.html 管理页 / edit.html 写日记页 / export.html 导出分享页)+ `functions/`(API + `_middleware.js` 跨域)+ `wrangler.toml`(D1/R2 绑定 + `[vars]` 仅 USERS)+ `schema.sql`(D1 建表,含 users 表)

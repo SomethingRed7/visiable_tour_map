@@ -8,8 +8,10 @@
 
 ## 线上地址
 
-- 门户(二维码:qr-gugugaga.png → 建议改指向 github.io):https://somethingred7.github.io/visiable_tour_map/
-- 管理入口:https://gugugaga-viw.pages.dev/edit.html(门户底部有「管理」链接)
+- 门户(只读):https://somethingred7.github.io/ —— 根域名,用户主页仓库 `somethingred7.github.io` 托管
+- 管理入口(登录/写日记/导出):https://gugugaga-viw.pages.dev/ —— `github.io/write` `/edit` `/export` 会 404 页自动跳转到这里
+- 二维码:qr-gugugaga.png(可重生成指向 https://somethingred7.github.io/)
+- 说明:门户文件改在 `public/`;push 主仓库后,用户主页仓库的 `sync.yml`(每日/手动触发)自动同步门户文件
 
 ## 架构
 
