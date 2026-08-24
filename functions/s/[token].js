@@ -37,7 +37,8 @@ ${main}
 
 export async function onRequestGet(context) {
   const token = context.params.token || '';
-  if (!/^[a-z0-9]{8}$/.test(token)) {
+  // 分享名:专辑英文 slug 或 日期区间~trip(旧 8 位随机码仍兼容)
+  if (!/^[a-z0-9~-]{2,80}$/.test(token)) {
     return new Response(notFoundPage(), { status: 404, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': CSP } });
   }
   const raw = await context.env.ENTRIES.get(`share:${token}`);

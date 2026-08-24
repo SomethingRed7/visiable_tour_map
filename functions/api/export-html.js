@@ -2,17 +2,13 @@
 //   POST /api/export-html → 按专辑/日期区间 + 逐个条目导出选择,生成自包含 HTML 文件下载(离线可看,照片走线上 URL)
 // 参数与 /api/share 一致:album/from/to/inc(条目 key 逗号串)/inc_todo(待办 key 逗号串);字段缺席=全选
 import { verifySession } from '../_lib/auth.js';
+import { shareName } from '../_lib/slug.js';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_RANGE_DAYS = 60;
 
 function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
-/* 导出文件名:有专辑名用专辑名,否则起止日期+标识(不用随机/当天名) */
-function safeName(s) {
-  return String(s).replace(/[\\/:*?"<>|\s]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
 }
 
 /* 逐个条目导出选择:inc/inc_todo 逗号分隔 key(date|ts / date|sort|id);
@@ -222,12 +218,8 @@ export async function onRequestPost(context) {
 </body>
 </html>`;
 
-  // 导出文件名:有专辑名用专辑名,否则起止日期+标识;不用随机/当天名
-  let nameBase;
-  if (album) nameBase = safeName(album);
-  else if (rangeOk) nameBase = `${from}~${to}-行程`;
-  else nameBase = '行程导出';
-  const filename = encodeURIComponent(`咕咕嘎嘎-${nameBase}.html`);
+  // 导出文件名:专辑名英文拼音 slug,否则 起止日期~trip(不用随机名/中文)
+  const filename = encodeURIComponent(`gugugaga-${shareName(album, rangeOk ? from : '', rangeOk ? to : '')}.html`);
   return new Response(html, {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
