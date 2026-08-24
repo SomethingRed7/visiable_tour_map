@@ -154,8 +154,8 @@ export async function onRequestPost(context) {
     snap.entries = entries;
     snap.todos = todos;
     snap.updated_at = new Date().toISOString();
-    const url = await persistSnapshot(context.env, snap, token);
-    return Response.json({ ok: true, token: snap.token, url, created_at: snap.created_at, updated_at: snap.updated_at, updated: true });
+    const shareUrl = await persistSnapshot(context.env, snap, token);
+    return Response.json({ ok: true, token: snap.token, url: shareUrl, created_at: snap.created_at, updated_at: snap.updated_at, updated: true });
   }
 
   // ---- 创建 ----
@@ -187,8 +187,8 @@ export async function onRequestPost(context) {
   const now = new Date().toISOString();
   const newToken = genToken();
   const snap = { token: newToken, album: cond.album, from: cond.from, to: cond.to, ck: cond.ck, entries, todos, created_at: now, updated_at: now };
-  const url = await persistSnapshot(context.env, snap, newToken);
-  return Response.json({ ok: true, token: newToken, url, created_at: now, updated_at: now, entries: entries.length, todos: todos.length });
+  const shareUrl = await persistSnapshot(context.env, snap, newToken);
+  return Response.json({ ok: true, token: newToken, url: shareUrl, created_at: now, updated_at: now, entries: entries.length, todos: todos.length });
 }
 
 export async function onRequestDelete(context) {
