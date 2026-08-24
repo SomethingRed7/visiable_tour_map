@@ -81,7 +81,7 @@
     const authorTag = e.author
       ? `<span class="author-tag${e.author === '小红' ? ' rose' : ''}">${esc(e.author)}</span>`
       : '';
-    const locName = e.location ? (e.location.display || e.location.name || '') : '';
+    const locName = e.location ? shortLoc(e.location.display || e.location.name || '') : '';
     const locTag = locName ? `<span class="loc-tag">📍 ${esc(locName)}</span>` : '';
     const timeTag = e.ts ? `<span class="time-tag">${fmtTime(e.ts)}</span>` : '';
     const visTag = e.visibility === 'private' ? '<span class="vis-tag">私有</span>' : '';
@@ -193,7 +193,7 @@
     if (e.author) meta.push(esc(e.author));
     if (e.visibility === 'private') meta.push('私有');
     if (e.album) meta.push(esc(e.album));
-    const locName = e.location ? (e.location.display || e.location.name || '') : '';
+    const locName = e.location ? shortLoc(e.location.display || e.location.name || '') : '';
     if (locName) meta.push(`📍 ${esc(locName)}`);
     const photos = e.photos || [];
     panel.innerHTML =
@@ -261,7 +261,8 @@
         icon: L.divIcon({ className: 'gg-marker', html: ggPinSvg(), iconSize: [28, 28], iconAnchor: [14, 27] }),
       }).addTo(map);
       // 原样式文字版详情弹窗 + 「展开详情」按钮(按钮打开紧凑详情面板,不遮地图)
-      const name = e.location ? (e.location.display || e.location.name || '') : '';
+      // 地点名精简:地图上已有明确点位,完整行政地址过长影响观看
+      const name = e.location ? shortLoc(e.location.display || e.location.name || '') : '';
       mk.bindPopup(
         `<b>${esc(e.date)} ${fmtTime(e.ts)}</b> ${esc(e.title || '')}<br>${esc(name)}` +
         `<br><button type="button" class="popup-detail-btn" style="margin-top:6px;padding:4px 12px;border:1px solid #e5e7eb;border-radius:999px;background:#fff;color:#e11d48;cursor:pointer;font-size:.8rem" data-i="${i}">展开详情</button>`
