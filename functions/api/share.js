@@ -1,9 +1,11 @@
 // 行程分享快照 API:
 //   POST   /api/share            → 创建快照(冻结内容入 KV + 写成 github.io 静态页 share/<token>.html)
-//   POST   /api/share?token=xxx  → 更新快照(按快照记忆的生成条件用最新数据重新冻结,链接不变)
+//   POST   /api/share?token=xxx  → 更新快照(表单带重新选择的 album/from/to/inc/inc_todo,链接不变)
+//   GET    /api/share?token=xxx  → 读取快照(供「更新」进生成页时预填;仅登录)
 //   DELETE /api/share?token=xxx  → 删除快照(KV + github.io 静态页)
-// 快照 key = `share:<8位随机码>`,value = { token, album, from, to, ck, entries, todos, created_at, updated_at, url }
-// 照片仅存路径引用(不复制);冻结语义与导出页一致(私有勾选=快照含私有,生成者决定)。
+// 快照 key = `share:<8位随机码>`,value = { token, album, from, to, entries, todos, created_at, updated_at, url }
+// 条目选择:inc = 逗号分隔 date|ts;inc_todo = 逗号分隔 date|sort_order|id;字段缺席=全选,空串=一个都不导出。
+// 照片仅存路径引用(不复制);冻结语义=生成者逐个勾选决定。
 // github.io 静态页写入需要 env.GH_PAT(GitHub token,只授权 somethingred7.github.io 仓库);
 // 无 GH_PAT 或写入失败 → 回退返回 /s/<token>(pages.dev 服务端渲染),快照照常可用。
 import { verifySession } from '../_lib/auth.js';
@@ -75,16 +77,22 @@ function genToken() {
   return s;
 }
 
-/* 与导出页 filteredEntries 同款过滤:公开 / 私有(非打卡)/ 打卡(私有子集,需私有+打卡都勾) */
-function filterEntries(list, album, from, to, ck) {
+/* 逐个条目导出选择:inc/inc_todo 逗号分隔 key(date|ts / date|sort|id);
+ * 表单未提供该字段 → null(全选,旧客户端兼容);提供空串 → 一个都不导出 */
+function parseKeys(form, name) {
+  if (!form || !form.has(name)) return null;
+  const s = (form.get(name) || '').trim();
+  return new Set(s ? s.split(',').map((x) => x.trim()).filter(Boolean) : []);
+}
+
+/* 过滤:专辑/日期区间 + 逐个条目导出勾选(incSet 为 null 则全选) */
+function filterEntries(list, album, from, to, incSet) {
   return list
     .filter((e) => {
       if (album && e.album !== album) return false;
       if (from && to && (e.date < from || e.date > to)) return false;
-      if (e.visibility !== 'private') return ck.public;
-      const isCheckin = (e.title || '').startsWith('打卡:');
-      if (isCheckin) return ck.private && ck.checkin;
-      return ck.private;
+      if (incSet) return incSet.has(`${e.date}|${e.ts}`);
+      return true;
     })
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (a.ts || 0) - (b.ts || 0)));
 }
@@ -108,19 +116,19 @@ function normEntry(e) {
   };
 }
 
-/* 按条件冻结最新数据(创建与更新共用;更新用快照里记忆的旧条件) */
+/* 按条件冻结最新数据(创建与更新共用;incSet/incTodoSet=null 表示全选) */
 async function freeze(env, cond) {
   const { results: entryRows } = await env.DB.prepare('SELECT * FROM entries').all();
-  const entries = filterEntries((entryRows || []).map(normEntry), cond.album, cond.from, cond.to, cond.ck);
+  const entries = filterEntries((entryRows || []).map(normEntry), cond.album, cond.from, cond.to, cond.incSet);
 
   // 待办仅日期区间模式参与(待办无专辑概念,与导出页一致)
   let todos = [];
-  if (cond.from && cond.to && cond.ck.todo) {
+  if (cond.from && cond.to) {
     const { results: todoRows } = await env.DB
       .prepare('SELECT id, date, text, done, sort_order, checkin_ts FROM todos ORDER BY date ASC, sort_order ASC, id ASC')
       .all();
     todos = (todoRows || [])
-      .filter((t) => t.date >= cond.from && t.date <= cond.to)
+      .filter((t) => t.date >= cond.from && t.date <= cond.to && (cond.incTodoSet ? cond.incTodoSet.has(`${t.date}|${t.sort_order}|${t.id}`) : true))
       .map((t) => ({ id: t.id, date: t.date, text: t.text, done: t.done, checkin_ts: t.checkin_ts }));
   }
   return { entries, todos };
@@ -137,39 +145,46 @@ export async function onRequestPost(context) {
   const token = qToken || (form ? (form.get('token') || '').trim() : '');
   if (!form && !token) return Response.json({ error: '缺少表单数据' }, { status: 400 });
 
-  // 勾选:checkbox 缺席 = 与生成器页默认一致(全勾)
-  const chk = (n) => {
-    const v = form.get(n);
-    if (v === null) return true;
-    return v !== '' && v !== '0' && v !== 'false';
-  };
+  // 逐个条目导出选择:字段缺席=全选,空串=一个都不导出
+  const album = (form ? (form.get('album') || '').trim() : '');
+  const from = (form ? (form.get('from') || '').trim() : '');
+  const to = (form ? (form.get('to') || '').trim() : '');
+  const incSet = parseKeys(form, 'inc');
+  const incTodoSet = parseKeys(form, 'inc_todo');
+
+  const fromOk = DATE_RE.test(from);
+  const toOk = DATE_RE.test(to);
+  const rangeOk = fromOk && toOk && from <= to;
+  const condValid = (album || rangeOk) && (!(from || to) || rangeOk);
 
   if (token) {
-    // ---- 更新:按快照记忆的生成条件重新冻结(链接不变) ----
+    // ---- 更新:重新进「生成分享页」选择内容后保存(链接不变) ----
     const raw = await context.env.ENTRIES.get(`share:${token}`);
     if (!raw) return Response.json({ error: '快照不存在或已删除' }, { status: 404 });
     let snap;
     try { snap = JSON.parse(raw); } catch { return Response.json({ error: '快照数据损坏' }, { status: 500 }); }
-    const { entries, todos } = await freeze(context.env, snap);
+    // 表单带选择(新客户端)→ 用表单条件;否则(旧客户端空 body)→ 沿用快照条件全量导出
+    const explicit = form && (form.has('inc') || form.has('inc_todo') || album || from || to);
+    const cond = explicit
+      ? { album: album || null, from: rangeOk ? from : null, to: rangeOk ? to : null, incSet, incTodoSet }
+      : { album: snap.album || null, from: snap.from || null, to: snap.to || null, incSet: null, incTodoSet: null };
+    if (!cond.album && !(cond.from && cond.to)) {
+      return Response.json({ error: '请选择专辑,或选择起止日期(可都选叠加)' }, { status: 400 });
+    }
+    const { entries, todos } = await freeze(context.env, cond);
     snap.entries = entries;
     snap.todos = todos;
+    snap.album = cond.album;
+    snap.from = cond.from;
+    snap.to = cond.to;
     snap.updated_at = new Date().toISOString();
     const shareUrl = await persistSnapshot(context.env, snap, token);
     return Response.json({ ok: true, token: snap.token, url: shareUrl, created_at: snap.created_at, updated_at: snap.updated_at, updated: true });
   }
 
   // ---- 创建 ----
-  const album = (form.get('album') || '').trim();
-  const from = (form.get('from') || '').trim();
-  const to = (form.get('to') || '').trim();
-
-  const fromOk = DATE_RE.test(from);
-  const toOk = DATE_RE.test(to);
-  const rangeOk = fromOk && toOk && from <= to;
-  if (!album && !rangeOk) {
-    return Response.json({ error: '请选择专辑,或选择起止日期(可都选叠加)' }, { status: 400 });
-  }
-  if ((from || to) && !rangeOk) {
+  if (!condValid) {
+    if (!from && !to) return Response.json({ error: '请选择专辑,或选择起止日期(可都选叠加)' }, { status: 400 });
     return Response.json({ error: '起始/结束日期需成对且起始不晚于结束' }, { status: 400 });
   }
   if (rangeOk) {
@@ -177,18 +192,38 @@ export async function onRequestPost(context) {
     if (days > MAX_RANGE_DAYS) return Response.json({ error: '区间最多 60 天' }, { status: 400 });
   }
 
-  const cond = {
-    album: album || null,
-    from: rangeOk ? from : null,
-    to: rangeOk ? to : null,
-    ck: { public: chk('ck_public'), private: chk('ck_private'), todo: chk('ck_todo'), checkin: chk('ck_checkin') },
-  };
+  const cond = { album: album || null, from: rangeOk ? from : null, to: rangeOk ? to : null, incSet, incTodoSet };
   const { entries, todos } = await freeze(context.env, cond);
   const now = new Date().toISOString();
   const newToken = genToken();
-  const snap = { token: newToken, album: cond.album, from: cond.from, to: cond.to, ck: cond.ck, entries, todos, created_at: now, updated_at: now };
+  const snap = { token: newToken, album: cond.album, from: cond.from, to: cond.to, entries, todos, created_at: now, updated_at: now };
   const shareUrl = await persistSnapshot(context.env, snap, newToken);
   return Response.json({ ok: true, token: newToken, url: shareUrl, created_at: now, updated_at: now, entries: entries.length, todos: todos.length });
+}
+
+// 读取快照(供「更新」进生成页预填):返回条件 + 冻结内容
+export async function onRequestGet(context) {
+  const user = await verifySession(context.env, context.request);
+  if (!user) return Response.json({ error: '请先登录' }, { status: 401 });
+
+  const token = (new URL(context.request.url).searchParams.get('token') || '').trim();
+  if (!/^[a-z0-9]{8}$/.test(token)) return Response.json({ error: '缺少 token' }, { status: 400 });
+
+  const raw = await context.env.ENTRIES.get(`share:${token}`);
+  if (!raw) return Response.json({ error: '快照不存在或已删除' }, { status: 404 });
+  let snap;
+  try { snap = JSON.parse(raw); } catch { return Response.json({ error: '快照数据损坏' }, { status: 500 }); }
+  return Response.json({
+    token: snap.token,
+    album: snap.album || null,
+    from: snap.from || null,
+    to: snap.to || null,
+    entries: snap.entries || [],
+    todos: snap.todos || [],
+    created_at: snap.created_at || null,
+    updated_at: snap.updated_at || null,
+    url: snap.url || `/s/${snap.token}`,
+  });
 }
 
 export async function onRequestDelete(context) {

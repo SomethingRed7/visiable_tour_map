@@ -1,6 +1,6 @@
 // 行程导出 HTML API:
-//   POST /api/export-html → 按专辑/日期区间 + 四类勾选,生成自包含 HTML 文件下载(离线可看,照片走线上 URL)
-// 参数与 /api/share 一致:album/from/to/ck_public/ck_private/ck_todo/ck_checkin(checkbox 缺席=全勾)
+//   POST /api/export-html → 按专辑/日期区间 + 逐个条目导出选择,生成自包含 HTML 文件下载(离线可看,照片走线上 URL)
+// 参数与 /api/share 一致:album/from/to/inc(条目 key 逗号串)/inc_todo(待办 key 逗号串);字段缺席=全选
 import { verifySession } from '../_lib/auth.js';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -10,16 +10,27 @@ function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-/* 与 share.js/导出页同款过滤 */
-function filterEntries(list, album, from, to, ck) {
+/* 导出文件名:有专辑名用专辑名,否则起止日期+标识(不用随机/当天名) */
+function safeName(s) {
+  return String(s).replace(/[\\/:*?"<>|\s]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
+}
+
+/* 逐个条目导出选择:inc/inc_todo 逗号分隔 key(date|ts / date|sort|id);
+ * 表单未提供该字段 → null(全选,旧客户端兼容);提供空串 → 一个都不导出 */
+function parseKeys(form, name) {
+  if (!form || !form.has(name)) return null;
+  const s = (form.get(name) || '').trim();
+  return new Set(s ? s.split(',').map((x) => x.trim()).filter(Boolean) : []);
+}
+
+/* 过滤:专辑/日期区间 + 逐个条目导出勾选(incSet 为 null 则全选) */
+function filterEntries(list, album, from, to, incSet) {
   return list
     .filter((e) => {
       if (album && e.album !== album) return false;
       if (from && to && (e.date < from || e.date > to)) return false;
-      if (e.visibility !== 'private') return ck.public;
-      const isCheckin = (e.title || '').startsWith('打卡:');
-      if (isCheckin) return ck.private && ck.checkin;
-      return ck.private;
+      if (incSet) return incSet.has(`${e.date}|${e.ts}`);
+      return true;
     })
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (a.ts || 0) - (b.ts || 0)));
 }
@@ -58,12 +69,6 @@ export async function onRequestPost(context) {
   const form = await context.request.formData().catch(() => null);
   if (!form) return Response.json({ error: '缺少表单数据' }, { status: 400 });
 
-  const chk = (n) => {
-    const v = form.get(n);
-    if (v === null) return true;
-    return v !== '' && v !== '0' && v !== 'false';
-  };
-
   const album = (form.get('album') || '').trim();
   const from = (form.get('from') || '').trim();
   const to = (form.get('to') || '').trim();
@@ -77,16 +82,17 @@ export async function onRequestPost(context) {
     if (days > MAX_RANGE_DAYS) return Response.json({ error: '区间最多 60 天' }, { status: 400 });
   }
 
-  const ck = { public: chk('ck_public'), private: chk('ck_private'), todo: chk('ck_todo'), checkin: chk('ck_checkin') };
+  const incSet = parseKeys(form, 'inc');
+  const incTodoSet = parseKeys(form, 'inc_todo');
   const { results: entryRows } = await context.env.DB.prepare('SELECT * FROM entries').all();
-  const entries = filterEntries((entryRows || []).map(normEntry), album || null, rangeOk ? from : null, rangeOk ? to : null, ck);
+  const entries = filterEntries((entryRows || []).map(normEntry), album || null, rangeOk ? from : null, rangeOk ? to : null, incSet);
 
   let todos = [];
-  if (rangeOk && ck.todo) {
+  if (rangeOk) {
     const { results: todoRows } = await context.env.DB
       .prepare('SELECT id, date, text, done, sort_order, checkin_ts FROM todos ORDER BY date ASC, sort_order ASC, id ASC')
       .all();
-    todos = (todoRows || []).filter((t) => t.date >= from && t.date <= to);
+    todos = (todoRows || []).filter((t) => t.date >= from && t.date <= to && (incTodoSet ? incTodoSet.has(`${t.date}|${t.sort_order}|${t.id}`) : true));
   }
 
   const origin = new URL(context.request.url).origin;
@@ -197,7 +203,12 @@ export async function onRequestPost(context) {
 </body>
 </html>`;
 
-  const filename = encodeURIComponent(`咕咕嘎嘎-行程导出-${new Date().toISOString().slice(0, 10)}.html`);
+  // 导出文件名:有专辑名用专辑名,否则起止日期+标识;不用随机/当天名
+  let nameBase;
+  if (album) nameBase = safeName(album);
+  else if (rangeOk) nameBase = `${from}~${to}-行程`;
+  else nameBase = '行程导出';
+  const filename = encodeURIComponent(`咕咕嘎嘎-${nameBase}.html`);
   return new Response(html, {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',

@@ -1,4 +1,4 @@
-/* 咕咕嘎嘎 - 行程导出分享页(?from=YYYY-MM-DD&to=YYYY-MM-DD) */
+/* 咕咕嘎嘎 - 行程导出分享页(?from=YYYY-MM-DD&to=YYYY-MM-DD&token=xxx 可更新快照) */
 'use strict';
 
 var $ = (s) => document.querySelector(s);
@@ -26,6 +26,10 @@ function fmtTime(ts) {
   if (Number.isNaN(d.getTime())) return '';
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
+
+/* 条目/待办唯一 key,与后端 inc/inc_todo 一致 */
+function entryKey(e) { return `${e.date}|${e.ts}`; }
+function todoKey(t) { return `${t.date}|${t.sort_order}|${t.id}`; }
 
 /* 坐标系统:存储=GCJ-02(高德瓦片系),OSRM 要 WGS-84,互转 */
 function transformLat(x, y) {
@@ -70,8 +74,11 @@ function ggPinSvg() {
 let exFrom = '';
 let exTo = '';
 let exAlbum = ''; // 专辑导出模式(可单独或与日期叠加)
+let exToken = ''; // 更新模式:?token=xxx
 let exAllEntries = [];
 let exAllTodos = [];
+let exSel = new Map(); // 条目 key(date|ts) → 是否导出(默认 true)
+let exTodoSel = new Map(); // 待办 key(date|sort|id) → 是否导出
 let exMapInstance = null;
 
 async function init() {
@@ -79,6 +86,7 @@ async function init() {
   exFrom = params.get('from') || '';
   exTo = params.get('to') || '';
   exAlbum = params.get('album') || '';
+  exToken = params.get('token') || '';
   const valid = /^\d{4}-\d{2}-\d{2}$/;
   const box = $('#ex-overview');
   const mapBox = $('#ex-map');
@@ -96,6 +104,25 @@ async function init() {
   $('#ex-controls').hidden = false;
   $('#btn-share').hidden = false; // 生成分享快照按钮仅登录可见
   $('#btn-export-html').hidden = false; // 导出 HTML 同样仅登录可见
+
+  // 更新模式:读快照条件与已导出内容,预填勾选
+  let incFromSnap = null;
+  let incTodoFromSnap = null;
+  if (exToken) {
+    const sr = await fetch(`/api/share?token=${encodeURIComponent(exToken)}`).catch(() => null);
+    if (!sr || !sr.ok) {
+      $('#ex-title').textContent = '快照不存在或已删除';
+      box.innerHTML = '<p class="empty">无法读取该快照,请回到管理页重新生成。</p>';
+      mapBox.style.display = 'none';
+      return;
+    }
+    const snap = await sr.json();
+    if (snap.album) exAlbum = snap.album;
+    if (snap.from) exFrom = snap.from;
+    if (snap.to) exTo = snap.to;
+    incFromSnap = new Set((snap.entries || []).map(entryKey));
+    incTodoFromSnap = new Set((snap.todos || []).map(todoKey));
+  }
 
   // 模式:①专辑 ②起止日期 ③叠加;至少一个有效
   const fromOk = valid.test(exFrom);
@@ -116,8 +143,9 @@ async function init() {
 
   // 副标题:专辑名 / 区间 / 组合
   const rangeText = rangeOk ? `${fmt(exFrom)} ~ ${fmt(exTo)}` : '';
-  $('#ex-subtitle').textContent = [exAlbum && `专辑 · ${exAlbum}`, rangeText].filter(Boolean).join('  ');
-  document.title = `行程总览 ${[exAlbum, rangeText].filter(Boolean).join(' ')} · 咕咕嘎嘎`;
+  $('#ex-subtitle').textContent = [exAlbum && `专辑 · ${exAlbum}`, rangeText, exToken && '正在更新快照'].filter(Boolean).join('  ');
+  document.title = `${exToken ? '更新快照' : '行程总览'} ${[exAlbum, rangeText].filter(Boolean).join(' ')} · 咕咕嘎嘎`;
+  $('#btn-share').textContent = exToken ? '保存更新' : '生成分享快照';
 
   const [entriesData, todosData] = await Promise.all([
     fetch('/api/entries').then((r) => r.json()),
@@ -130,54 +158,47 @@ async function init() {
   // 待办仅日期区间时参与;纯专辑模式待办不参与(待办无专辑概念)
   exAllTodos = rangeOk ? (todosData.todos || []).filter((t) => t.date >= exFrom && t.date <= exTo) : [];
 
-  // 勾选变化即时重渲染
-  ['ck-public', 'ck-private', 'ck-todo', 'ck-checkin'].forEach((id) => {
-    document.getElementById(id).addEventListener('change', renderExport);
-  });
+  // 勾选初始:更新模式按快照已包含内容;新建默认全勾
+  exSel = new Map(exAllEntries.map((e) => [entryKey(e), incFromSnap ? incFromSnap.has(entryKey(e)) : true]));
+  exTodoSel = new Map(exAllTodos.map((t) => [todoKey(t), incTodoFromSnap ? incTodoFromSnap.has(todoKey(t)) : true]));
+
   renderExport();
 }
 
-// 按勾选过滤条目:公开 / 私有(非打卡)/ 打卡(私有子集,需「私有」与「打卡」都勾)
-function filteredEntries() {
-  const showPublic = $('#ck-public').checked;
-  const showPrivate = $('#ck-private').checked;
-  const showCheckin = $('#ck-checkin').checked;
-  return exAllEntries
-    .filter((e) => {
-      if (e.visibility !== 'private') return showPublic;
-      const isCheckin = (e.title || '').startsWith('打卡:');
-      if (isCheckin) return showPrivate && showCheckin;
-      return showPrivate;
-    })
-    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (a.ts || 0) - (b.ts || 0)));
+/* 当前勾选集合:逗号分隔 key,空串 = 一个都不导出 */
+function collectSelection() {
+  const inc = exAllEntries.filter((e) => exSel.get(entryKey(e))).map(entryKey).join(',');
+  const incTodo = exAllTodos.filter((t) => exTodoSel.get(todoKey(t))).map(todoKey).join(',');
+  return { inc, incTodo };
 }
 
 async function renderExport() {
   const box = $('#ex-overview');
   const mapBox = $('#ex-map');
-  const list = filteredEntries();
-  const showTodo = $('#ck-todo').checked;
+  const sortedEntries = exAllEntries.slice().sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (a.ts || 0) - (b.ts || 0)));
+  const sortedTodos = exAllTodos.slice().sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (a.sort_order || 0) - (b.sort_order || 0) || (a.id || 0) - (b.id || 0)));
 
-  if (!list.length && !(showTodo && exAllTodos.length)) {
+  if (!sortedEntries.length && !sortedTodos.length) {
     $('#ex-title').textContent = '这段时间还没有内容';
-    box.innerHTML = '<p class="empty">所选区间与勾选条件下没有内容,换个日期或勾选试试</p>';
+    box.innerHTML = '<p class="empty">所选区间内没有内容,换个日期或专辑试试</p>';
     mapBox.style.display = 'none';
     return;
   }
-  $('#ex-title').textContent = '行程总览';
+  $('#ex-title').textContent = exToken ? '更新快照 · 重新选择导出内容' : '行程总览';
 
-  // 按日期分组:条目 + 待办
+  // 地图与导出只含勾选条目
+  const exportEntries = sortedEntries.filter((e) => exSel.get(entryKey(e)));
+  const exportTodos = sortedTodos.filter((t) => exTodoSel.get(todoKey(t)));
+
+  // 按日期分组展示全部候选(未勾选置灰)
   const days = new Map();
-  for (const e of list) {
+  for (const e of sortedEntries) {
     if (!days.has(e.date)) days.set(e.date, { entries: [], todos: [] });
     days.get(e.date).entries.push(e);
   }
-  if (showTodo) {
-    const todos = [...exAllTodos].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
-    for (const t of todos) {
-      if (!days.has(t.date)) days.set(t.date, { entries: [], todos: [] });
-      days.get(t.date).todos.push(t);
-    }
+  for (const t of sortedTodos) {
+    if (!days.has(t.date)) days.set(t.date, { entries: [], todos: [] });
+    days.get(t.date).todos.push(t);
   }
 
   box.innerHTML = [...days.entries()]
@@ -185,12 +206,23 @@ async function renderExport() {
     .map(([date, { entries, todos }]) => {
       const todoHtml = todos.length
         ? `<div class="ex-todos"><div class="ex-todos-title">待办</div>${todos
-            .map((t) => `<div class="ex-todo${t.done ? ' done' : ''}"><span class="todo-check">${t.done ? '✅' : '○'}</span>${esc(t.text)}</div>`)
+            .map((t) => {
+              const key = todoKey(t);
+              const on = exTodoSel.get(key);
+              return `<div class="ex-todo${t.done ? ' done' : ''}${on ? '' : ' ex-off'}">
+              <span class="todo-check">${t.done ? '✅' : '○'}</span>${esc(t.text)}
+              <label class="ex-toggle"><input type="checkbox" class="ex-todo-chk" data-key="${esc(key)}" ${on ? 'checked' : ''}> 导出</label>
+            </div>`;
+            })
             .join('')}</div>`
         : '';
       const entryHtml = entries
-        .map((e) => `<article class="entry">
+        .map((e) => {
+          const key = entryKey(e);
+          const on = exSel.get(key);
+          return `<article class="entry${on ? '' : ' ex-off'}">
     <div class="entry-meta">
+      <label class="ex-toggle"><input type="checkbox" class="ex-chk" data-key="${esc(key)}" ${on ? 'checked' : ''}> 导出</label>
       <span class="stream-date">${esc(e.date)}</span>
       ${e.ts ? `<span class="time-tag">${fmtTime(e.ts)}</span>` : ''}
       ${e.author ? `<span class="author-tag${e.author === '小红' ? ' rose' : ''}">${esc(e.author)}</span>` : ''}
@@ -201,11 +233,26 @@ async function renderExport() {
     ${e.title ? `<h3 class="entry-title">${esc(e.title)}</h3>` : ''}
     ${e.text ? `<div class="entry-text">${esc(e.text).replace(/\n/g, '<br>')}</div>` : ''}
     ${(e.photos || []).length ? `<div class="photo-grid">${e.photos.map((p) => `<img src="${thumbUrl(p)}" data-full="${p}" alt="照片" loading="lazy">`).join('')}</div>` : ''}
-  </article>`)
+  </article>`;
+        })
         .join('');
       return `<div class="ex-day">${todoHtml}${entryHtml}</div>`;
     })
     .join('');
+
+  // 勾选变化 → 更新状态并重渲染(地图同步)
+  box.querySelectorAll('.ex-chk').forEach((el) => {
+    el.addEventListener('change', () => {
+      exSel.set(el.dataset.key, el.checked);
+      renderExport();
+    });
+  });
+  box.querySelectorAll('.ex-todo-chk').forEach((el) => {
+    el.addEventListener('change', () => {
+      exTodoSel.set(el.dataset.key, el.checked);
+      renderExport();
+    });
+  });
 
   // 照片兜底:缩略图 404 → 回退全图;全图也挂 → 隐藏(CSP 禁内联 onerror,必须 addEventListener)
   box.querySelectorAll('.photo-grid img').forEach((img) => {
@@ -237,8 +284,8 @@ async function renderExport() {
     img.addEventListener('click', () => window.open(img.dataset.full || img.src, '_blank'));
   });
 
-  // 地图路线:与条目列表一致(仅含坐标的条目)
-  await renderMap(list, mapBox, $('#ex-map-note'));
+  // 地图路线:仅含勾选的条目
+  await renderMap(exportEntries, mapBox, $('#ex-map-note'));
 }
 
 async function renderMap(list, box, noteEl) {
@@ -327,6 +374,10 @@ function showShareModal(data) {
   const url = window.SITE_ORIGIN + data.url;
   $('#share-url').value = url;
   $('#share-status').textContent = '';
+  $('#share-modal-title').textContent = exToken ? '快照已更新' : '分享快照已生成';
+  $('#share-modal-hint').textContent = exToken
+    ? '链接和二维码不变;如需再调整内容,可再次点「更新」重新选择。'
+    : '链接永久有效,内容固定;想调整内容可在下方「已分享的快照」点「更新」重新选择。';
   $('#share-modal').hidden = false;
   const qrBox = $('#share-qr');
   qrBox.innerHTML = '';
@@ -350,6 +401,7 @@ $('#btn-export-html').addEventListener('click', () => {
     errEl.textContent = '请选择专辑,或选择起止日期(可都选叠加)';
     return;
   }
+  const { inc, incTodo } = collectSelection();
   const form = document.createElement('form');
   form.method = 'POST';
   form.action = '/api/export-html';
@@ -363,10 +415,8 @@ $('#btn-export-html').addEventListener('click', () => {
   if (exAlbum) add('album', exAlbum);
   if (exFrom) add('from', exFrom);
   if (exTo) add('to', exTo);
-  add('ck_public', $('#ck-public').checked ? 'on' : '0');
-  add('ck_private', $('#ck-private').checked ? 'on' : '0');
-  add('ck_todo', $('#ck-todo').checked ? 'on' : '0');
-  add('ck_checkin', $('#ck-checkin').checked ? 'on' : '0');
+  add('inc', inc);
+  add('inc_todo', incTodo);
   document.body.appendChild(form);
   form.submit();
 });
@@ -375,25 +425,24 @@ $('#btn-share').addEventListener('click', async () => {
   const errEl = $('#share-err');
   errEl.className = 'form-status';
   errEl.textContent = '';
-  // 条件 = 当前 URL 参数(专辑/日期)+ 勾选状态(与预览一致)
   const rangeOk = /^\d{4}-\d{2}-\d{2}$/.test(exFrom) && /^\d{4}-\d{2}-\d{2}$/.test(exTo) && exFrom <= exTo;
   if (!exAlbum && !rangeOk) {
     errEl.className = 'form-status error';
     errEl.textContent = '请选择专辑,或选择起止日期(可都选叠加)';
     return;
   }
+  const { inc, incTodo } = collectSelection();
   const fd = new FormData();
   if (exAlbum) fd.append('album', exAlbum);
   if (exFrom) fd.append('from', exFrom);
   if (exTo) fd.append('to', exTo);
-  fd.append('ck_public', $('#ck-public').checked ? 'on' : '0');
-  fd.append('ck_private', $('#ck-private').checked ? 'on' : '0');
-  fd.append('ck_todo', $('#ck-todo').checked ? 'on' : '0');
-  fd.append('ck_checkin', $('#ck-checkin').checked ? 'on' : '0');
+  fd.append('inc', inc);
+  fd.append('inc_todo', incTodo);
+  const url = exToken ? `/api/share?token=${encodeURIComponent(exToken)}` : '/api/share';
   const btn = $('#btn-share');
   btn.disabled = true; // 防连点重复生成
   try {
-    const res = await fetch('/api/share', { method: 'POST', body: fd });
+    const res = await fetch(url, { method: 'POST', body: fd });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       errEl.className = 'form-status error';

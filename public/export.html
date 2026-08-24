@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>行程总览 · 咕咕嘎嘎</title>
-  <link rel="stylesheet" href="style.css?v=20260818f">
+  <link rel="stylesheet" href="style.css?v=20260825c">
 </head>
 <body>
   <header class="site-header">
@@ -26,11 +26,7 @@
         <a class="btn-write" href="write.html">去登录</a>
       </div>
       <div id="ex-controls" class="ex-controls" hidden>
-        <label><input type="checkbox" id="ck-public" checked> 公开条目</label>
-        <label><input type="checkbox" id="ck-private" checked> 私有条目</label>
-        <label><input type="checkbox" id="ck-todo" checked> 待办</label>
-        <label><input type="checkbox" id="ck-checkin" checked> 打卡记录</label>
-        <span class="ex-hint">取消勾选的内容不导出</span>
+        <span class="ex-hint">每个条目/待办可单独勾选「导出」,默认全部导出;取消勾选的内容不导出</span>
       </div>
       <button type="button" id="btn-share" class="btn-submit share-btn" hidden>生成分享快照</button>
       <button type="button" id="btn-export-html" class="btn-submit share-btn" hidden>导出 HTML</button>
@@ -50,8 +46,8 @@
   <!-- 生成分享快照结果弹层 -->
   <div id="share-modal" class="modal" hidden>
     <div class="modal-card">
-      <h3 class="sub-panel-heading">分享快照已生成</h3>
-      <p class="manage-hint">链接永久有效,内容固定;想刷新内容可在下方「已分享的快照」点「更新」(链接不变)。</p>
+      <h3 id="share-modal-title" class="sub-panel-heading">分享快照已生成</h3>
+      <p id="share-modal-hint" class="manage-hint">链接永久有效,内容固定;想调整内容可在下方「已分享的快照」点「更新」重新选择。</p>
       <div class="share-link-row">
         <input type="text" id="share-url" readonly>
         <button type="button" id="btn-share-copy" class="btn-small">复制</button>
@@ -64,6 +60,6 @@
 
   <script src="api.js?v=20260825"></script>
   <script src="loc-picker.js?v=20260818f"></script>
-  <script src="export.js?v=20260818f"></script>
+  <script src="export.js?v=20260825c"></script>
 </body>
 </html>

@@ -481,13 +481,13 @@ async function renderShares() {
         <span class="recent-actions">
           <button type="button" class="btn-small btn-share-copy" data-url="${esc(s.url)}">复制</button>
           <button type="button" class="btn-small btn-share-open" data-url="${esc(s.url)}">打开</button>
-          <button type="button" class="btn-small btn-share-update" data-token="${esc(s.token)}">更新</button>
+          <button type="button" class="btn-small btn-share-update" data-token="${esc(s.token)}" data-album="${esc(s.album || '')}" data-from="${esc(s.from || '')}" data-to="${esc(s.to || '')}">更新</button>
           <button type="button" class="btn-small btn-share-del" data-token="${esc(s.token)}">删除</button>
         </span>
       </div>`).join('');
     box.querySelectorAll('.btn-share-copy').forEach((b) => b.addEventListener('click', () => copyShare(b.dataset.url)));
     box.querySelectorAll('.btn-share-open').forEach((b) => b.addEventListener('click', () => window.open(window.SITE_ORIGIN + b.dataset.url, '_blank')));
-    box.querySelectorAll('.btn-share-update').forEach((b) => b.addEventListener('click', () => updateShare(b.dataset.token)));
+    box.querySelectorAll('.btn-share-update').forEach((b) => b.addEventListener('click', () => updateShare(b.dataset)));
     box.querySelectorAll('.btn-share-del').forEach((b) => b.addEventListener('click', () => deleteShare(b.dataset.token)));
   } catch { /* 忽略 */ }
 }
@@ -507,15 +507,15 @@ async function copyShare(url) {
   alert('链接已复制 ✅');
 }
 
-async function updateShare(token) {
-  if (!confirm('用最新数据重新生成这个快照?\n链接和二维码不变。')) return;
-  try {
-    const res = await fetch(`/api/share?token=${encodeURIComponent(token)}`, { method: 'POST' });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) { bounceOn401(res); return alert(data.error || `更新失败(HTTP ${res.status})`); }
-    alert('已更新 ✅');
-    renderShares();
-  } catch { alert('网络异常,请重试'); }
+/* 「更新」→ 重新进入「生成分享页」,预填该快照条件与已导出内容,重新选择后保存(链接不变) */
+async function updateShare(d) {
+  if (!confirm('进入生成分享页重新选择导出内容?\n保存后链接和二维码不变。')) return;
+  const q = new URLSearchParams();
+  q.set('token', d.token);
+  if (d.album) q.set('album', d.album);
+  if (d.from) q.set('from', d.from);
+  if (d.to) q.set('to', d.to);
+  location.href = `/export?${q.toString()}`;
 }
 
 async function deleteShare(token) {

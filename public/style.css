@@ -1290,6 +1290,11 @@ body {
 .ex-todo { display: flex; gap: 6px; align-items: center; padding: 2px 0; }
 .ex-todo.done { color: var(--text-soft); text-decoration: line-through; }
 .ex-login { margin-bottom: 12px; font-size: 0.95rem; }
+/* 逐个条目/待办「导出」勾选(export 页) */
+.ex-toggle { display: inline-flex; align-items: center; gap: 3px; cursor: pointer; user-select: none; color: var(--text-soft); }
+.ex-toggle input { cursor: pointer; }
+.ex-todo .ex-toggle { margin-left: auto; }
+.entry.ex-off, .ex-todo.ex-off { opacity: 0.5; }
 
 /* ---------- 底部 ---------- */
 .site-footer {
