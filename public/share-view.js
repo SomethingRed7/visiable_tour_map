@@ -179,11 +179,28 @@ async function render() {
     .join('');
 
   bindPhotoGridFallback(box);
-  box.querySelectorAll('.photo-grid img').forEach((img) => {
-    img.addEventListener('click', () => window.open(img.dataset.full || img.src, '_blank'));
-  });
+  // 照片点击 → 大图预览(与主页当日动态一致,不跳转新窗口;由 document 级 lightbox 处理)
   await renderMap(list, $('#sv-map'), $('#sv-map-note'));
 }
+
+/* 大图预览:点缩略图 → 全屏大图;点遮罩 / Esc 关闭(与主页当日动态同款,不跳转新窗口) */
+function setupLightbox() {
+  const lb = document.getElementById('lightbox');
+  document.addEventListener('click', (e) => {
+    const img = e.target.closest('.photo-grid img');
+    if (!img || !lb) return;
+    lb.querySelector('img').src = img.dataset.full || img.src;
+    lb.classList.add('open');
+  });
+  if (lb) {
+    lb.addEventListener('click', () => lb.classList.remove('open'));
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') lb.classList.remove('open');
+    });
+  }
+}
+
+setupLightbox();
 
 render().catch((err) => {
   console.error(err);

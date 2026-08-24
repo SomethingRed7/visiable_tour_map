@@ -46,6 +46,7 @@ ${cspMeta}
   </section>
 </main>
 <footer class="site-footer">咕咕嘎嘎 · 记录每一段在路上</footer>
+<div id="lightbox" class="lightbox" aria-hidden="true"><img alt="查看大图"></div>
 <script type="application/json" id="snapshot-data">${json}</script>
 <script src="/api.js"></script>
 <script src="/loc-picker.js"></script>
