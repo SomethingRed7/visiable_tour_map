@@ -1255,6 +1255,7 @@ body {
 }
 .share-qr { display: flex; justify-content: center; padding: 8px 0; }
 .share-qr canvas { border: 1px solid var(--line); border-radius: 8px; }
+.share-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 10px; }
 
 /* ---------- 打印 ---------- */
 @media print {

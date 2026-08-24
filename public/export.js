@@ -357,6 +357,7 @@ function loadLeaflet() {
 
 /* ---------- 生成分享快照(替代 PDF 导出) ---------- */
 let shareQrLoaded = null;
+let shareQrCanvas = null;
 function loadQrLib() {
   if (!shareQrLoaded) {
     shareQrLoaded = new Promise((resolve, reject) => {
@@ -368,6 +369,17 @@ function loadQrLib() {
     });
   }
   return shareQrLoaded;
+}
+
+/* 保存二维码为 PNG 下载 */
+function saveQrCanvas() {
+  if (!shareQrCanvas) return;
+  const a = document.createElement('a');
+  a.href = shareQrCanvas.toDataURL('image/png');
+  a.download = 'gugugaga-share-qr.png';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 
 function showShareModal(data) {
@@ -384,8 +396,10 @@ function showShareModal(data) {
   loadQrLib().then(() => {
     const canvas = document.createElement('canvas');
     new QRious({ element: canvas, value: url, size: 180 });
+    shareQrCanvas = canvas;
     qrBox.appendChild(canvas);
   }).catch(() => {
+    shareQrCanvas = null;
     qrBox.innerHTML = '<p class="empty">二维码生成失败,直接复制链接分享</p>';
   });
 }
@@ -467,6 +481,19 @@ $('#btn-share-copy').addEventListener('click', async () => {
     document.execCommand('copy');
   }
   $('#share-status').textContent = '已复制 ✅';
+});
+
+$('#btn-share-open').addEventListener('click', () => {
+  window.open($('#share-url').value, '_blank');
+});
+
+$('#btn-qr-save').addEventListener('click', () => {
+  if (shareQrCanvas) {
+    saveQrCanvas();
+    $('#share-status').textContent = '二维码已保存 ✅';
+  } else {
+    $('#share-status').textContent = '二维码还没生成,请稍等';
+  }
 });
 
 $('#btn-share-close').addEventListener('click', () => { $('#share-modal').hidden = true; });

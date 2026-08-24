@@ -21,7 +21,7 @@ export async function onRequestGet(context) {
         ck: s.ck || {},
         created_at: s.created_at || null,
         updated_at: s.updated_at || null,
-        url: s.url || `/s/${s.token}`,
+        url: `/share/${s.token}.html`, // 一律 github.io 静态快照页
       });
     } catch { /* 跳过损坏项 */ }
   }

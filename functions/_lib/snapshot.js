@@ -96,7 +96,10 @@ ${cspMeta}
   .item .title { font-weight: 600; font-size: 1rem; }
   .item .text { font-size: 0.9rem; color: #374151; margin-top: 6px; white-space: pre-wrap; }
   .photos { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-  .photos img { width: 96px; height: 96px; object-fit: cover; border-radius: 8px; cursor: pointer; }
+  .photos img { width: 96px; height: 96px; object-fit: cover; border-radius: 8px; cursor: zoom-in; }
+  #gg-lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.92); display: none; align-items: center; justify-content: center; z-index: 9999; cursor: zoom-out; }
+  #gg-lightbox:not([hidden]) { display: flex; }
+  #gg-lightbox img { max-width: 94vw; max-height: 94vh; border-radius: 6px; }
   footer { text-align: center; color: #9ca3af; font-size: 0.75rem; padding: 20px 0; }
 </style>
 </head>
@@ -112,6 +115,7 @@ ${cspMeta}
   ${hasContent ? '' : '<p style="text-align:center;color:#9ca3af;">这个分享里还没有内容</p>'}
 </div>
 <footer>由咕咕嘎嘎生成</footer>
+<div id="gg-lightbox" hidden><img id="gg-lightbox-img" alt="照片"></div>
 <script>
 (function () {
   var pts = ${JSON.stringify(mapPts)};
@@ -131,6 +135,21 @@ ${cspMeta}
   });
   if (marks.length > 1) map.fitBounds(L.featureGroup(marks).getBounds(), { padding: [30, 30] });
   else map.setView([pts[0].lat, pts[0].lng], 14);
+})();
+</script>
+<script>
+// 照片放大预览:点缩略图看大图,点遮罩关闭
+(function () {
+  var lb = document.getElementById('gg-lightbox');
+  var big = document.getElementById('gg-lightbox-img');
+  if (!lb || !big) return;
+  lb.addEventListener('click', function () { lb.hidden = true; });
+  document.querySelectorAll('.photos img').forEach(function (im) {
+    im.addEventListener('click', function () {
+      big.src = im.getAttribute('data-full') || im.src;
+      lb.hidden = false;
+    });
+  });
 })();
 </script>
 </body>

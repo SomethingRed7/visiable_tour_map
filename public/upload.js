@@ -480,12 +480,14 @@ async function renderShares() {
         <span class="recent-info">${esc(shareCond(s) || '全部内容')} · 更新于 ${esc(fmtDateTime(s.updated_at))}</span>
         <span class="recent-actions">
           <button type="button" class="btn-small btn-share-copy" data-url="${esc(s.url)}">复制</button>
+          <button type="button" class="btn-small btn-share-qr" data-url="${esc(s.url)}">二维码</button>
           <button type="button" class="btn-small btn-share-open" data-url="${esc(s.url)}">打开</button>
           <button type="button" class="btn-small btn-share-update" data-token="${esc(s.token)}" data-album="${esc(s.album || '')}" data-from="${esc(s.from || '')}" data-to="${esc(s.to || '')}">更新</button>
           <button type="button" class="btn-small btn-share-del" data-token="${esc(s.token)}">删除</button>
         </span>
       </div>`).join('');
     box.querySelectorAll('.btn-share-copy').forEach((b) => b.addEventListener('click', () => copyShare(b.dataset.url)));
+    box.querySelectorAll('.btn-share-qr').forEach((b) => b.addEventListener('click', () => showShareQr(b.dataset.url)));
     box.querySelectorAll('.btn-share-open').forEach((b) => b.addEventListener('click', () => window.open(window.SITE_ORIGIN + b.dataset.url, '_blank')));
     box.querySelectorAll('.btn-share-update').forEach((b) => b.addEventListener('click', () => updateShare(b.dataset)));
     box.querySelectorAll('.btn-share-del').forEach((b) => b.addEventListener('click', () => deleteShare(b.dataset.token)));
@@ -528,6 +530,76 @@ async function deleteShare(token) {
     renderShares();
   } catch { alert('网络异常,请重试'); }
 }
+
+/* ---- 分享二维码弹层(重新显示某条快照的二维码) ---- */
+let shareQrLoaded = null;
+let shareQrCanvas = null;
+function loadQrLib() {
+  if (!shareQrLoaded) {
+    shareQrLoaded = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js';
+      s.onload = resolve;
+      s.onerror = () => reject(new Error('二维码库加载失败'));
+      document.head.appendChild(s);
+    });
+  }
+  return shareQrLoaded;
+}
+
+let shareQrFullUrl = '';
+function showShareQr(url) {
+  const box = $('#share-qr-modal');
+  const qrBox = $('#share-qr-box');
+  const st = $('#share-qr-status');
+  if (!box) return;
+  shareQrFullUrl = window.SITE_ORIGIN + url;
+  st.textContent = '';
+  box.hidden = false;
+  qrBox.innerHTML = '';
+  loadQrLib().then(() => {
+    const canvas = document.createElement('canvas');
+    new QRious({ element: canvas, value: shareQrFullUrl, size: 180 });
+    shareQrCanvas = canvas;
+    qrBox.appendChild(canvas);
+  }).catch(() => {
+    shareQrCanvas = null;
+    qrBox.innerHTML = '<p class="empty">二维码生成失败,直接复制链接分享</p>';
+  });
+}
+
+$('#btn-share-qr-copy').addEventListener('click', async () => {
+  const st = $('#share-qr-status');
+  try {
+    await navigator.clipboard.writeText(shareQrFullUrl);
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = shareQrFullUrl;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+  }
+  st.textContent = '链接已复制 ✅';
+});
+
+$('#btn-share-qr-open').addEventListener('click', () => {
+  if (shareQrFullUrl) window.open(shareQrFullUrl, '_blank');
+});
+
+$('#btn-share-qr-save').addEventListener('click', () => {
+  const st = $('#share-qr-status');
+  if (!shareQrCanvas) { st.textContent = '二维码还没生成,请稍等'; return; }
+  const a = document.createElement('a');
+  a.href = shareQrCanvas.toDataURL('image/png');
+  a.download = 'gugugaga-share-qr.png';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  st.textContent = '二维码已保存 ✅';
+});
+
+$('#btn-share-qr-close').addEventListener('click', () => { $('#share-qr-modal').hidden = true; });
 
 /* ---- 导出行程(按专辑 / 按起止日期 / 叠加) ---- */
 $('#btn-export').addEventListener('click', () => {

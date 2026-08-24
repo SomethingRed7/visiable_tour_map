@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>行程总览 · 咕咕嘎嘎</title>
-  <link rel="stylesheet" href="style.css?v=20260825c">
+  <link rel="stylesheet" href="style.css?v=20260825d">
 </head>
 <body>
   <header class="site-header">
@@ -51,15 +51,20 @@
       <div class="share-link-row">
         <input type="text" id="share-url" readonly>
         <button type="button" id="btn-share-copy" class="btn-small">复制</button>
+        <button type="button" id="btn-share-open" class="btn-small">打开</button>
       </div>
       <div id="share-qr" class="share-qr"></div>
+      <p class="manage-hint">长按二维码可保存到相册,或点「保存二维码」</p>
       <p id="share-status" class="form-status"></p>
-      <button type="button" id="btn-share-close" class="btn-small">关闭</button>
+      <div class="share-actions">
+        <button type="button" id="btn-qr-save" class="btn-small">保存二维码</button>
+        <button type="button" id="btn-share-close" class="btn-small">关闭</button>
+      </div>
     </div>
   </div>
 
   <script src="api.js?v=20260825"></script>
   <script src="loc-picker.js?v=20260818f"></script>
-  <script src="export.js?v=20260825c"></script>
+  <script src="export.js?v=20260825d"></script>
 </body>
 </html>

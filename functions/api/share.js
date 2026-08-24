@@ -7,7 +7,7 @@
 // 条目选择:inc = 逗号分隔 date|ts;inc_todo = 逗号分隔 date|sort_order|id;字段缺席=全选,空串=一个都不导出。
 // 照片仅存路径引用(不复制);冻结语义=生成者逐个勾选决定。
 // github.io 静态页写入需要 env.GH_PAT(GitHub token,只授权 somethingred7.github.io 仓库);
-// 无 GH_PAT 或写入失败 → 回退返回 /s/<token>(pages.dev 服务端渲染),快照照常可用。
+// 分享链接一律 /share/<token>.html(github.io);写入失败静态页会暂时 404,但生成中/不存在由 github.io 404 页友好提示,不再跳 pages.dev。
 import { verifySession } from '../_lib/auth.js';
 import { buildSnapshotHtml } from '../_lib/snapshot.js';
 
@@ -56,11 +56,11 @@ async function ghDeletePage(env, token) {
   } catch { return false; }
 }
 
-// 冻结后写 KV + 尽力写 github.io 静态页;返回 { url }
+// 冻结后写 KV + 尽力写 github.io 静态页;分享链接一律用 github.io(/share/<token>.html),不跳 pages.dev
 async function persistSnapshot(env, snap, token) {
   const html = buildSnapshotHtml(snap, { cspMeta: true, origin: 'https://gugugaga-viw.pages.dev' });
-  const ghOk = await ghWritePage(env, token, html);
-  snap.url = ghOk ? `/share/${token}.html` : `/s/${token}`;
+  await ghWritePage(env, token, html);
+  snap.url = `/share/${token}.html`;
   await env.ENTRIES.put(`share:${token}`, JSON.stringify(snap));
   return snap.url;
 }
@@ -222,7 +222,7 @@ export async function onRequestGet(context) {
     todos: snap.todos || [],
     created_at: snap.created_at || null,
     updated_at: snap.updated_at || null,
-    url: snap.url || `/s/${snap.token}`,
+    url: `/share/${snap.token}.html`,
   });
 }
 

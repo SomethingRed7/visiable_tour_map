@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>管理 · 咕咕嘎嘎</title>
-  <link rel="stylesheet" href="style.css?v=20260825c">
+  <link rel="stylesheet" href="style.css?v=20260825d">
   <style>
     /* 管理界面正文总体不加粗;标题与主页保持一致(site-title=800、panel-heading=700 用全局样式) */
     .write-page .login-hint a,
@@ -195,11 +195,27 @@
     </div>
   </div>
 
+  <!-- 分享二维码弹层(重新显示某条快照的二维码) -->
+  <div id="share-qr-modal" class="modal" hidden>
+    <div class="modal-card">
+      <h3 class="sub-panel-heading">分享二维码</h3>
+      <div id="share-qr-box" class="share-qr"></div>
+      <p id="share-qr-note" class="manage-hint">长按二维码可保存到相册,或点「保存二维码」</p>
+      <p id="share-qr-status" class="form-status"></p>
+      <div class="share-actions">
+        <button type="button" id="btn-share-qr-copy" class="btn-small">复制链接</button>
+        <button type="button" id="btn-share-qr-open" class="btn-small">打开</button>
+        <button type="button" id="btn-share-qr-save" class="btn-small">保存二维码</button>
+        <button type="button" id="btn-share-qr-close" class="btn-small">关闭</button>
+      </div>
+    </div>
+  </div>
+
   <footer class="site-footer">咕咕嘎嘎 · 记录每一段在路上</footer>
 
   <script src="api.js?v=20260825"></script>
   <script src="loc-picker.js?v=20260818f"></script>
   <script src="entry-modal.js?v=20260818f"></script>
-  <script src="upload.js?v=20260825c"></script>
+  <script src="upload.js?v=20260825d"></script>
 </body>
 </html>
