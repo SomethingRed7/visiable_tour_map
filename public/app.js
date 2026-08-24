@@ -261,17 +261,21 @@ function bindStreamEditBtns(container) {
   });
 }
 
-/* 预览弹层(与管理界面同款) */
-async function openStreamPreview(date, ts) {
-  const data = await (await fetch(`/api/entries?date=${date}`)).json();
-  const e = (data.entries || []).find((x) => String(x.ts) === String(ts));
-  if (!e) return alert('条目不存在');
+/* 预览弹层(与管理界面同款);地图打卡点点击复用 */
+function openEntryCard(e) {
   $('#preview-body').innerHTML = `<div class="preview-date">${esc(e.date)}</div>` + entryCard(e);
   $('#preview-modal').hidden = false;
   bindPhotoGridFallback($('#preview-body'));
   $('#preview-body').querySelectorAll('.photo-grid img').forEach((img) => {
     img.addEventListener('click', () => window.open(img.dataset.full || img.src, '_blank'));
   });
+}
+
+async function openStreamPreview(date, ts) {
+  const data = await (await fetch(`/api/entries?date=${date}`)).json();
+  const e = (data.entries || []).find((x) => String(x.ts) === String(ts));
+  if (!e) return alert('条目不存在');
+  openEntryCard(e);
 }
 $('#btn-preview-close').addEventListener('click', () => { $('#preview-modal').hidden = true; });
 $('#preview-modal').addEventListener('click', (e) => { if (e.target.id === 'preview-modal') $('#preview-modal').hidden = true; });
@@ -1240,7 +1244,8 @@ async function renderAlbumMap(list) {
   const bounds = [];
   for (const e of withLoc) {
     const mk = L.marker([e.location.lat, e.location.lng], { icon: L.divIcon({ className: 'gg-marker', html: ggPinSvg(), iconSize: [28, 28], iconAnchor: [14, 27] }) }).addTo(map);
-    mk.bindPopup(`<b>${esc(e.date)} ${fmtTime(e.ts)}</b> ${esc(e.title || '')}<br>${esc(e.location.display || e.location.name || '')}`);
+    // 点打卡点 → 打开详情弹层(含文字 + 照片,可点开大图)
+    mk.on('click', () => openEntryCard(e));
     bounds.push([e.location.lat, e.location.lng]);
   }
   if (bounds.length === 1) {
