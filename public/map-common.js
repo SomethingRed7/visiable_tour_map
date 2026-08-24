@@ -150,18 +150,36 @@
     if (btn) btn.addEventListener('click', close);
     modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
   }
-  /* 地图打卡点「展开详情」:紧凑面板贴在地图容器顶部,不遮整张地图、可一键关闭;
-   * 仅显示部分图片(前 3 张 + 总数),点照片可看大图;全屏时面板即在页面最上方。 */
+  /* 地图打卡点「展开详情」:紧凑面板贴在地图容器右上方,不遮整张地图、可一键关闭、可上下滚动看全部图片。
+   * 面板挂在 document.body(fixed),不在 Leaflet 容器内 —— Leaflet 容器 touch-action:none 会吞掉子元素滚动;
+   * 全屏时 box 铺满视口,面板自动跟到页面最上方。 */
   function openMapDetail(e, container) {
     if (!e || !container) return;
-    let panel = container._ggDetailPanel;
+    let panel = document.getElementById('map-detail-panel');
     if (!panel) {
       panel = document.createElement('div');
+      panel.id = 'map-detail-panel';
       panel.className = 'map-detail-panel';
-      panel.style.cssText = 'position:absolute;top:10px;right:10px;z-index:1000;width:min(320px,calc(100% - 20px));max-height:68%;overflow:auto;background:#fff;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.25);padding:10px 12px;font-size:.9rem;color:#1f2937;border:1px solid #e5e7eb;';
-      container.appendChild(panel);
-      container._ggDetailPanel = panel;
+      panel.style.cssText = 'position:fixed;z-index:10000;width:min(320px,calc(100vw - 24px));max-height:72vh;overflow:auto;background:#fff;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.25);padding:10px 12px;font-size:.9rem;color:#1f2937;border:1px solid #e5e7eb;display:none;';
+      document.body.appendChild(panel);
+      const reposition = () => {
+        if (panel.style.display === 'none' || !panel._anchor) return;
+        const r = panel._anchor.getBoundingClientRect();
+        const w = panel.offsetWidth || 320;
+        panel.style.top = Math.max(8, r.top + 10) + 'px';
+        panel.style.left = Math.max(8, r.left + Math.max(0, r.width - w - 10)) + 'px';
+      };
+      panel._reposition = reposition;
+      window.addEventListener('scroll', reposition, { passive: true });
+      window.addEventListener('resize', reposition);
+      // 全屏切换/地图重排:box 尺寸变化 → 重新对齐
+      if (window.ResizeObserver) {
+        panel._ro = new ResizeObserver(() => reposition());
+      }
     }
+    // 锚定当前地图容器并跟随其位置变化
+    if (panel._ro) panel._ro.observe(container);
+    panel._anchor = container;
     const meta = [];
     if (e.ts) meta.push(fmtTime(e.ts));
     if (e.author) meta.push(esc(e.author));
@@ -170,8 +188,6 @@
     const locName = e.location ? (e.location.display || e.location.name || '') : '';
     if (locName) meta.push(`📍 ${esc(locName)}`);
     const photos = e.photos || [];
-    const shown = photos.slice(0, 3);
-    const more = photos.length > shown.length ? `<div style="color:#9ca3af;font-size:.78rem;margin-top:4px">共 ${photos.length} 张照片</div>` : '';
     panel.innerHTML =
       `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">` +
         `<b style="font-size:1rem">${esc(e.date)}</b>` +
@@ -179,11 +195,13 @@
       `</div>` +
       (meta.length ? `<div style="color:#6b7280;font-size:.78rem;margin:4px 0 6px">${meta.join(' · ')}</div>` : '') +
       (e.title ? `<div style="font-weight:600;margin-bottom:4px">${esc(e.title)}</div>` : '') +
-      (e.text ? `<div style="color:#374151;white-space:pre-wrap;margin-bottom:6px;max-height:120px;overflow:auto">${esc(e.text)}</div>` : '') +
-      (shown.length ? `<div class="photo-grid">${shown.map((p) => `<img src="${thumbUrl(p)}" data-full="${p}" alt="照片" loading="lazy">`).join('')}</div>` : '') +
-      more;
+      (e.text ? `<div style="color:#374151;white-space:pre-wrap;margin-bottom:6px">${esc(e.text)}</div>` : '') +
+      (photos.length ? `<div class="photo-grid">${photos.map((p) => `<img src="${thumbUrl(p)}" data-full="${p}" alt="照片" loading="lazy">`).join('')}</div>` : '');
     const closeBtn = panel.querySelector('.map-detail-close');
-    if (closeBtn) closeBtn.addEventListener('click', () => { panel.style.display = 'none'; });
+    if (closeBtn) closeBtn.addEventListener('click', () => {
+      panel.style.display = 'none';
+      if (panel._ro) panel._ro.disconnect();
+    });
     bindPhotoGridFallback(panel);
     const lb = document.getElementById('lightbox');
     panel.querySelectorAll('.photo-grid img').forEach((img) => {
@@ -193,6 +211,7 @@
       });
     });
     panel.style.display = 'block';
+    panel._reposition();
   }
   /* 打卡点地图:主页/分享/导出页全用这个
    * opts: { onMarkerClick(entry), scrollWheelZoom=true, containerId, showRoute=true, fitPadding=[30,30], fullscreen=true } */
