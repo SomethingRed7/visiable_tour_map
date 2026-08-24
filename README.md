@@ -2,7 +2,7 @@
 
 通用旅行日记 portal:日历 + 每日动态 + 专辑聚合 + 公开上传。**双宿主架构**:
 
-- **门户(只读)**:https://somethingred7.github.io/visiable_tour_map/ —— 静态托管于 GitHub Pages,公开浏览
+- **门户(只读)**:https://somethingred7.github.io/ —— 静态托管于 GitHub Pages(用户主页仓库),公开浏览
 - **登录/写日记/管理/API**:https://gugugaga-viw.pages.dev/ —— Cloudflare Pages Functions(R2 存照片、D1 存条目),同源 cookie 登录
 - 门户跨域读取 API 由 `functions/_middleware.js` 放开 CORS;登录后在 pages.dev 操作,无需 token 鉴权
 
@@ -16,13 +16,14 @@
 ## 架构
 
 - `public/` — 静态前端:
-  - 发布到 github.io:index.html 门户 + app.js/loc-picker.js/entry-modal.js/api.js/style.css(只读)
+  - 发布到 github.io:index.html 门户 + app.js/loc-picker.js/entry-modal.js/api.js/share-view.js/style.css(只读 + 分享快照渲染)
   - 保留在 Cloudflare:write.html/edit.html/export.html(登录、写日记、导出,同源 cookie 鉴权)
 - `functions/` — serverless(Cloudflare):
   - `_middleware.js` — CORS(github.io 门户读取 API)
   - `GET /api/entries?date=|month=|album=` — seed(预置条目)+ D1 合并查询,未登录只返回公开
   - `POST /api/upload` — multipart(前端已压缩 1600+480 两版),照片→R2,条目→D1
   - `GET /photos/<key>` — R2 直出,长缓存
+  - `POST/DELETE /api/share` — 分享快照:冻结内容入 KV + 经 GitHub Contents API 写成静态页 `share/<token>.html` 到 `somethingred7.github.io` 仓库;链接 https://somethingred7.github.io/share/<token>.html(需 CF Secret `GH_PAT`,写入失败自动回退 pages.dev/s/<token>)
 - `functions/seed.js` — 预置条目(新西兰蜜月 2026,16 条),只读
 - `wrangler.toml` — KV `ENTRIES` + R2 `PHOTOS` + D1 `DB` 绑定;`[vars]` 仅 USERS(密钥在 `.dev.vars`/CF Secrets)
 
