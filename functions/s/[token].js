@@ -4,8 +4,8 @@
 // 注意:CSP 由响应头提供;静态快照(github.io share/<token>.html)由 /api/share 生成,见 _lib/snapshot.js。
 import { buildSnapshotHtml } from '../_lib/snapshot.js';
 
-// 快照页自包含(内联脚本/样式 + leaflet CDN + 高德瓦片 + pages.dev 照片),CSP 相应放开
-const CSP = "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob: https://*.is.autonavi.com https://cdn.jsdelivr.net https://gugugaga-viw.pages.dev; connect-src 'self' https://cdn.jsdelivr.net https://gugugaga-viw.pages.dev; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+// 快照页 = 门户样式(/style.css + share-view.js 同源渲染),CSP 放行 leaflet CDN + 高德瓦片
+const CSP = "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://webapi.amap.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob: https://*.is.autonavi.com https://*.amap.com; connect-src 'self' https://webapi.amap.com https://restapi.amap.com https://*.amap.com; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
 
 function notFoundPage() {
   const main = `<header class="site-header">

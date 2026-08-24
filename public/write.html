@@ -195,16 +195,19 @@
     </div>
   </div>
 
-  <!-- 分享二维码弹层(重新显示某条快照的二维码) -->
+  <!-- 分享弹层(重新显示某条快照:链接 + 二维码,类似「分享快照已生成」) -->
   <div id="share-qr-modal" class="modal" hidden>
     <div class="modal-card">
-      <h3 class="sub-panel-heading">分享二维码</h3>
+      <h3 class="sub-panel-heading">分享链接</h3>
+      <div class="share-link-row">
+        <input type="text" id="share-qr-link" readonly>
+        <button type="button" id="btn-share-qr-copy" class="btn-small">复制</button>
+        <button type="button" id="btn-share-qr-open" class="btn-small">打开</button>
+      </div>
       <div id="share-qr-box" class="share-qr"></div>
-      <p id="share-qr-note" class="manage-hint">长按二维码可保存到相册,或点「保存二维码」</p>
+      <p class="manage-hint">长按二维码可保存到相册,或点「保存二维码」</p>
       <p id="share-qr-status" class="form-status"></p>
       <div class="share-actions">
-        <button type="button" id="btn-share-qr-copy" class="btn-small">复制链接</button>
-        <button type="button" id="btn-share-qr-open" class="btn-small">打开</button>
         <button type="button" id="btn-share-qr-save" class="btn-small">保存二维码</button>
         <button type="button" id="btn-share-qr-close" class="btn-small">关闭</button>
       </div>
@@ -216,6 +219,6 @@
   <script src="api.js?v=20260825"></script>
   <script src="loc-picker.js?v=20260818f"></script>
   <script src="entry-modal.js?v=20260818f"></script>
-  <script src="upload.js?v=20260825d"></script>
+  <script src="upload.js?v=20260825e"></script>
 </body>
 </html>

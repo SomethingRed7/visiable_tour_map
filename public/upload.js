@@ -479,34 +479,15 @@ async function renderShares() {
     box.innerHTML = list.map((s) => `<div class="recent-item">
         <span class="recent-info">${esc(shareCond(s) || '全部内容')} · 更新于 ${esc(fmtDateTime(s.updated_at))}</span>
         <span class="recent-actions">
-          <button type="button" class="btn-small btn-share-copy" data-url="${esc(s.url)}">复制</button>
-          <button type="button" class="btn-small btn-share-qr" data-url="${esc(s.url)}">二维码</button>
-          <button type="button" class="btn-small btn-share-open" data-url="${esc(s.url)}">打开</button>
+          <button type="button" class="btn-small btn-share-show" data-url="${esc(s.url)}">分享</button>
           <button type="button" class="btn-small btn-share-update" data-token="${esc(s.token)}" data-album="${esc(s.album || '')}" data-from="${esc(s.from || '')}" data-to="${esc(s.to || '')}">更新</button>
           <button type="button" class="btn-small btn-share-del" data-token="${esc(s.token)}">删除</button>
         </span>
       </div>`).join('');
-    box.querySelectorAll('.btn-share-copy').forEach((b) => b.addEventListener('click', () => copyShare(b.dataset.url)));
-    box.querySelectorAll('.btn-share-qr').forEach((b) => b.addEventListener('click', () => showShareQr(b.dataset.url)));
-    box.querySelectorAll('.btn-share-open').forEach((b) => b.addEventListener('click', () => window.open(window.SITE_ORIGIN + b.dataset.url, '_blank')));
+    box.querySelectorAll('.btn-share-show').forEach((b) => b.addEventListener('click', () => showShareQr(b.dataset.url)));
     box.querySelectorAll('.btn-share-update').forEach((b) => b.addEventListener('click', () => updateShare(b.dataset)));
     box.querySelectorAll('.btn-share-del').forEach((b) => b.addEventListener('click', () => deleteShare(b.dataset.token)));
   } catch { /* 忽略 */ }
-}
-
-async function copyShare(url) {
-  const full = window.SITE_ORIGIN + url;
-  try {
-    await navigator.clipboard.writeText(full);
-  } catch {
-    const ta = document.createElement('textarea');
-    ta.value = full;
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    ta.remove();
-  }
-  alert('链接已复制 ✅');
 }
 
 /* 「更新」→ 重新进入「生成分享页」,预填该快照条件与已导出内容,重新选择后保存(链接不变) */
@@ -550,10 +531,12 @@ function loadQrLib() {
 let shareQrFullUrl = '';
 function showShareQr(url) {
   const box = $('#share-qr-modal');
+  const link = $('#share-qr-link');
   const qrBox = $('#share-qr-box');
   const st = $('#share-qr-status');
-  if (!box) return;
+  if (!box || !link) return;
   shareQrFullUrl = window.SITE_ORIGIN + url;
+  link.value = shareQrFullUrl;
   st.textContent = '';
   box.hidden = false;
   qrBox.innerHTML = '';
