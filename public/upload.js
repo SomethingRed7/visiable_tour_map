@@ -486,14 +486,14 @@ async function renderShares() {
         </span>
       </div>`).join('');
     box.querySelectorAll('.btn-share-copy').forEach((b) => b.addEventListener('click', () => copyShare(b.dataset.url)));
-    box.querySelectorAll('.btn-share-open').forEach((b) => b.addEventListener('click', () => window.open(b.dataset.url, '_blank')));
+    box.querySelectorAll('.btn-share-open').forEach((b) => b.addEventListener('click', () => window.open(window.SITE_ORIGIN + b.dataset.url, '_blank')));
     box.querySelectorAll('.btn-share-update').forEach((b) => b.addEventListener('click', () => updateShare(b.dataset.token)));
     box.querySelectorAll('.btn-share-del').forEach((b) => b.addEventListener('click', () => deleteShare(b.dataset.token)));
   } catch { /* 忽略 */ }
 }
 
 async function copyShare(url) {
-  const full = location.origin + url;
+  const full = window.SITE_ORIGIN + url;
   try {
     await navigator.clipboard.writeText(full);
   } catch {

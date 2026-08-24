@@ -4,6 +4,8 @@
 // - 照片 <img src="/photos/..."> 跨域可直读,但需要绝对地址,故统一补 API_ORIGIN 前缀
 (function () {
   window.API_ORIGIN = 'https://gugugaga-viw.pages.dev';
+  // 站点根域名(github.io 门户;对外分享链接等用它拼)
+  window.SITE_ORIGIN = 'https://somethingred7.github.io';
 
   // 构造绝对 API/分享 URL
   window.apiUrl = function (path) { return window.API_ORIGIN + (String(path).startsWith('/') ? path : '/' + path); };

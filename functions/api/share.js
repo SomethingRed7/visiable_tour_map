@@ -1,10 +1,67 @@
 // 行程分享快照 API:
-//   POST   /api/share            → 创建快照(按专辑/日期区间 + 四类勾选冻结内容入 KV)
+//   POST   /api/share            → 创建快照(冻结内容入 KV + 写成 github.io 静态页 share/<token>.html)
 //   POST   /api/share?token=xxx  → 更新快照(按快照记忆的生成条件用最新数据重新冻结,链接不变)
-//   DELETE /api/share?token=xxx  → 删除快照(删除后 /s/<token> 404)
-// 快照 key = `share:<8位随机码>`,value = { token, album, from, to, ck, entries, todos, created_at, updated_at }
+//   DELETE /api/share?token=xxx  → 删除快照(KV + github.io 静态页)
+// 快照 key = `share:<8位随机码>`,value = { token, album, from, to, ck, entries, todos, created_at, updated_at, url }
 // 照片仅存路径引用(不复制);冻结语义与导出页一致(私有勾选=快照含私有,生成者决定)。
+// github.io 静态页写入需要 env.GH_PAT(GitHub token,只授权 somethingred7.github.io 仓库);
+// 无 GH_PAT 或写入失败 → 回退返回 /s/<token>(pages.dev 服务端渲染),快照照常可用。
 import { verifySession } from '../_lib/auth.js';
+import { buildSnapshotHtml } from '../_lib/snapshot.js';
+
+const GH_REPO = 'SomethingRed7/somethingred7.github.io';
+
+// UTF-8 安全 base64(Workers 无 unescape)
+function b64(s) {
+  const bytes = new TextEncoder().encode(s);
+  let bin = '';
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin);
+}
+
+// 把快照页写成 github.io 静态文件 share/<token>.html;成功 true
+async function ghWritePage(env, token, html) {
+  const pat = env.GH_PAT;
+  if (!pat) return false;
+  const path = `share/${token}.html`;
+  try {
+    const res = await fetch(`https://api.github.com/repos/${GH_REPO}/contents/${path}`, {
+      method: 'PUT',
+      headers: { 'Authorization': `Bearer ${pat}`, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json', 'User-Agent': 'gugugaga' },
+      body: JSON.stringify({ message: `share ${token}`, content: b64(html), branch: 'main' }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+// 删除 github.io 静态文件(不存在视为成功);成功 true
+async function ghDeletePage(env, token) {
+  const pat = env.GH_PAT;
+  if (!pat) return true;
+  const path = `share/${token}.html`;
+  const url = `https://api.github.com/repos/${GH_REPO}/contents/${path}`;
+  try {
+    const r = await fetch(url, { headers: { 'Authorization': `Bearer ${pat}`, 'Accept': 'application/vnd.github+json', 'User-Agent': 'gugugaga' } });
+    if (r.status === 404) return true;
+    if (!r.ok) return false;
+    const meta = await r.json();
+    const res = await fetch(url, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${pat}`, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json', 'User-Agent': 'gugugaga' },
+      body: JSON.stringify({ message: `delete ${token}`, sha: meta.sha, branch: 'main' }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+// 冻结后写 KV + 尽力写 github.io 静态页;返回 { url }
+async function persistSnapshot(env, snap, token) {
+  const html = buildSnapshotHtml(snap, { cspMeta: true });
+  const ghOk = await ghWritePage(env, token, html);
+  snap.url = ghOk ? `/share/${token}.html` : `/s/${token}`;
+  await env.ENTRIES.put(`share:${token}`, JSON.stringify(snap));
+  return snap.url;
+}
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_RANGE_DAYS = 60;
@@ -97,8 +154,8 @@ export async function onRequestPost(context) {
     snap.entries = entries;
     snap.todos = todos;
     snap.updated_at = new Date().toISOString();
-    await context.env.ENTRIES.put(`share:${token}`, JSON.stringify(snap));
-    return Response.json({ ok: true, token: snap.token, url: `/s/${snap.token}`, created_at: snap.created_at, updated_at: snap.updated_at, updated: true });
+    const url = await persistSnapshot(context.env, snap, token);
+    return Response.json({ ok: true, token: snap.token, url, created_at: snap.created_at, updated_at: snap.updated_at, updated: true });
   }
 
   // ---- 创建 ----
@@ -130,8 +187,8 @@ export async function onRequestPost(context) {
   const now = new Date().toISOString();
   const newToken = genToken();
   const snap = { token: newToken, album: cond.album, from: cond.from, to: cond.to, ck: cond.ck, entries, todos, created_at: now, updated_at: now };
-  await context.env.ENTRIES.put(`share:${newToken}`, JSON.stringify(snap));
-  return Response.json({ ok: true, token: newToken, url: `/s/${newToken}`, created_at: now, updated_at: now, entries: entries.length, todos: todos.length });
+  const url = await persistSnapshot(context.env, snap, newToken);
+  return Response.json({ ok: true, token: newToken, url, created_at: now, updated_at: now, entries: entries.length, todos: todos.length });
 }
 
 export async function onRequestDelete(context) {
@@ -145,5 +202,6 @@ export async function onRequestDelete(context) {
   const raw = await context.env.ENTRIES.get(`share:${token}`);
   if (!raw) return Response.json({ error: '快照不存在或已删除' }, { status: 404 });
   await context.env.ENTRIES.delete(`share:${token}`);
+  await ghDeletePage(context.env, token);
   return Response.json({ ok: true });
 }

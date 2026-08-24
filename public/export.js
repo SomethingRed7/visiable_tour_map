@@ -324,7 +324,7 @@ function loadQrLib() {
 }
 
 function showShareModal(data) {
-  const url = location.origin + data.url;
+  const url = window.SITE_ORIGIN + data.url;
   $('#share-url').value = url;
   $('#share-status').textContent = '';
   $('#share-modal').hidden = false;
