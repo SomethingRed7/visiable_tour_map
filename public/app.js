@@ -9,6 +9,9 @@ let selectedDate = null;
 let activeAlbum = null;
 let currentUser = null;    // 登录用户;null=未登录(待办完全不可见)
 
+// 只读门户(github.io):纯浏览,不渲染任何登录/管理入口(登录只在 pages.dev)
+const READONLY_PORTAL = location.hostname === 'somethingred7.github.io';
+
 /* 今天日期字符串(本地时区,YYYY-MM-DD)——「＋ 记录」跳转带当天日期用 */
 function todayStr() {
   const d = new Date();
@@ -320,9 +323,16 @@ async function initPortalUser() {
     if (selectedDate) renderDayEntries(selectedDate); // 登录后刷新动态(带编辑按钮)
     renderStream(); // 最近动态流同步刷新
   } else {
-    box.hidden = false;
-    // 未登录:仅一个醒目的「登录」按钮(btn-write 样式)
-    box.innerHTML = '<a class="btn-write" href="/write">登录</a>';
+    // 未登录
+    if (READONLY_PORTAL) {
+      // 只读门户:完全不显示登录入口,仅浏览
+      box.hidden = true;
+      box.innerHTML = '';
+    } else {
+      box.hidden = false;
+      // 仅 pages.dev 显示醒目「登录」按钮(btn-write 样式)
+      box.innerHTML = '<a class="btn-write" href="/write">登录</a>';
+    }
     const albumTab = document.querySelector('#panel-tabs .tab-btn[data-tab="album"]');
     if (albumTab) albumTab.hidden = true; // 未登录无专辑
     const tabsBar2 = $('#panel-tabs');
