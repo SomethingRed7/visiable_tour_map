@@ -261,24 +261,16 @@ function bindStreamEditBtns(container) {
   });
 }
 
-/* 预览弹层(与管理界面同款);地图打卡点点击复用 */
-function openEntryCard(e) {
-  $('#preview-body').innerHTML = `<div class="preview-date">${esc(e.date)}</div>` + entryCard(e);
-  $('#preview-modal').hidden = false;
-  bindPhotoGridFallback($('#preview-body'));
-  $('#preview-body').querySelectorAll('.photo-grid img').forEach((img) => {
-    img.addEventListener('click', () => window.open(img.dataset.full || img.src, '_blank'));
-  });
-}
-
+/* 预览弹层:地图打卡点 + 动态流「预览」按钮共用(map-common.openEntryCard,文字+图片,lightbox) */
 async function openStreamPreview(date, ts) {
   const data = await (await fetch(`/api/entries?date=${date}`)).json();
   const e = (data.entries || []).find((x) => String(x.ts) === String(ts));
   if (!e) return alert('条目不存在');
-  openEntryCard(e);
+  MapCommon.openEntryCard(e);
 }
-$('#btn-preview-close').addEventListener('click', () => { $('#preview-modal').hidden = true; });
-$('#preview-modal').addEventListener('click', (e) => { if (e.target.id === 'preview-modal') $('#preview-modal').hidden = true; });
+
+/* 详情弹层关闭(关闭按钮 + 点遮罩),与分享页/导出页共用 map-common.bindPreviewModal */
+MapCommon.bindPreviewModal();
 
 function renderDayEntries(ds) {
   const dayEntries = allEntries
@@ -1201,67 +1193,12 @@ function openCkinMap() {
   });
 }
 
-/* ---------- 专辑地图(Leaflet + 高德瓦片,懒加载) ---------- */
-let albumMap = null;
-
-/* 条目时间戳:优先 ts 字段,退化为从照片路径提取 */
-function entryTs(e) {
-  if (e.ts) return String(e.ts);
-  if (e.photos && e.photos[0]) {
-    const m = e.photos[0].match(/([0-9]{13})-[0-9]+\.jpg$/);
-    if (m) return m[1];
-  }
-  return '0';
-}
-
+/* 专辑地图(打卡点预览):复用 map-common.renderCheckinMap(主页/分享页/导出页同源) */
 async function renderAlbumMap(list) {
-  const box = $('#album-map');
-  const withLoc = list.filter((e) => e.location && e.location.lat != null && e.location.lng != null);
-  if (!withLoc.length) {
-    box.style.display = 'none';
-    return;
-  }
-  box.style.display = 'block';
-  try {
-    await loadLeaflet();
-  } catch {
-    box.style.display = 'none';
-    return;
-  }
-  if (albumMap) albumMap.remove();
-  const map = L.map('album-map', { scrollWheelZoom: true, zoomControl: true });
-  albumMap = map;
-  // 容器从 display:none 切到显示后立即初始化会尺寸错位 → 延时校正(瓦片偏移/突出根因)
-  setTimeout(() => map.invalidateSize(), 120);
-  setTimeout(() => map.invalidateSize(), 400);
-  L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
-    maxZoom: 18,
-    subdomains: ['1', '2', '3', '4'],
-    attribution: '&copy; 高德地图',
-  }).addTo(map);
-  // 右上角全屏查看按钮(铺满视口 + 自动 fit 所有打卡点)
-  LocPicker.lpMapFullscreen(map, box);
-  const bounds = [];
-  for (const e of withLoc) {
-    const mk = L.marker([e.location.lat, e.location.lng], { icon: L.divIcon({ className: 'gg-marker', html: ggPinSvg(), iconSize: [28, 28], iconAnchor: [14, 27] }) }).addTo(map);
-    // 点打卡点 → 打开详情弹层(含文字 + 照片,可点开大图)
-    mk.on('click', () => openEntryCard(e));
-    bounds.push([e.location.lat, e.location.lng]);
-  }
-  if (bounds.length === 1) {
-    map.setView(bounds[0], 12);
-  } else if (bounds.length > 1) {
-    // 路线三级:driving → walking → 直线
-    // ⚠️ driving 在步行景区(橘子洲)会把点吸附到远处驾车路 → 检测到某点偏离>200m 即不合格
-    const ordered = withLoc.slice().sort((a, b) => {
-      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
-      return (entryTs(a) || 0) - (entryTs(b) || 0);
-    });
-    const line = await getRouteLine(ordered);
-    // 轨迹线:品牌红醒目
-    L.polyline(line, { color: '#e11d48', weight: 4, opacity: 0.9 }).addTo(map);
-    map.fitBounds(line, { padding: [30, 30] });
-  }
+  await MapCommon.renderCheckinMap($('#album-map'), list, {
+    containerId: 'album-map',
+    onMarkerClick: (e) => MapCommon.openEntryCard(e),
+  });
 }
 
 /* ---------- 专辑 / 动态流 ---------- */

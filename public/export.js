@@ -1,37 +1,20 @@
-/* 咕咕嘎嘎 - 行程导出分享页(?from=YYYY-MM-DD&to=YYYY-MM-DD&token=xxx 可更新快照) */
+/* 咕咕嘎嘎 - 行程导出分享页(?from=YYYY-MM-DD&to=YYYY-MM-DD&token=xxx 可更新快照)
+ * 通用函数(esc/shortLoc/thumbUrl/fmtTime/ggPinSvg/loadLeaflet/photoGridHtml/entryCard/
+ *  bindPhotoGridFallback/openEntryCard/renderCheckinMap)走 map-common.js,本文件不再重复 */
 'use strict';
 
 var $ = (s) => document.querySelector(s);
-
-function esc(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-/* 地点名截短:只显示第一段短名(如「杭州东站」,忽略完整地址逗号串) */
-function shortLoc(name) {
-  const s = String(name || '').split(/[,，]/)[0].trim();
-  return (s || String(name || '')).slice(0, 30);
-}
-
-function thumbUrl(p) { return p.replace(/\.(jpg|jpeg|png)$/i, '-thumb.$1'); }
 
 function fmt(d) {
   const [y, m, day] = d.split('-');
   return `${y} 年 ${Number(m)} 月 ${Number(day)} 日`;
 }
 
-function fmtTime(ts) {
-  if (!ts) return '';
-  const d = new Date(Number(ts));
-  if (Number.isNaN(d.getTime())) return '';
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
-
 /* 条目/待办唯一 key,与后端 inc/inc_todo 一致 */
 function entryKey(e) { return `${e.date}|${e.ts}`; }
 function todoKey(t) { return `${t.date}|${t.sort_order}|${t.id}`; }
 
-/* 坐标系统:存储=GCJ-02(高德瓦片系),OSRM 要 WGS-84,互转 */
+/* 坐标系统:存储=GCJ-02(高德瓦片系),OSRM 要 WGS-84,互转(给定位选址用) */
 function transformLat(x, y) {
   let ret = -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
   ret += ((20.0 * Math.sin(6.0 * x * Math.PI) + 20.0 * Math.sin(2.0 * x * Math.PI)) * 2.0) / 3.0;
@@ -63,13 +46,6 @@ function gcj2wgs(lat, lng) {
   return { lat: lat * 2 - g.lat, lng: lng * 2 - g.lng };
 }
 
-/* 泪滴形图钉(内联 SVG,无外部依赖) */
-function ggPinSvg() {
-  return '<svg viewBox="0 0 24 24" width="28" height="28" style="display:block;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))">'
-    + '<path d="M12 1.8C7.4 1.8 3.7 5.5 3.7 10.1c0 5.6 6.8 12.6 7.4 13.3.5.5 1.3.5 1.8 0 .6-.7 7.4-7.7 7.4-13.3C20.3 5.5 16.6 1.8 12 1.8z" fill="#e11d48"/>'
-    + '<circle cx="12" cy="10" r="3.1" fill="#fff"/></svg>';
-}
-
 /* 导出的数据与勾选状态(登录后加载) */
 let exFrom = '';
 let exTo = '';
@@ -79,7 +55,6 @@ let exAllEntries = [];
 let exAllTodos = [];
 let exSel = new Map(); // 条目 key(date|ts) → 是否导出(默认 true)
 let exTodoSel = new Map(); // 待办 key(date|sort|id) → 是否导出
-let exMapInstance = null;
 
 async function init() {
   const params = new URLSearchParams(location.search);
@@ -279,79 +254,19 @@ async function renderExport() {
     else img.addEventListener('load', mark);
   });
 
-  // 照片点击开大图
-  box.querySelectorAll('.photo-grid img').forEach((img) => {
-    img.addEventListener('click', () => window.open(img.dataset.full || img.src, '_blank'));
-  });
-
-  // 地图路线:仅含勾选的条目
-  await renderMap(exportEntries, mapBox, $('#ex-map-note'));
-}
-
-async function renderMap(list, box, noteEl) {
-  const pts = list
-    .filter((e) => e.location && e.location.lat != null && e.location.lng != null)
-    .map((e) => ({ date: e.date, ts: e.ts, title: e.title || '', name: (e.location.display || e.location.name || ''), lat: e.location.lat, lng: e.location.lng }));
-
-  const skipped = list.length - pts.length;
-  noteEl.textContent = skipped > 0 ? `(有 ${skipped} 条没有坐标,未上地图)` : '';
-
-  if (!pts.length) { box.style.display = 'none'; return; }
-  box.style.display = 'block';
-
-  if (exMapInstance) { exMapInstance.remove(); exMapInstance = null; }
-  try {
-    if (!window.L) await loadLeaflet();
-  } catch {
-    box.style.display = 'none';
-    noteEl.textContent = '地图加载失败,请刷新重试';
-    return;
-  }
-
-  const map = L.map('ex-map', { scrollWheelZoom: false });
-  exMapInstance = map;
-  L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
-    maxZoom: 18,
-    subdomains: ['1', '2', '3', '4'],
-    attribution: '&copy; 高德地图',
-  }).addTo(map);
-  // 右上角全屏查看按钮(铺满视口 + 自动 fit 所有打卡点)
-  LocPicker.lpMapFullscreen(map, box);
-
-  const latlngs = pts.map((p) => [p.lat, p.lng]);
-  pts.forEach((p, i) => {
-    const mk = L.marker([p.lat, p.lng], { icon: L.divIcon({ className: 'gg-marker', html: ggPinSvg(), iconSize: [28, 28], iconAnchor: [14, 27] }) }).addTo(map);
-    mk.bindPopup(`<b>${esc(p.date)} ${fmtTime(p.ts)}</b> ${esc(p.title)}<br>${esc(p.name)}`);
-    mk.on('click', () => map.setView([p.lat, p.lng], Math.max(map.getZoom(), 12)));
-  });
-  if (pts.length > 1) {
-    // 与专辑预览一致:driving → walking → 直线三级(带吸附检测,步行景区自动降级步行导航)
-    const ordered = pts.slice().sort((a, b) => {
-      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
-      return (a.ts || 0) - (b.ts || 0);
+  // 照片点击:有 #lightbox 走 lightbox(由 map-common 的 openEntryCard 在弹层里处理),无则回退新窗口
+  const hasLb = !!document.getElementById('lightbox');
+  if (!hasLb) {
+    box.querySelectorAll('.photo-grid img').forEach((img) => {
+      img.addEventListener('click', () => window.open(img.dataset.full || img.src, '_blank'));
     });
-    const line = await getRouteLine(ordered.map((p) => ({ location: { lat: p.lat, lng: p.lng } })));
-    // 轨迹线:品牌红(与专辑预览同款)
-    L.polyline(line, { color: '#e11d48', weight: 4, opacity: 0.9 }).addTo(map);
-    map.fitBounds(line, { padding: [40, 40] });
-  } else {
-    map.setView(latlngs[0], 12);
   }
-}
 
-function loadLeaflet() {
-  return new Promise((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js';
-    s.onload = () => {
-      const l = document.createElement('link');
-      l.rel = 'stylesheet';
-      l.href = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';
-      document.head.appendChild(l);
-      resolve();
-    };
-    s.onerror = reject;
-    document.head.appendChild(s);
+  // 地图:打卡点点击 → 详情弹层(文字+图片,复用 map-common)
+  await MapCommon.renderCheckinMap(mapBox, exportEntries, {
+    containerId: 'ex-map',
+    onMarkerClick: (e) => MapCommon.openEntryCard(e),
+    scrollWheelZoom: false,
   });
 }
 
@@ -501,5 +416,6 @@ $('#share-modal').addEventListener('click', (e) => { if (e.target.id === 'share-
 
 init().catch((err) => {
   console.error(err);
-  $('#ex-overview').innerHTML = `<p class="empty">加载失败:${esc(err.message)}</p>`;
+  $('#ex-overview').innerHTML = `<p class="empty">加载失败:${MapCommon.esc(err.message)}</p>`;
 });
+MapCommon.bindPreviewModal();

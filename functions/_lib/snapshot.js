@@ -46,9 +46,17 @@ ${cspMeta}
   </section>
 </main>
 <footer class="site-footer">咕咕嘎嘎 · 记录每一段在路上</footer>
+<!-- 详情弹层(地图打卡点 + 列表照片 → map-common.openEntryCard,文字+图片) -->
+<div id="preview-modal" class="modal" hidden>
+  <div class="modal-card">
+    <div id="preview-body"></div>
+    <button type="button" id="btn-preview-close" class="btn-small">关闭</button>
+  </div>
+</div>
 <div id="lightbox" class="lightbox" aria-hidden="true"><img alt="查看大图"></div>
 <script type="application/json" id="snapshot-data">${json}</script>
 <script src="/api.js"></script>
+<script src="/map-common.js"></script>
 <script src="/loc-picker.js"></script>
 <script src="/share-view.js"></script>
 </body>
