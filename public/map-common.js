@@ -184,13 +184,31 @@
     }
     const onClick = opts.onMarkerClick || ((e) => openEntryCard(e));
     const bounds = [];
-    for (const e of withLoc) {
+    for (let i = 0; i < withLoc.length; i++) {
+      const e = withLoc[i];
       const mk = L.marker([e.location.lat, e.location.lng], {
         icon: L.divIcon({ className: 'gg-marker', html: ggPinSvg(), iconSize: [28, 28], iconAnchor: [14, 27] }),
       }).addTo(map);
-      mk.on('click', () => onClick(e));
+      // 原样式文字版详情弹窗 + 「展开详情」按钮(按钮才开大弹层,保留文字版,图片在弹层里)
+      const name = e.location ? (e.location.display || e.location.name || '') : '';
+      mk.bindPopup(
+        `<b>${esc(e.date)} ${fmtTime(e.ts)}</b> ${esc(e.title || '')}<br>${esc(name)}` +
+        `<br><button type="button" class="popup-detail-btn" style="margin-top:6px;padding:4px 12px;border:1px solid #e5e7eb;border-radius:999px;background:#fff;color:#e11d48;cursor:pointer;font-size:.8rem" data-i="${i}">展开详情</button>`
+      );
       bounds.push([e.location.lat, e.location.lng]);
     }
+    // 弹窗内「展开详情」按钮 → 打开详情弹层(文字+图片);CSP 禁内联 onclick,须 addEventListener
+    map.on('popupopen', (ev) => {
+      const el = ev.popup && ev.popup.getElement();
+      const btn = el ? el.querySelector('.popup-detail-btn') : null;
+      if (btn && !btn.dataset.bound) {
+        btn.dataset.bound = '1';
+        btn.addEventListener('click', () => {
+          const e = withLoc[Number(btn.dataset.i)];
+          if (e) onClick(e);
+        });
+      }
+    });
     if (opts.showRoute !== false && withLoc.length > 1 && window.getRouteLine) {
       const ordered = withLoc.slice().sort((a, b) => {
         if (a.date !== b.date) return a.date < b.date ? -1 : 1;
