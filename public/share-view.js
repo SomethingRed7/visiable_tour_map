@@ -183,12 +183,14 @@ async function render() {
   await renderMap(list, $('#sv-map'), $('#sv-map-note'));
 }
 
-/* 大图预览:点缩略图 → 全屏大图;点遮罩 / Esc 关闭(与主页当日动态同款,不跳转新窗口) */
+/* 大图预览:点缩略图 → 全屏大图;点遮罩 / Esc 关闭(与主页当日动态同款,不跳转新窗口)
+ * 旧分享页 HTML 无 #lightbox → 回退新窗口打开,保证老页面仍可用 */
 function setupLightbox() {
   const lb = document.getElementById('lightbox');
   document.addEventListener('click', (e) => {
     const img = e.target.closest('.photo-grid img');
-    if (!img || !lb) return;
+    if (!img) return;
+    if (!lb) { window.open(img.dataset.full || img.src, '_blank'); return; }
     lb.querySelector('img').src = img.dataset.full || img.src;
     lb.classList.add('open');
   });
