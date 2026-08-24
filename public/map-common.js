@@ -150,6 +150,50 @@
     if (btn) btn.addEventListener('click', close);
     modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
   }
+  /* 地图打卡点「展开详情」:紧凑面板贴在地图容器顶部,不遮整张地图、可一键关闭;
+   * 仅显示部分图片(前 3 张 + 总数),点照片可看大图;全屏时面板即在页面最上方。 */
+  function openMapDetail(e, container) {
+    if (!e || !container) return;
+    let panel = container._ggDetailPanel;
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.className = 'map-detail-panel';
+      panel.style.cssText = 'position:absolute;top:10px;right:10px;z-index:1000;width:min(320px,calc(100% - 20px));max-height:68%;overflow:auto;background:#fff;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.25);padding:10px 12px;font-size:.9rem;color:#1f2937;border:1px solid #e5e7eb;';
+      container.appendChild(panel);
+      container._ggDetailPanel = panel;
+    }
+    const meta = [];
+    if (e.ts) meta.push(fmtTime(e.ts));
+    if (e.author) meta.push(esc(e.author));
+    if (e.visibility === 'private') meta.push('私有');
+    if (e.album) meta.push(esc(e.album));
+    const locName = e.location ? (e.location.display || e.location.name || '') : '';
+    if (locName) meta.push(`📍 ${esc(locName)}`);
+    const photos = e.photos || [];
+    const shown = photos.slice(0, 3);
+    const more = photos.length > shown.length ? `<div style="color:#9ca3af;font-size:.78rem;margin-top:4px">共 ${photos.length} 张照片</div>` : '';
+    panel.innerHTML =
+      `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">` +
+        `<b style="font-size:1rem">${esc(e.date)}</b>` +
+        `<button type="button" class="map-detail-close" style="border:none;background:none;font-size:1.15rem;cursor:pointer;color:#9ca3af;padding:0 4px;line-height:1" aria-label="关闭">✕</button>` +
+      `</div>` +
+      (meta.length ? `<div style="color:#6b7280;font-size:.78rem;margin:4px 0 6px">${meta.join(' · ')}</div>` : '') +
+      (e.title ? `<div style="font-weight:600;margin-bottom:4px">${esc(e.title)}</div>` : '') +
+      (e.text ? `<div style="color:#374151;white-space:pre-wrap;margin-bottom:6px;max-height:120px;overflow:auto">${esc(e.text)}</div>` : '') +
+      (shown.length ? `<div class="photo-grid">${shown.map((p) => `<img src="${thumbUrl(p)}" data-full="${p}" alt="照片" loading="lazy">`).join('')}</div>` : '') +
+      more;
+    const closeBtn = panel.querySelector('.map-detail-close');
+    if (closeBtn) closeBtn.addEventListener('click', () => { panel.style.display = 'none'; });
+    bindPhotoGridFallback(panel);
+    const lb = document.getElementById('lightbox');
+    panel.querySelectorAll('.photo-grid img').forEach((img) => {
+      img.addEventListener('click', () => {
+        if (lb) { lb.querySelector('img').src = img.dataset.full || img.src; lb.classList.add('open'); }
+        else window.open(img.dataset.full || img.src, '_blank');
+      });
+    });
+    panel.style.display = 'block';
+  }
   /* 打卡点地图:主页/分享/导出页全用这个
    * opts: { onMarkerClick(entry), scrollWheelZoom=true, containerId, showRoute=true, fitPadding=[30,30], fullscreen=true } */
   async function renderCheckinMap(box, entries, opts) {
@@ -182,14 +226,14 @@
     if (opts.fullscreen !== false && window.LocPicker) {
       LocPicker.lpMapFullscreen(map, box);
     }
-    const onClick = opts.onMarkerClick || ((e) => openEntryCard(e));
+    const onClick = opts.onMarkerClick || ((e) => openMapDetail(e, box));
     const bounds = [];
     for (let i = 0; i < withLoc.length; i++) {
       const e = withLoc[i];
       const mk = L.marker([e.location.lat, e.location.lng], {
         icon: L.divIcon({ className: 'gg-marker', html: ggPinSvg(), iconSize: [28, 28], iconAnchor: [14, 27] }),
       }).addTo(map);
-      // 原样式文字版详情弹窗 + 「展开详情」按钮(按钮才开大弹层,保留文字版,图片在弹层里)
+      // 原样式文字版详情弹窗 + 「展开详情」按钮(按钮打开紧凑详情面板,不遮地图)
       const name = e.location ? (e.location.display || e.location.name || '') : '';
       mk.bindPopup(
         `<b>${esc(e.date)} ${fmtTime(e.ts)}</b> ${esc(e.title || '')}<br>${esc(name)}` +
@@ -197,13 +241,14 @@
       );
       bounds.push([e.location.lat, e.location.lng]);
     }
-    // 弹窗内「展开详情」按钮 → 打开详情弹层(文字+图片);CSP 禁内联 onclick,须 addEventListener
+    // 弹窗内「展开详情」按钮 → 紧凑详情面板(文字+部分图片);CSP 禁内联 onclick,须 addEventListener
     map.on('popupopen', (ev) => {
       const el = ev.popup && ev.popup.getElement();
       const btn = el ? el.querySelector('.popup-detail-btn') : null;
       if (btn && !btn.dataset.bound) {
         btn.dataset.bound = '1';
         btn.addEventListener('click', () => {
+          map.closePopup();
           const e = withLoc[Number(btn.dataset.i)];
           if (e) onClick(e);
         });
@@ -224,12 +269,12 @@
     }
   }
 
-  const M = { esc, shortLoc, fmtTime, thumbUrl, ggPinSvg, loadLeaflet, entryTs, photoGridHtml, entryCard, detailCard, bindPhotoGridFallback, openEntryCard, renderCheckinMap, bindPreviewModal };
+  const M = { esc, shortLoc, fmtTime, thumbUrl, ggPinSvg, loadLeaflet, entryTs, photoGridHtml, entryCard, detailCard, bindPhotoGridFallback, openEntryCard, openMapDetail, renderCheckinMap, bindPreviewModal };
   window.MapCommon = M;
   // 同时把常用函数挂到 window,旧代码(ggPinSvg/loadLeaflet/...等)无需改名
   window.esc = esc; window.shortLoc = shortLoc; window.fmtTime = fmtTime; window.thumbUrl = thumbUrl;
   window.ggPinSvg = ggPinSvg; window.loadLeaflet = loadLeaflet; window.entryTs = entryTs;
   window.photoGridHtml = photoGridHtml; window.entryCard = entryCard; window.detailCard = detailCard;
   window.bindPhotoGridFallback = bindPhotoGridFallback; window.openEntryCard = openEntryCard;
-  window.renderCheckinMap = renderCheckinMap; window.bindPreviewModal = bindPreviewModal;
+  window.openMapDetail = openMapDetail; window.renderCheckinMap = renderCheckinMap; window.bindPreviewModal = bindPreviewModal;
 })();

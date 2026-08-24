@@ -262,10 +262,9 @@ async function renderExport() {
     });
   }
 
-  // 地图:打卡点点击 → 详情弹层(文字+图片,复用 map-common)
+  // 地图:打卡点点击 → 紧凑详情面板(文字+部分图片,复用 map-common)
   await MapCommon.renderCheckinMap(mapBox, exportEntries, {
     containerId: 'ex-map',
-    onMarkerClick: (e) => MapCommon.openEntryCard(e),
     scrollWheelZoom: false,
   });
 }

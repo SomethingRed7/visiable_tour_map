@@ -76,11 +76,8 @@ async function render() {
       img.addEventListener('click', () => openPhotoFallback(img));
     });
   }
-  // 地图:打卡点点击 → 详情弹层(文字+图片,复用 map-common)
-  await MapCommon.renderCheckinMap($('#sv-map'), list, {
-    containerId: 'sv-map',
-    onMarkerClick: (e) => MapCommon.openEntryCard(e),
-  });
+  // 地图:打卡点点击 → 紧凑详情面板(文字+部分图片,复用 map-common)
+  await MapCommon.renderCheckinMap($('#sv-map'), list, { containerId: 'sv-map' });
 }
 
 function fmtDateTime(iso) {

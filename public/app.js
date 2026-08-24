@@ -1195,10 +1195,7 @@ function openCkinMap() {
 
 /* 专辑地图(打卡点预览):复用 map-common.renderCheckinMap(主页/分享页/导出页同源) */
 async function renderAlbumMap(list) {
-  await MapCommon.renderCheckinMap($('#album-map'), list, {
-    containerId: 'album-map',
-    onMarkerClick: (e) => MapCommon.openEntryCard(e),
-  });
+  await MapCommon.renderCheckinMap($('#album-map'), list, { containerId: 'album-map' });
 }
 
 /* ---------- 专辑 / 动态流 ---------- */
