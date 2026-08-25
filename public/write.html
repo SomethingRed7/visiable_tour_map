@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>管理 · 咕咕嘎嘎</title>
-  <link rel="stylesheet" href="style.css?v=20260825d">
+  <link rel="stylesheet" href="style.css?v=20260825e">
   <style>
     /* 管理界面正文总体不加粗;标题与主页保持一致(site-title=800、panel-heading=700 用全局样式) */
     .write-page .login-hint a,
@@ -78,7 +78,6 @@
         <button type="button" class="tab-btn" data-tab="export">导出行程</button>
         <button type="button" class="tab-btn" data-tab="share">已分享的快照</button>
         <button type="button" class="tab-btn" data-tab="album-mgr">专辑管理</button>
-        <button type="button" class="tab-btn" data-tab="album-view">专辑查看</button>
         <button type="button" class="tab-btn" data-tab="wechat">微信推送</button>
       </div>
 
@@ -126,19 +125,17 @@
 
       <section id="tab-album-mgr" class="panel album-manage-panel tab-pane" hidden>
         <h2 class="panel-heading">专辑管理</h2>
-        <p class="manage-hint">改名会同步该专辑下全部条目;一键设置整组公开/私密</p>
+        <p class="manage-hint">点专辑名查看该专辑的条目与地图;改名会同步该专辑下全部条目;可一键设置整组公开/私密</p>
         <div id="album-mgr-list" class="album-mgr-list"></div>
-      </section>
-
-      <section id="tab-album-view" class="panel album-view-panel tab-pane" hidden>
-        <h2 class="panel-heading">专辑查看</h2>
-        <p class="manage-hint">按专辑浏览打卡地图与动态流</p>
-        <div class="todo-head day-head"><span id="stream-title">专辑</span>
-          <a id="btn-album-share" class="btn-add-entry" href="export.html" hidden>生成分享页</a>
+        <!-- 专辑查看(点专辑名展开):条目流 + 打卡地图 -->
+        <div id="album-view-box" hidden>
+          <div class="todo-head day-head"><span id="stream-title">专辑</span>
+            <a id="btn-album-share" class="btn-add-entry" href="export.html" hidden>生成分享页</a>
+          </div>
+          <div id="album-map" class="album-map"></div>
+          <div id="album-chips" class="album-chips"></div>
+          <div id="stream" class="entries"></div>
         </div>
-        <div id="album-map" class="album-map"></div>
-        <div id="album-chips" class="album-chips"></div>
-        <div id="stream" class="entries"></div>
       </section>
 
       <section id="tab-manage" class="panel manage-panel tab-pane">
@@ -243,6 +240,6 @@
   <script src="map-common.js?v=20260825e"></script>
   <script src="loc-picker.js?v=20260818f"></script>
   <script src="entry-modal.js?v=20260818f"></script>
-  <script src="upload.js?v=20260825g"></script>
+  <script src="upload.js?v=20260825h"></script>
 </body>
 </html>

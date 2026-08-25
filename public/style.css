@@ -858,7 +858,8 @@ body {
   border-radius: 10px;
   background: var(--card, #fff);
 }
-.album-mgr-name { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.album-mgr-name { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: none; border: none; padding: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.album-mgr-name:hover { color: var(--brand); text-decoration: underline; }
 .album-mgr-count { font-size: 0.8rem; color: var(--text-soft); white-space: nowrap; }
 .album-mgr-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .btn-album-rename {

@@ -22,9 +22,8 @@ function setAuthed(user) {
     $('#current-user').textContent = user;
     renderShares(); // 已分享快照列表(仅登录)
     renderAlbums(); // 专辑管理列表(仅登录)
-    refreshAllEntries(); // 专辑查看数据(仅登录)
+    refreshAllEntries(); // 专辑查看数据(仅登录);地图等点专辑名展开时再渲染
     renderAlbumChips();
-    renderAlbumView();
   } else {
     showLoginPanel();
     const sl = $('#share-list');
@@ -347,7 +346,7 @@ async function renderAlbums() {
       const visLabel = allPriv ? '全部改公开' : '全部改私密';
       return `
       <div class="album-mgr-item">
-        <span class="album-mgr-name" title="${esc(a.album)}">${esc(a.album)}</span>
+        <button type="button" class="album-mgr-name" data-album="${esc(a.album)}" title="查看该专辑的条目与地图">${esc(a.album)}</button>
         <span class="album-mgr-count">${a.count} 条</span>
         <span class="album-mgr-actions">
           <button type="button" class="btn-album-rename" data-album="${esc(a.album)}" title="改名" aria-label="改名"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
@@ -363,7 +362,7 @@ async function renderAlbums() {
       const visLabel = allPriv ? '全部改公开' : '全部改私密';
       box.insertAdjacentHTML('beforeend', `
       <div class="album-mgr-item">
-        <span class="album-mgr-name" title="未分类">未分类</span>
+        <button type="button" class="album-mgr-name" data-album="" title="查看未分类条目与地图">未分类</button>
         <span class="album-mgr-count">${u.count} 条</span>
         <span class="album-mgr-actions">
           <button type="button" class="btn-small btn-album-vis" data-album="" data-vis="${visTarget}">${visLabel}</button>
@@ -372,7 +371,18 @@ async function renderAlbums() {
     }
     box.querySelectorAll('.btn-album-rename').forEach((b) => b.addEventListener('click', () => renameAlbum(b.dataset.album)));
     box.querySelectorAll('.btn-album-vis').forEach((b) => b.addEventListener('click', () => setAlbumVisibility(b.dataset.album, b.dataset.vis)));
+    // 点专辑名 → 展开该专辑的条目流 + 打卡地图(专辑查看合入专辑管理)
+    box.querySelectorAll('.album-mgr-name').forEach((b) => b.addEventListener('click', () => showAlbumView(b.dataset.album)));
   } catch { box.innerHTML = '<p class="empty">加载失败</p>'; }
+}
+
+/* 点专辑名 → 展开专辑查看(条目流 + 地图,复用 renderAlbumView) */
+function showAlbumView(album) {
+  mgrActiveAlbum = album;
+  const vbox = $('#album-view-box');
+  if (vbox) vbox.hidden = false;
+  renderAlbumChips();
+  renderAlbumView();
 }
 
 async function renameAlbum(oldName) {
@@ -500,6 +510,8 @@ async function renderAlbumView() {
   const stream = $('#stream');
   const mapBox = $('#album-map');
   if (!stream || !mapBox) return;
+  const vbox = $('#album-view-box');
+  if (vbox && vbox.hidden) return; // 专辑查看未展开(展开时 showAlbumView 会重渲,避免在隐藏容器里初始化地图)
   const shareBtn = $('#btn-album-share');
   if (shareBtn) {
     shareBtn.hidden = !mgrActiveAlbum;
