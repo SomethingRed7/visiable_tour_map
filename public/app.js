@@ -150,7 +150,10 @@ function renderCalendar() {
     cell.innerHTML = `<span class="cal-num">${d}</span><span class="cal-dots">${entrySet.has(ds) ? '<span class="cal-dot"></span>' : ''}${todoSet.has(ds) ? `<span class="cal-todo-dot${todoDoneSet.has(ds) ? ' done' : ''}"></span>` : ''}</span>`;
     cell.addEventListener('click', () => {
       selectDate(ds);
-      switchTab('entries'); // 点日历默认切到「当日动态」
+      // 当日动态为空但当日待办非空 → 切待办;否则切动态
+      const hasEntries = allEntries.some((e) => e.date === ds);
+      const hasTodos = allTodos.some((t) => t.date === ds);
+      switchTab(!hasEntries && hasTodos ? 'todos' : 'entries');
     });
     grid.appendChild(cell);
   }
