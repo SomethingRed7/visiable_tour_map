@@ -148,7 +148,10 @@ function renderCalendar() {
       + (todoSet.has(ds) ? ' has-todo' : '')
       + (ds === selectedDate ? ' selected' : '');
     cell.innerHTML = `<span class="cal-num">${d}</span><span class="cal-dots">${entrySet.has(ds) ? '<span class="cal-dot"></span>' : ''}${todoSet.has(ds) ? `<span class="cal-todo-dot${todoDoneSet.has(ds) ? ' done' : ''}"></span>` : ''}</span>`;
-    cell.addEventListener('click', () => selectDate(ds));
+    cell.addEventListener('click', () => {
+      selectDate(ds);
+      switchTab('entries'); // 点日历默认切到「当日动态」
+    });
     grid.appendChild(cell);
   }
 }
