@@ -72,7 +72,16 @@
 
     <!-- 管理区(登录后可见) -->
     <div id="editor-area" hidden>
-      <section class="panel export-panel">
+      <!-- 与首页「当日待办/当日动态/专辑查看」同款 Tab -->
+      <div class="panel-tabs" id="manage-tabs">
+        <button type="button" class="tab-btn active" data-tab="manage">管理条目</button>
+        <button type="button" class="tab-btn" data-tab="export">导出行程</button>
+        <button type="button" class="tab-btn" data-tab="share">已分享的快照</button>
+        <button type="button" class="tab-btn" data-tab="album-mgr">专辑管理</button>
+        <button type="button" class="tab-btn" data-tab="wechat">微信推送</button>
+      </div>
+
+      <section id="tab-export" class="panel export-panel tab-pane" hidden>
         <h2 class="panel-heading">导出行程</h2>
         <p class="manage-hint">按专辑或日期区间导出,可叠加;留空 = 全部</p>
         <div class="export-form">
@@ -95,13 +104,13 @@
         <p id="export-status" class="form-status"></p>
       </section>
 
-      <section class="panel share-panel">
+      <section id="tab-share" class="panel share-panel tab-pane" hidden>
         <h2 class="panel-heading">已分享的快照</h2>
         <p class="manage-hint">快照是生成那一刻冻结的内容;「更新」会重新进入生成页,重新选择导出内容后保存,链接不变;「删除」后链接立即失效</p>
         <div id="share-list" class="recent-list"></div>
       </section>
 
-      <section class="panel wechat-push-panel">
+      <section id="tab-wechat" class="panel wechat-push-panel tab-pane" hidden>
         <h2 class="panel-heading">微信推送</h2>
         <p class="manage-hint">把当天公开动态推到微信(家人关注后可收到)。可选日期,默认今天</p>
         <div class="export-form">
@@ -114,13 +123,13 @@
         <p id="wx-status" class="form-status"></p>
       </section>
 
-      <section class="panel album-manage-panel">
+      <section id="tab-album-mgr" class="panel album-manage-panel tab-pane" hidden>
         <h2 class="panel-heading">专辑管理</h2>
         <p class="manage-hint">改名会同步该专辑下全部条目;一键设置整组公开/私密</p>
         <div id="album-mgr-list" class="album-mgr-list"></div>
       </section>
 
-      <section class="panel manage-panel">
+      <section id="tab-manage" class="panel manage-panel tab-pane">
         <h2 class="panel-heading">管理条目</h2>
         <p class="manage-hint">预览 / 编辑 / 删除;支持日期过滤、翻页、按日期分组</p>
         <a id="btn-write" class="btn-submit write-btn" href="edit.html">✏️ 写日记</a>
@@ -219,6 +228,6 @@
   <script src="api.js?v=20260825"></script>
   <script src="loc-picker.js?v=20260818f"></script>
   <script src="entry-modal.js?v=20260818f"></script>
-  <script src="upload.js?v=20260825e"></script>
+  <script src="upload.js?v=20260825f"></script>
 </body>
 </html>

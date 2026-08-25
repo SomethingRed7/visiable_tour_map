@@ -629,6 +629,23 @@ $('#btn-wx-push').addEventListener('click', async () => {
     btn.disabled = false;
   }
 });
+/* 管理页 Tab(与首页当日待办/当日动态/专辑查看同款) */
+function switchManageTab(tab) {
+  document.querySelectorAll('#manage-tabs .tab-btn').forEach((b) => {
+    b.classList.toggle('active', b.dataset.tab === tab);
+  });
+  document.querySelectorAll('#editor-area .tab-pane').forEach((p) => {
+    p.hidden = p.id !== 'tab-' + tab;
+  });
+}
+function initManageTabs() {
+  const bar = $('#manage-tabs');
+  if (!bar) return;
+  bar.addEventListener('click', (e) => {
+    const b = e.target.closest('.tab-btn');
+    if (b && !b.hidden) switchManageTab(b.dataset.tab);
+  });
+}
 function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
@@ -639,5 +656,6 @@ function localToday() {
 }
 /* 管理页初始化 */
 initMgrTools(); // 管理条目工具行(日期过滤/每页条数/翻页),静态元素,页面加载即绑定
+initManageTabs(); // 管理区 Tab(默认管理条目)
 initAuth();
 renderRecent();
