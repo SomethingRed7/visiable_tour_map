@@ -31,26 +31,17 @@
     <section class="panel day-panel">
       <h2 id="day-title" class="panel-heading">点击日历上的日期,查看当天动态</h2>
       <div class="panel-tabs" id="panel-tabs">
-        <button type="button" class="tab-btn active" data-tab="todos">当日待办</button>
-        <button type="button" class="tab-btn" data-tab="entries">当日动态</button>
-        <button type="button" class="tab-btn" data-tab="album" hidden>专辑查看</button>
+        <button type="button" class="tab-btn active" data-tab="entries">当日动态</button>
+        <button type="button" class="tab-btn" data-tab="todos">当日待办</button>
       </div>
-      <div id="tab-todos" class="tab-pane">
+      <div id="tab-todos" class="tab-pane" hidden>
         <div id="day-todos" class="todo-section" hidden></div>
       </div>
-      <div id="tab-entries" class="tab-pane" hidden>
+      <div id="tab-entries" class="tab-pane">
         <div class="todo-head day-head"><span>当日动态</span>
           <a id="btn-entry-add" class="btn-add-entry" href="edit.html" hidden>记一把</a>
         </div>
         <div id="day-entries" class="entries"></div>
-      </div>
-      <div id="tab-album" class="tab-pane" hidden>
-        <div class="todo-head day-head"><span id="stream-title">专辑</span>
-          <a id="btn-album-share" class="btn-add-entry" href="export.html" hidden>生成分享页</a>
-        </div>
-        <div id="album-map" class="album-map"></div>
-        <div id="album-chips" class="album-chips"></div>
-        <div id="stream" class="entries"></div>
       </div>
     </section>
   </main>
@@ -169,6 +160,6 @@
   <script src="map-common.js?v=20260825e"></script>
   <script src="loc-picker.js?v=20260824"></script>
   <script src="entry-modal.js?v=20260824"></script>
-  <script src="app.js?v=20260825g"></script>
+  <script src="app.js?v=20260825h"></script>
 </body>
 </html>

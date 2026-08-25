@@ -6,7 +6,6 @@ var $ = (s) => document.querySelector(s);
 let allEntries = [];
 let currentMonth = null;   // 'YYYY-MM'
 let selectedDate = null;
-let activeAlbum = null;
 let currentUser = null;    // 登录用户;null=未登录(待办完全不可见)
 
 // 只读门户(github.io):纯浏览,不渲染任何登录/管理入口(登录只在 pages.dev)
@@ -19,8 +18,6 @@ function todayStr() {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 let allTodos = [];         // 私有待办(仅登录后拉取)
-// 暂不显示「最近动态」流:默认只保留专辑入口;true = 恢复(含「全部」chip)
-const SHOW_RECENT_FEED = false;
 
 function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -158,10 +155,7 @@ function renderCalendar() {
 
 function selectDate(ds) {
   selectedDate = ds;
-  activeAlbum = null;
-  renderAlbums();
   renderCalendar();
-  renderStream(); // 专辑面板同步回占位态(否则残留上一次的专辑列表/地图)
   renderDayEntries(ds);
   renderDayTodos(ds);
 }
@@ -178,7 +172,6 @@ async function refreshAll() {
     renderDayEntries(selectedDate);
     renderDayTodos(selectedDate);
   }
-  renderStream();
 }
 
 /* 已登录:动态/流条目按钮(改公开/预览/编辑/删除,与管理界面一致) */
@@ -212,7 +205,7 @@ function bindStreamEditBtns(container) {
       fd.append('visibility', b.dataset.vis === 'private' ? 'public' : 'private');
       try {
         const res = await (await fetch('/api/update', { method: 'POST', body: fd })).json();
-        if (res.ok) renderStream();
+        if (res.ok) { renderDayEntries(b.dataset.date); renderCalendar(); }
         else alert(res.error || '切换失败');
       } catch { alert('网络异常,请重试'); }
     });
@@ -252,7 +245,6 @@ function bindStreamEditBtns(container) {
         }
         // 本地同步移除
         allEntries = allEntries.filter((x) => !(x.date === b.dataset.date && String(x.ts) === String(b.dataset.ts)));
-        renderStream();
         if (selectedDate) renderDayEntries(selectedDate);
         renderCalendar();
         alert('已删除 ✅');
@@ -297,10 +289,8 @@ async function initPortalUser() {
     box.hidden = false;
     // 登录态:用户名 + 管理按钮(btn-write 样式,同原「写日记」入口)
     box.innerHTML = `<span class="user-name">${esc(currentUser)}</span><a class="btn-write" href="/write">管理</a>`;
-    const albumTab = document.querySelector('#panel-tabs .tab-btn[data-tab="album"]');
-    if (albumTab) albumTab.hidden = false; // 专辑 tab 仅登录可见
     const tabsBar = $('#panel-tabs');
-    if (tabsBar) tabsBar.hidden = false;   // 三 tab 面板仅登录可见(未登录无待办可看)
+    if (tabsBar) tabsBar.hidden = false;   // tab 面板仅登录可见(未登录无待办可看)
     // 当日动态「记一把」按钮(登录可见;点击打开日记弹窗,不跳转写日记页)
     const addBtn = $('#btn-entry-add');
     if (addBtn) {
@@ -317,7 +307,6 @@ async function initPortalUser() {
     renderCalendar();
     if (selectedDate) { renderDayTodos(selectedDate); }
     if (selectedDate) renderDayEntries(selectedDate); // 登录后刷新动态(带编辑按钮)
-    renderStream(); // 最近动态流同步刷新
   } else {
     // 未登录
     if (READONLY_PORTAL) {
@@ -329,41 +318,25 @@ async function initPortalUser() {
       // 仅 pages.dev 显示醒目「登录」按钮(btn-write 样式)
       box.innerHTML = '<a class="btn-write" href="/write">登录</a>';
     }
-    const albumTab = document.querySelector('#panel-tabs .tab-btn[data-tab="album"]');
-    if (albumTab) albumTab.hidden = true; // 未登录无专辑
     const tabsBar2 = $('#panel-tabs');
-    if (tabsBar2) tabsBar2.hidden = true; // 未登录无 tab 栏:不显示「当日待办」,默认只展示当日动态
+    if (tabsBar2) tabsBar2.hidden = true; // 未登录无 tab 栏:默认只展示当日动态
     const addBtn2 = $('#btn-entry-add');
     if (addBtn2) addBtn2.hidden = true;
     if (activeTab === 'todos') switchTab('entries'); // 未登录默认动态
   }
 }
 
-/* ---------- 面板 Tab 切换(当日待办/当日动态/专辑查看) ---------- */
-let activeTab = 'todos'; // 默认当日待办
+/* ---------- 面板 Tab 切换(当日动态/当日待办) ---------- */
+let activeTab = 'entries'; // 默认当日动态
 function switchTab(tab) {
   activeTab = tab;
   document.querySelectorAll('#panel-tabs .tab-btn').forEach((b) => {
     b.classList.toggle('active', b.dataset.tab === tab);
   });
-  ['todos', 'entries', 'album'].forEach((t) => {
+  ['todos', 'entries'].forEach((t) => {
     const pane = $('#tab-' + t);
     if (pane) pane.hidden = t !== tab;
   });
-  if (tab === 'album') {
-    // 切到专辑:地图容器刚显示,需校正尺寸
-    const box = $('#album-map');
-    if (box && albumMap && box.style.display !== 'none') {
-      setTimeout(() => albumMap.invalidateSize(), 150);
-    }
-    // 未选专辑时默认选第一个(专辑 tab 打开即有内容)
-    if (activeAlbum === null) {
-      const albums = [...new Set(allEntries.map((e) => e.album).filter(Boolean))];
-      if (albums.length) { activeAlbum = albums[0]; }
-    }
-    renderAlbums();
-    renderStream();
-  }
   if (tab === 'todos' && selectedDate) renderDayTodos(selectedDate);
   if (tab === 'entries' && selectedDate) renderDayEntries(selectedDate);
 }
@@ -1193,96 +1166,6 @@ function openCkinMap() {
   });
 }
 
-/* 专辑地图(打卡点预览):复用 map-common.renderCheckinMap(主页/分享页/导出页同源) */
-async function renderAlbumMap(list) {
-  await MapCommon.renderCheckinMap($('#album-map'), list, { containerId: 'album-map' });
-}
-
-/* ---------- 专辑 / 动态流 ---------- */
-function renderAlbums() {
-  const albums = [...new Set(allEntries.map((e) => e.album).filter(Boolean))];
-  const hasUncat = allEntries.some((e) => !e.album); // 未分类:album 为空/NULL 的条目
-  const chips = $('#album-chips');
-  chips.innerHTML = '';
-  const mk = (label, album, active) => {
-    const b = document.createElement('button');
-    b.className = 'chip' + (active ? ' active' : '');
-    b.textContent = label;
-    // 反选:再点已选中的专辑 → 收起详情(置空回占位态)
-    b.addEventListener('click', () => setAlbum(activeAlbum === album ? null : album));
-    chips.appendChild(b);
-  };
-  if (SHOW_RECENT_FEED) mk('全部', null, activeAlbum === null);
-  for (const a of albums) mk(a, a, activeAlbum === a);
-  if (hasUncat) mk('未分类', '', activeAlbum === '');
-}
-
-function setAlbum(album) {
-  activeAlbum = album;
-  renderAlbums();
-  renderStream();
-}
-
-async function renderStream() {
-  // 专辑「生成分享页」按钮(与当日动态「记一把」同款):选中专辑时显示,链接带当前专辑;未选专辑隐藏
-  const shareBtn = $('#btn-album-share');
-  if (shareBtn) {
-    shareBtn.hidden = !(activeAlbum && currentUser);
-    if (activeAlbum) shareBtn.href = '/export?album=' + encodeURIComponent(activeAlbum);
-  }
-  let list = allEntries;
-  if (activeAlbum === '') list = list.filter((e) => !e.album); // 未分类:album 为空/NULL
-  else if (activeAlbum) list = list.filter((e) => e.album === activeAlbum);
-  if (activeAlbum == null && !SHOW_RECENT_FEED) {
-    // 专辑入口:默认不渲染动态流
-    $('#stream-title').textContent = '专辑';
-    $('#stream').innerHTML = `<p class="empty">${allEntries.length ? '选择一个专辑查看' : '还没有日记 ✏️'}</p>`;
-    $('#album-map').style.display = 'none';
-    return;
-  }
-  list = [...list].sort((a, b) => {
-    if (activeAlbum != null) return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; // 专辑/未分类正序
-    if (a.date !== b.date) return a.date > b.date ? -1 : 1;                 // 动态倒序
-    return (a.created_at || '') > (b.created_at || '') ? -1 : 1;
-  });
-  $('#stream-title').textContent = activeAlbum === '' ? '专辑 · 未分类' : activeAlbum ? `专辑 · ${activeAlbum}` : '最近动态';
-  // 条目按日期分组:每日小标题 + 当日条目(样式与管理界面一致)
-  const grouped = [];
-  const byDate = {};
-  for (const e of list.slice(0, 60)) {
-    (byDate[e.date] = byDate[e.date] || []).push(e);
-  }
-  for (const date of Object.keys(byDate).sort().reverse()) grouped.push({ date, items: byDate[date] });
-  $('#stream').innerHTML = grouped.length
-    ? grouped.map((g) => `
-      <div class="stream-date-head">${esc(g.date)}</div>
-      ${g.items.map((e) => {
-        const visTag = e.visibility === 'private' ? '<span class="vis-tag">私有</span>' : '';
-        const visBtn = currentUser
-          ? `<button type="button" class="btn-small btn-vis" data-date="${esc(e.date)}" data-ts="${esc(e.ts)}" data-vis="${e.visibility === 'private' ? 'private' : 'public'}">${e.visibility === 'private' ? '改公开' : '改私有'}</button>`
-          : '';
-        const prevBtn = currentUser
-          ? `<button type="button" class="btn-small btn-prev" data-date="${esc(e.date)}" data-ts="${esc(e.ts)}">预览</button>`
-          : '';
-        const editBtn = currentUser
-          ? `<button type="button" class="btn-small btn-edit" data-date="${esc(e.date)}" data-ts="${esc(e.ts)}">编辑</button>`
-          : '';
-        const delBtn = currentUser
-          ? `<button type="button" class="btn-small btn-del" data-date="${esc(e.date)}" data-ts="${esc(e.ts)}">删除</button>`
-          : '';
-        return `<div class="recent-item">
-          <span class="recent-info">${esc(e.date)} <span class="time-tag">${fmtTime(e.ts)}</span> ${visTag} <b>${esc(e.title || '')}</b>${e.author ? ` · ${esc(e.author)}` : ''}</span>
-          <span class="recent-actions">${visBtn}${prevBtn}${editBtn}${delBtn}</span>
-        </div>`;
-      }).join('')}
-    `).join('')
-    : '<p class="empty">还没有日记 ✏️</p>';
-  bindStreamEditBtns($('#stream'));
-  // 地图仅在选中专辑/未分类时显示(未分类条目有坐标同样画)
-  if (activeAlbum != null) await renderAlbumMap(list);
-  else $('#album-map').style.display = 'none';
-}
-
 /* ---------- 大图 ---------- */
 function setupLightbox() {
   const lb = document.getElementById('lightbox');
@@ -1319,8 +1202,6 @@ async function init() {
   });
   initCalendar();
   initTabs();
-  renderAlbums();
-  renderStream();
   initPortalUser(); // 探测登录态 + 拉私有待办(待办橙点/待办区仅登录可见)
 
   const now = new Date();
@@ -1342,5 +1223,5 @@ async function init() {
 
 init().catch((err) => {
   console.error(err);
-  $('#stream').innerHTML = `<p class="empty">加载失败:${esc(err.message)}</p>`;
+  $('#day-entries').innerHTML = `<p class="empty">加载失败:${esc(err.message)}</p>`;
 });
