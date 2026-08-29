@@ -134,11 +134,11 @@
     </div>
   </div>
 
-  <!-- 打卡/写日记共用地 图选点弹层(共享 loc-picker.js) -->
+  <!-- 打卡/写日记共用地 选择位置弹层(搜索 + 定位为主;无瓦片地图,适配国产/夸克移动端) -->
   <div id="loc-overlay" class="loc-overlay" hidden>
     <div class="loc-overlay-card">
       <div class="loc-overlay-head">
-        <span class="loc-overlay-title">地图选点</span>
+        <span class="loc-overlay-title">选择位置</span>
         <button type="button" id="btn-loc-close" class="btn-small">✕</button>
       </div>
       <div class="loc-search-row">
@@ -146,7 +146,6 @@
         <button type="button" id="btn-loc-current" class="btn-small">📍 定位</button>
       </div>
       <div id="loc-results" class="loc-results"></div>
-      <div id="loc-map" class="loc-map"></div>
       <div id="loc-nearby" class="loc-nearby" hidden></div>
       <p id="loc-status" class="form-status"></p>
       <div id="loc-confirm" class="loc-confirm" hidden>
@@ -158,7 +157,7 @@
 
   <script src="api.js?v=20260825"></script>
   <script src="map-common.js?v=20260825e"></script>
-  <script src="loc-picker.js?v=20260824"></script>
+  <script src="loc-picker.js?v=20260825a"></script>
   <script src="entry-modal.js?v=20260824"></script>
   <script src="app.js?v=20260825j"></script>
 </body>

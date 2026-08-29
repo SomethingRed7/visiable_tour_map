@@ -68,36 +68,10 @@ function gcj2wgs(lat, lng) {
   return { lat: lat * 2 - g.lat, lng: lng * 2 - g.lng };
 }
 
-/* 泪滴形图钉(内联 SVG,无外部依赖) */
-function ggPinSvg() {
-  return '<svg viewBox="0 0 24 24" width="28" height="28" style="display:block;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))">'
-    + '<path d="M12 1.8C7.4 1.8 3.7 5.5 3.7 10.1c0 5.6 6.8 12.6 7.4 13.3.5.5 1.3.5 1.8 0 .6-.7 7.4-7.7 7.4-13.3C20.3 5.5 16.6 1.8 12 1.8z" fill="#e11d48"/>'
-    + '<circle cx="12" cy="10" r="3.1" fill="#fff"/></svg>';
-}
-
-/* ---------- 依赖加载(Leaflet 懒加载 / 高德 SDK) ---------- */
-let pickerMap = null;
-let pickerMarker = null;
+/* ---------- 依赖加载(高德 SDK;选点不再依赖 Leaflet 瓦片——瓦片 CDN 在夸克/国产移动端常加载失败,改用搜索+GPS 为主) ---------- */
 let picked = null; // { name, lat, lng }
 let amapKey = '';      // 高德 JS key(经 /api/config 下发;空=纯浏览器定位)
 let amapSecurity = ''; // 高德安全密钥 securityJsCode(2021 后服务必需)
-
-function loadLeaflet() {
-  return new Promise((resolve, reject) => {
-    if (window.L) return resolve();
-    const s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js';
-    s.onload = () => {
-      const l = document.createElement('link');
-      l.rel = 'stylesheet';
-      l.href = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';
-      document.head.appendChild(l);
-      resolve();
-    };
-    s.onerror = reject;
-    document.head.appendChild(s);
-  });
-}
 
 function loadAmap(key, securityCode) {
   return new Promise((resolve, reject) => {
@@ -233,22 +207,8 @@ async function getRouteLine(entries) {
   if (w && w.line) return w.line;
   return straight();
 }
-function placeMarker(lat, lng) {
-  if (!pickerMap) return;
-  if (pickerMarker) pickerMap.removeLayer(pickerMarker);
-  pickerMarker = L.marker([lat, lng], {
-    icon: L.divIcon({ className: 'gg-marker', html: ggPinSvg(), iconSize: [28, 28], iconAnchor: [14, 27] }),
-    draggable: true,
-  }).addTo(pickerMap);
-  pickerMarker.on('dragend', () => {
-    const p = pickerMarker.getLatLng();
-    setPoint(p.lat, p.lng, '');
-  });
-}
-
 function setPoint(lat, lng, name) {
   picked = { name, lat, lng };
-  placeMarker(lat, lng);
   $('#loc-confirm').hidden = false;
   $('#loc-confirm-name').textContent = name || '选择的位置';
   $('#loc-status').textContent = `坐标 ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
@@ -283,7 +243,6 @@ async function reverseNearby(lat, lng) {
         b.addEventListener('click', () => {
           const n = nearby[Number(b.dataset.i)];
           setPoint(n.lat, n.lng, n.name);
-          if (pickerMap) pickerMap.setView([n.lat, n.lng], Math.max(pickerMap.getZoom(), 15));
         });
       });
     } else {
@@ -346,10 +305,7 @@ function renderNearbyChips(arr) {
   [...box.querySelectorAll('.loc-nearby-chip')].forEach((b) => {
     b.addEventListener('click', () => {
       const n = arr[Number(b.dataset.i)];
-      placeMarker(n.lat, n.lng);
-      if (pickerMap) pickerMap.setView([n.lat, n.lng], Math.max(pickerMap.getZoom(), 15));
-      $('#loc-confirm-name').textContent = n.name;
-      $('#loc-status').textContent = `坐标 ${n.lat.toFixed(5)}, ${n.lng.toFixed(5)}`;
+      setPoint(n.lat, n.lng, n.name);
     });
   });
 }
@@ -371,7 +327,7 @@ async function serverSearch(q) {
     });
     renderLocResults(results);
   } catch {
-    $('#loc-results').innerHTML = '<p class="empty">搜索超时,试试点地图选</p>';
+    $('#loc-results').innerHTML = '<p class="empty">搜索超时,换个关键词重试</p>';
   }
 }
 
@@ -379,18 +335,11 @@ function renderLocResults(arr) {
   const box = $('#loc-results');
   box.innerHTML = arr.length
     ? arr.map((r, i) => `<button type="button" class="loc-result" data-i="${i}">📍 ${esc(r.name)}</button>`).join('')
-    : '<p class="empty">没搜到,试试直接点地图选</p>';
+    : '<p class="empty">没搜到,换个关键词或点「📍 定位」</p>';
   [...box.querySelectorAll('.loc-result')].forEach((b) => {
     b.addEventListener('click', () => {
       const r = arr[Number(b.dataset.i)];
-      if (pickerMap) {
-        placeMarker(r.lat, r.lng);
-        pickerMap.setView([r.lat, r.lng], 14);
-      }
-      picked = { name: r.name, lat: r.lat, lng: r.lng };
-      $('#loc-confirm').hidden = false;
-      $('#loc-confirm-name').textContent = r.name;
-      $('#loc-status').textContent = `坐标 ${r.lat.toFixed(5)}, ${r.lng.toFixed(5)}`;
+      setPoint(r.lat, r.lng, r.name);
     });
   });
 }
@@ -401,7 +350,6 @@ function locateCurrent() {
   st.textContent = '定位中...';
   const done = (lat, lng) => {
     setPoint(lat, lng, '当前位置');
-    if (pickerMap) pickerMap.setView([lat, lng], 14);
     (async () => {
       const ok = await amapReverse(lat, lng);
       if (!ok) {
@@ -509,34 +457,8 @@ function lpOpenPicker(initLat, initLng) {
   setTimeout(() => $('#loc-search').focus(), 50);
   // 缓存城市(搜索限定时用);无则异步拉一次 IP 定位(不阻塞打开)
   if (!lpCityCache) lpIpLocate().then(() => {});
-  (async () => {
-    try {
-      await loadLeaflet();
-      if (!pickerMap) initPickerMap();
-      setTimeout(() => pickerMap.invalidateSize(), 120);
-      if (initLat != null && initLng != null) {
-        pickerMap.setView([initLat, initLng], 14);
-        setPoint(initLat, initLng, '');
-      } else {
-        pickerMap.setView([35, 105], 5);
-      }
-    } catch {
-      $('#loc-status').textContent = '地图加载失败,仍可搜索选点';
-    }
-  })();
-}
-
-function initPickerMap() {
-  pickerMap = L.map('loc-map', { scrollWheelZoom: false }).setView([35, 105], 5);
-  L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
-    maxZoom: 18,
-    subdomains: ['1', '2', '3', '4'],
-    attribution: '&copy; 高德地图',
-  }).addTo(pickerMap);
-  pickerMap.on('click', (ev) => {
-    const { lat, lng } = ev.latlng;
-    setPoint(lat, lng, '');
-  });
+  // 编辑现有位置 → 直接设为已选(用户可搜索/定位覆盖)
+  if (initLat != null && initLng != null) setPoint(initLat, initLng, '');
 }
 
 /* 事件绑定(静态元素,只绑一次;页面可能不含选点器 DOM——如导出页,判空防 TypeError) */
@@ -545,7 +467,7 @@ lpBind('#btn-loc-close', 'click', () => { $('#loc-overlay').hidden = true; });
 lpBind('#loc-overlay', 'click', (e) => { if (e.target.id === 'loc-overlay') $('#loc-overlay').hidden = true; });
 lpBind('#btn-loc-current', 'click', locateCurrent);
 lpBind('#btn-loc-done', 'click', () => {
-  if (!picked) return $('#loc-status').textContent = '先在搜索列表选一条,或点一下地图';
+  if (!picked) return $('#loc-status').textContent = '先在搜索列表选一条,或点「📍 定位」';
   const cb = window.__locOnPick;
   $('#loc-overlay').hidden = true;
   if (cb) cb(picked.name || $('#loc-confirm-name').textContent || '自定义位置', picked.lat, picked.lng);
