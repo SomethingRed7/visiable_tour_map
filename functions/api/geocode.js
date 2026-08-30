@@ -137,36 +137,39 @@ export async function onRequestGet(context) {
 
   try {
     if (lat && lng && Number.isFinite(parseFloat(lat)) && Number.isFinite(parseFloat(lng))) {
-      // 优先高德 regeo(与瓦片同源);失败回退 Nominatim+Overpass
-      const amap = await amapRegeo(context.env, lat, lng);
-      if (amap) return Response.json({ results: [amap] });
+      // 优先高德 regeo(与瓦片同源,有 AMAP_WEB_KEY 才有)
+      try {
+        const amap = await amapRegeo(context.env, lat, lng);
+        if (amap) return Response.json({ results: [amap] });
+      } catch { /* 高德失败继续 */ }
 
-      // 0) 服务端缓存(同坐标 1h 秒回,避开反复调用公开服务)
-      const cached = _geoCacheGet(lat, lng);
-      if (cached) {
-        return Response.json({ results: [{ name: cached.name, lat: parseFloat(lat), lng: parseFloat(lng), nearby: cached.nearby || [] }] });
-      }
+      // 0) 服务端缓存(同坐标 1h 秒回)
+      try {
+        const cached = _geoCacheGet(lat, lng);
+        if (cached) return Response.json({ results: [{ name: cached.name, lat: parseFloat(lat), lng: parseFloat(lng), nearby: cached.nearby || [] }] });
+      } catch { /* 缓存读失败继续 */ }
 
-      const [revSettled, nearby, photon, bdc] = await Promise.allSettled([
-        fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=17&accept-language=zh-CN`,
-          { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(8000) }
-        ),
-        nearbyOverpass(lat, lng),
-        photonReverse(lat, lng),
-        bigDataCloudReverse(lat, lng),
-      ]);
-      // 反查名:Nominatim → Photon(小区名)→ BigDataCloud(中文) 依次回退
+      // 依次: Nominatim → Photon(小区名)→ BigDataCloud(中文) — 任一成功即用
       let name = '自定义位置';
-      if (revSettled.status === 'fulfilled' && revSettled.value.ok) {
-        const d = await revSettled.value.json();
-        if (d && d.display_name) name = shortName(d.display_name);
+      try {
+        const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=17&accept-language=zh-CN`, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(7000) });
+        if (r.ok) { const d = await r.json(); if (d && d.display_name) name = shortName(d.display_name); }
+      } catch { /* 继续 */ }
+      if (name === '自定义位置') {
+        const p = await photonReverse(lat, lng);
+        if (p) name = String(p).slice(0, 80);
       }
-      if (name === '自定义位置' && photon.status === 'fulfilled' && photon.value) name = String(photon.value).slice(0, 80);
-      if (name === '自定义位置' && bdc.status === 'fulfilled' && bdc.value) name = String(bdc.value).slice(0, 80);
-      const nearbyList = nearby.status === 'fulfilled' ? nearby.value : [];
-      // 写缓存(1h)
-      if (name !== '自定义位置') _geoCachePut(lat, lng, { name, nearby: nearbyList });
+      if (name === '自定义位置') {
+        const b = await bigDataCloudReverse(lat, lng);
+        if (b) name = String(b).slice(0, 80);
+      }
+
+      // 附近(Overpass,失败不阻塞)
+      let nearbyList = [];
+      try { nearbyList = await nearbyOverpass(lat, lng); } catch { /* 继续 */ }
+
+      // 写缓存(1h,有名字才写)
+      if (name !== '自定义位置') { try { _geoCachePut(lat, lng, { name, nearby: nearbyList }); } catch { /* 继续 */ } }
       return Response.json({ results: [{ name, lat: parseFloat(lat), lng: parseFloat(lng), nearby: nearbyList }] });
     }
 
