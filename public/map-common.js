@@ -317,12 +317,16 @@
     amapLayer.on('tileerror', () => { applyOsm(); });
     amapLayer.addTo(map);
     // 主动探针:在 Leaflet 请求瓦片前,独立 Image 测一张高德瓦片。
-    // 不少代理/移动网络返回 HTML 200(假成功)让 tileerror 不触发——这里用 onerror + 5s 超时兜底。
+    // 不少代理/移动网络返回 HTML 200(假成功)让 tileerror 不触发——这里用 onerror / 5s 超时 / naturalWidth=0 三重兜底。
     {
       const probe = new Image();
       let done = false;
       const t = setTimeout(() => { if (!done) { done = true; applyOsm(); } }, 5000);
-      probe.onload = () => { done = true; clearTimeout(t); };
+      probe.onload = () => {
+        done = true;
+        clearTimeout(t);
+        if (probe.naturalWidth === 0) applyOsm(); // 返回了 HTML 200 之类的"假成功"——无图像宽度
+      };
       probe.onerror = () => { done = true; clearTimeout(t); applyOsm(); };
       probe.src = 'https://webrd01.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x=0&y=0&z=0';
     }
