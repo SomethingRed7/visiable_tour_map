@@ -307,22 +307,45 @@ async function reverseNearby(lat, lng) {
       nb.hidden = true;
       nb.innerHTML = '';
     }
-  } catch { /* 网络挂,fallback 到浏览器 Nominatim */ }
-  // 服务端没拿到名 → 浏览器直连 Nominatim(全球可达,WiFi+Chrome 必通)
+  } catch { /* 网络挂,fallback 到浏览器 Photon / Nominatim */ }
+  // 服务端没拿到名 → 浏览器兜底:Photon(Komoot,OSM 反查,乡野位置更友好) → Nominatim(zoom 18 详细,失败再 zoom 10 粗粒度到城市/区)
   if (!gotName) {
+    const w = toWgs(lat, lng);
+    // 1) Photon
     try {
-      const w = toWgs(lat, lng);
-      const ctrl2 = new AbortController();
-      const t2 = setTimeout(() => ctrl2.abort(), 5000);
-      const r2 = await (await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${w.lat}&lon=${w.lng}&zoom=18&accept-language=zh`, { signal: ctrl2.signal })).json();
-      clearTimeout(t2);
-      if (r2 && r2.display_name) {
-        const short = r2.display_name.split(',')[0].trim() || r2.display_name;
-        picked.name = short;
-        $('#loc-confirm-name').textContent = short;
-        gotName = true;
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 5000);
+      const r = await (await fetch(`https://photon.komoot.io/reverse?lon=${w.lng}&lat=${w.lat}`, { signal: ctrl.signal })).json();
+      clearTimeout(t);
+      const f = r && r.features && r.features[0];
+      if (f) {
+        const p = f.properties || {};
+        const name = p.name || p.street || p.city || p.county || p.state;
+        if (name) {
+          picked.name = name;
+          $('#loc-confirm-name').textContent = name;
+          gotName = true;
+        }
       }
-    } catch { /* Nominatim 也不可达,留坐标 */ }
+    } catch { /* 继续兜底 */ }
+    // 2) Nominatim(zoom 18 → 10)
+    if (!gotName) {
+      for (const zoom of [18, 10]) {
+        try {
+          const ctrl = new AbortController();
+          const t = setTimeout(() => ctrl.abort(), 5000);
+          const r2 = await (await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${w.lat}&lon=${w.lng}&zoom=${zoom}&accept-language=zh`, { signal: ctrl.signal })).json();
+          clearTimeout(t);
+          if (r2 && r2.display_name) {
+            const short = r2.display_name.split(',')[0].trim() || r2.display_name;
+            picked.name = short;
+            $('#loc-confirm-name').textContent = short;
+            gotName = true;
+            break;
+          }
+        } catch { /* 继续试下一档 */ }
+      }
+    }
   }
   st.textContent = `坐标 ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 }
