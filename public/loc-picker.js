@@ -603,6 +603,29 @@ lpBind('#btn-loc-done', 'click', () => {
   $('#loc-overlay').hidden = true;
   if (cb) cb(picked.name || $('#loc-confirm-name').textContent || '自定义位置', picked.lat, picked.lng);
 });
+/* 手动输入名称(必填) + 坐标(选填)——反查/搜索全坏时的唯一办法;会写本地缓存,下次同坐标秒回 */
+function useManualCoords() {
+  const name = ($('#loc-name') && $('#loc-name').value.trim()) || '';
+  const latRaw = $('#loc-lat').value.trim();
+  const lngRaw = $('#loc-lng').value.trim();
+  const hasLat = latRaw !== '';
+  const hasLng = lngRaw !== '';
+  if (hasLat !== hasLng) return $('#loc-status').textContent = '经纬度要一起填,或都留空';
+  if (!name) return $('#loc-status').textContent = '名称必填(反查全挂,只能手输)';
+  let lat = null, lng = null;
+  if (hasLat) {
+    lat = parseFloat(latRaw); lng = parseFloat(lngRaw);
+    if (Number.isNaN(lat) || lat < -90 || lat > 90) return $('#loc-status').textContent = '纬度(lat)无效,范围 -90 到 90';
+    if (Number.isNaN(lng) || lng < -180 || lng > 180) return $('#loc-status').textContent = '经度(lng)无效,范围 -180 到 180';
+  }
+  setPoint(lat, lng, name);
+  // 有坐标 → 写本地缓存(同坐标下次秒回)
+  if (lat != null && lng != null && _ggGeoPut) _ggGeoPut(lat, lng, name);
+}
+lpBind('#btn-loc-manual', 'click', useManualCoords);
+lpBind('#loc-lat', 'keydown', (e) => { if (e.key === 'Enter') useManualCoords(); });
+lpBind('#loc-lng', 'keydown', (e) => { if (e.key === 'Enter') useManualCoords(); });
+lpBind('#loc-name', 'keydown', (e) => { if (e.key === 'Enter') useManualCoords(); });
 lpBind('#loc-search', 'input', () => {
   clearTimeout(searchTimer);
   const q = $('#loc-search').value.trim();
