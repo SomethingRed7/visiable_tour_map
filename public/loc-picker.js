@@ -271,9 +271,26 @@ function setPoint(lat, lng, name) {
 }
 
 /* 反查地名 + 附近地点:服务端 /api/geocode(高德 regeo+around 优先,失败 Nominatim+Overpass);
- * 服务端没拿到名时 → 浏览器直连 Nominatim 反查(NZ/海外用户服务端可能不可达,这里兜底) */
+ * 浏览器兜底链:localStorage 缓存(同坐标秒回,避开公开服务限流)→ Photon → Nominatim(zoom 18/10, addressdetails=1)→ Open-Meteo
+ * Nominatim 优先从 address 子对象选最有意义的命名要素(比 display_name 可靠) */
+const _ggGeoCache = (() => { try { return JSON.parse(localStorage.getItem('gg_geocode') || '{}'); } catch { return {}; } })();
+const _ggGeoKey = (la, ln) => (Math.round(la * 1e4) / 1e4) + ',' + (Math.round(ln * 1e4) / 1e4); // ~11m
+function _ggGeoGet(la, ln) { const e = _ggGeoCache[_ggGeoKey(la, ln)]; return e && (Date.now() - e.t) < 7 * 86400e3 ? e.n : null; }
+function _ggGeoPut(la, ln, name) {
+  if (!name) return;
+  _ggGeoCache[_ggGeoKey(la, ln)] = { n: name, t: Date.now() };
+  try { localStorage.setItem('gg_geocode', JSON.stringify(_ggGeoCache)); } catch { /* 满 */ }
+}
 async function reverseNearby(lat, lng) {
   const st = $('#loc-status');
+  // 0) localStorage 缓存(同坐标秒回,避开反复调用公开服务被限流)
+  const cached = _ggGeoGet(lat, lng);
+  if (cached) {
+    picked.name = cached;
+    $('#loc-confirm-name').textContent = cached;
+    st.textContent = `坐标 ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    return;
+  }
   st.textContent = '反查中…';
   let gotName = false;
   try {
@@ -307,9 +324,7 @@ async function reverseNearby(lat, lng) {
       nb.hidden = true;
       nb.innerHTML = '';
     }
-  } catch { /* 网络挂,fallback 到浏览器 Photon / Nominatim */ }
-  // 服务端没拿到名 → 浏览器兜底:Photon(Komoot,OSM 反查,乡野位置更友好) → Nominatim(zoom 18 详细,失败再 zoom 10 粗粒度到城市/区)
-  // 优先从 address 子对象选最有意义的命名要素(标准做法,display_name 空时也能取到)
+  } catch { /* 网络挂,fallback 到浏览器 Photon / Nominatim / Open-Meteo */ }
   const pickFromAddr = (a) => a && (a.attraction || a.amenity || a.shop || a.tourism || a.building || a.house_name
     || a.road || a.neighbourhood || a.suburb || a.village || a.hamlet || a.town || a.city || a.county || a.state);
   if (!gotName) {
@@ -324,14 +339,10 @@ async function reverseNearby(lat, lng) {
       if (f) {
         const p = f.properties || {};
         const name = p.name || p.street || p.suburb || p.village || p.neighbourhood || p.district || p.city || p.county || p.state;
-        if (name) {
-          picked.name = name;
-          $('#loc-confirm-name').textContent = name;
-          gotName = true;
-        }
+        if (name) { picked.name = name; $('#loc-confirm-name').textContent = name; gotName = true; }
       }
-    } catch { /* 继续兜底 */ }
-    // 2) Nominatim(zoom 18 → 10),addressdetails=1 取结构化地址
+    } catch { /* 继续 */ }
+    // 2) Nominatim(zoom 18 → 10),addressdetails=1
     if (!gotName) {
       for (const zoom of [18, 10]) {
         try {
@@ -342,16 +353,26 @@ async function reverseNearby(lat, lng) {
           const fromAddr = pickFromAddr(r2 && r2.address);
           const fromDisplay = r2 && r2.display_name ? r2.display_name.split(',')[0].trim() : '';
           const name = fromAddr || fromDisplay;
-          if (name) {
-            picked.name = name;
-            $('#loc-confirm-name').textContent = name;
-            gotName = true;
-            break;
-          }
-        } catch { /* 继续试下一档 */ }
+          if (name) { picked.name = name; $('#loc-confirm-name').textContent = name; gotName = true; break; }
+        } catch { /* 继续 */ }
       }
     }
+    // 3) Open-Meteo 兜底(免 key,CORS 友好,限流宽松)
+    if (!gotName) {
+      try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 5000);
+        const r3 = await (await fetch(`https://geocoding-api.open-meteo.com/v1/reverse?latitude=${w.lat}&longitude=${w.lng}&language=zh&format=json`, { signal: ctrl.signal })).json();
+        clearTimeout(t);
+        const f = r3 && r3.results && r3.results[0];
+        if (f) {
+          const name = f.name || f.city || f.town || f.village || f.suburb || f.county || f.country;
+          if (name) { picked.name = name; $('#loc-confirm-name').textContent = name; gotName = true; }
+        }
+      } catch { /* 都不行 */ }
+    }
   }
+  if (gotName && picked.name) _ggGeoPut(lat, lng, picked.name);
   st.textContent = `坐标 ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 }
 
