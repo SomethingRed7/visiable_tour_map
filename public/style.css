@@ -1026,7 +1026,7 @@ body {
   border-radius: 8px;
 }
 .loc-manual-label { color: var(--text-soft); font-size: 0.8rem; flex: 1 0 100%; margin-bottom: 2px; }
-.loc-manual input {
+.loc-manual input, .loc-manual-coord input {
   flex: 1 1 0;
   min-width: 0;
   padding: 6px 8px;
@@ -1035,6 +1035,7 @@ body {
   font: inherit;
   font-size: 0.9rem;
 }
+.loc-manual-coord { display: flex; flex: 1 0 100%; gap: 6px; }
 
 .loc-confirm {
   display: flex;

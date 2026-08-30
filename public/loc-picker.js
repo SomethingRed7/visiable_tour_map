@@ -472,17 +472,19 @@ lpBind('#btn-loc-done', 'click', () => {
   $('#loc-overlay').hidden = true;
   if (cb) cb(picked.name || $('#loc-confirm-name').textContent || '自定义位置', picked.lat, picked.lng);
 });
-/* 手动输入坐标(网络搜索/定位全失败时的兜底——从 Google/高德复制经纬度粘贴) */
+/* 手动输入坐标(网络搜索/反查全失败时的兜底——从 Google/高德复制经纬度粘贴,可顺便填名称) */
 function useManualCoords() {
   const lat = parseFloat($('#loc-lat').value.trim());
   const lng = parseFloat($('#loc-lng').value.trim());
   if (Number.isNaN(lat) || lat < -90 || lat > 90) return $('#loc-status').textContent = '纬度(lat)无效,范围 -90 到 90';
   if (Number.isNaN(lng) || lng < -180 || lng > 180) return $('#loc-status').textContent = '经度(lng)无效,范围 -180 到 180';
-  setPoint(lat, lng, '手动输入');
+  const name = ($('#loc-name') && $('#loc-name').value.trim()) || '手动输入';
+  setPoint(lat, lng, name);
 }
 lpBind('#btn-loc-manual', 'click', useManualCoords);
 lpBind('#loc-lat', 'keydown', (e) => { if (e.key === 'Enter') useManualCoords(); });
 lpBind('#loc-lng', 'keydown', (e) => { if (e.key === 'Enter') useManualCoords(); });
+lpBind('#loc-name', 'keydown', (e) => { if (e.key === 'Enter') useManualCoords(); });
 lpBind('#loc-search', 'input', () => {
   clearTimeout(searchTimer);
   const q = $('#loc-search').value.trim();
