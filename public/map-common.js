@@ -221,6 +221,42 @@
     panel.style.display = 'block';
     panel._reposition();
   }
+  /* ---- GCJ-02/WGS-84 坐标(仅中国境内 GCJ 有偏移;海外点位本就是 WGS-84,不能转) ---- */
+  function inChina(lat, lng) {
+    return lng > 73 && lng < 136 && lat > 3 && lat < 55;
+  }
+  function wgs2gcj(lat, lng) {
+    const a = 6378245.0, ee = 0.00669342162296594323;
+    const tLat = (x, y) => {
+      let r = -100 + 2 * x + 3 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
+      r += (20 * Math.sin(6 * x * Math.PI) + 20 * Math.sin(2 * x * Math.PI)) * 2 / 3;
+      r += (20 * Math.sin(y * Math.PI) + 40 * Math.sin(y / 3 * Math.PI)) * 2 / 3;
+      r += (160 * Math.sin(y / 12 * Math.PI) + 320 * Math.sin(y * Math.PI / 30)) * 2 / 3;
+      return r;
+    };
+    const tLng = (x, y) => {
+      let r = 300 + x + 2 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
+      r += (20 * Math.sin(6 * x * Math.PI) + 20 * Math.sin(2 * x * Math.PI)) * 2 / 3;
+      r += (20 * Math.sin(x * Math.PI) + 40 * Math.sin(x / 3 * Math.PI)) * 2 / 3;
+      r += (150 * Math.sin(x / 12 * Math.PI) + 300 * Math.sin(x / 30 * Math.PI)) * 2 / 3;
+      return r;
+    };
+    const dLat = tLat(lng - 105, lat - 35);
+    const dLng = tLng(lng - 105, lat - 35);
+    const rad = lat / 180 * Math.PI;
+    let magic = Math.sin(rad);
+    magic = 1 - ee * magic * magic;
+    const s = Math.sqrt(magic);
+    return {
+      lat: lat + dLat * 180 / ((a * (1 - ee)) / (magic * s) * Math.PI),
+      lng: lng + dLng * 180 / (a / s * Math.cos(rad) * Math.PI),
+    };
+  }
+  function toWgs(lat, lng) {
+    if (!inChina(lat, lng)) return { lat, lng };
+    const g = wgs2gcj(lat, lng);
+    return { lat: lat * 2 - g.lat, lng: lng * 2 - g.lng };
+  }
   /* 打卡点地图:主页/分享/导出页全用这个
    * opts: { onMarkerClick(entry), scrollWheelZoom=true, containerId, showRoute=true, fitPadding=[30,30], fullscreen=true } */
   async function renderCheckinMap(box, entries, opts) {
@@ -245,11 +281,45 @@
     box._ggMap = map;
     setTimeout(() => map.invalidateSize(), 120);
     setTimeout(() => map.invalidateSize(), 400);
-    L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
+
+    // 瓦片:高德(国内)为主;加载失败(海外/部分国产浏览器 CDN 不可达)→ 自动切 OSM 并做坐标投影
+    const markers = [];
+    let osmOn = false;
+    let tileErrors = 0;
+    let amapLayer = null;
+    let routeLayer = null;
+    let routeLine = null;
+    const project = (lat, lng) => { const p = toWgs(lat, lng); return [p.lat, p.lng]; };
+    function applyOsm() {
+      if (osmOn) return;
+      osmOn = true;
+      if (amapLayer) { map.removeLayer(amapLayer); amapLayer = null; }
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap',
+      }).addTo(map);
+      for (const mk of markers) {
+        const e = mk._entry;
+        mk.setLatLng(project(e.location.lat, e.location.lng));
+      }
+      if (routeLayer && routeLine) routeLayer.setLatLngs(routeLine.map(([la, ln]) => project(la, ln)));
+      if (markers.length === 1) {
+        map.setView(project(markers[0]._entry.location.lat, markers[0]._entry.location.lng), 12);
+      } else if (markers.length > 1) {
+        map.fitBounds(markers.map((mk) => mk.getLatLng()), { padding: opts.fitPadding || [30, 30] });
+      }
+    }
+    amapLayer = L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
       maxZoom: 18,
       subdomains: ['1', '2', '3', '4'],
       attribution: '&copy; 高德地图',
-    }).addTo(map);
+    });
+    amapLayer.on('tileerror', () => {
+      tileErrors++;
+      if (tileErrors >= 3) applyOsm(); // 连续 3 张瓦片失败 → 判定高德不可达
+    });
+    amapLayer.addTo(map);
+
     if (opts.fullscreen !== false && window.LocPicker) {
       LocPicker.lpMapFullscreen(map, box);
     }
@@ -257,9 +327,12 @@
     const bounds = [];
     for (let i = 0; i < withLoc.length; i++) {
       const e = withLoc[i];
-      const mk = L.marker([e.location.lat, e.location.lng], {
+      const pos = osmOn ? project(e.location.lat, e.location.lng) : [e.location.lat, e.location.lng];
+      const mk = L.marker(pos, {
         icon: L.divIcon({ className: 'gg-marker', html: ggPinSvg(), iconSize: [28, 28], iconAnchor: [14, 27] }),
       }).addTo(map);
+      mk._entry = e;
+      markers.push(mk);
       // 原样式文字版详情弹窗 + 「展开详情」按钮(按钮打开紧凑详情面板,不遮地图)
       // 地点名精简:地图上已有明确点位,完整行政地址过长影响观看
       const name = e.location ? shortLoc(e.location.display || e.location.name || '') : '';
@@ -267,7 +340,7 @@
         `<b>${esc(e.date)} ${fmtTime(e.ts)}</b> ${esc(e.title || '')}<br>${esc(name)}` +
         `<br><button type="button" class="popup-detail-btn" style="margin-top:6px;padding:4px 12px;border:1px solid #e5e7eb;border-radius:999px;background:#fff;color:#e11d48;cursor:pointer;font-size:.8rem" data-i="${i}">展开详情</button>`
       );
-      bounds.push([e.location.lat, e.location.lng]);
+      bounds.push(pos);
     }
     // 弹窗内「展开详情」按钮 → 紧凑详情面板(文字+部分图片);CSP 禁内联 onclick,须 addEventListener
     map.on('popupopen', (ev) => {
@@ -289,8 +362,11 @@
         return Number(entryTs(a)) - Number(entryTs(b));
       });
       const line = await getRouteLine(ordered);
-      L.polyline(line, { color: '#e11d48', weight: 4, opacity: 0.9 }).addTo(map);
-      map.fitBounds(line, { padding: opts.fitPadding || [30, 30] });
+      routeLine = line;
+      routeLayer = L.polyline(line.map(([la, ln]) => (osmOn ? project(la, ln) : [la, ln])), {
+        color: '#e11d48', weight: 4, opacity: 0.9,
+      }).addTo(map);
+      map.fitBounds(routeLayer.getBounds(), { padding: opts.fitPadding || [30, 30] });
     } else if (withLoc.length === 1) {
       map.setView(bounds[0], 12);
     } else {
