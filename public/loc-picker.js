@@ -371,6 +371,52 @@ async function reverseNearby(lat, lng) {
   }
   if (gotName && picked.name) _ggGeoPut(lat, lng, picked.name);
   st.textContent = `坐标 ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  // 附近店/点(Overpass 直连浏览器,CORS 友好,选点后秒出 8 个 POI,点一个用它的名字+精确坐标)
+  loadNearbyPois(lat, lng);
+}
+
+/* 附近 POI(Overpass,OSM shop/amenity/tourism) — 浏览器直连,海外用户服务端被限时的兜底 */
+function loadNearbyPois(lat, lng) {
+  const nb = $('#loc-nearby');
+  if (!nb || lat == null || lng == null) { if (nb) nb.hidden = true; return; }
+  const w = toWgs(lat, lng);
+  const q = `[out:json][timeout:8];(node["name"](around:120,${w.lat},${w.lng})["shop"];way["name"](around:120,${w.lat},${w.lng})["shop"];node["name"](around:120,${w.lat},${w.lng})["amenity"];way["name"](around:120,${w.lat},${w.lng})["amenity"];node["name"](around:120,${w.lat},${w.lng})["tourism"];way["name"](around:120,${w.lat},${w.lng})["tourism"];);out center tags 30;`;
+  fetch('https://overpass-api.de/api/interpreter', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'data=' + encodeURIComponent(q),
+    signal: AbortSignal.timeout(8000),
+  })
+    .then((r) => r.ok ? r.json() : null)
+    .then((d) => {
+      if (!d) { nb.hidden = true; return; }
+      const seen = new Set();
+      const out = [];
+      for (const e of (d.elements || [])) {
+        const t = e.tags || {};
+        const name = (t.name || '').trim();
+        if (!name || seen.has(name)) continue;
+        const elat = e.lat ?? (e.center || {}).lat;
+        const elng = e.lon ?? (e.center || {}).lon;
+        if (elat == null || elng == null) continue;
+        seen.add(name);
+        out.push({ name, lat: elat, lng: elng });
+        if (out.length >= 8) break;
+      }
+      if (!out.length) { nb.hidden = true; return; }
+      nb.hidden = false;
+      nb.innerHTML = '<div class="loc-nearby-title">附近 8 家(点一个用它的名字 + 精确坐标)</div>' +
+        out.map((p, i) => `<button type="button" class="loc-nearby-chip" data-i="${i}">${esc(p.name)}</button>`).join('');
+      [...nb.querySelectorAll('.loc-nearby-chip')].forEach((b) => {
+        b.addEventListener('click', () => {
+          const p = out[Number(b.dataset.i)];
+          // Overpass = WGS-84,需 fromWgs 转回 GCJ(应用存的格式)
+          const g = fromWgs(p.lat, p.lng);
+          setPoint(g.lat, g.lng, p.name);
+        });
+      });
+    })
+    .catch(() => { nb.hidden = true; });
 }
 
 /* 高德客户端反查(Geocoder + 周边 POI),返回 true 表示已处理 */
@@ -603,29 +649,6 @@ lpBind('#btn-loc-done', 'click', () => {
   $('#loc-overlay').hidden = true;
   if (cb) cb(picked.name || $('#loc-confirm-name').textContent || '自定义位置', picked.lat, picked.lng);
 });
-/* 手动输入名称(必填) + 坐标(选填)——反查/搜索全坏时的唯一办法;会写本地缓存,下次同坐标秒回 */
-function useManualCoords() {
-  const name = ($('#loc-name') && $('#loc-name').value.trim()) || '';
-  const latRaw = $('#loc-lat').value.trim();
-  const lngRaw = $('#loc-lng').value.trim();
-  const hasLat = latRaw !== '';
-  const hasLng = lngRaw !== '';
-  if (hasLat !== hasLng) return $('#loc-status').textContent = '经纬度要一起填,或都留空';
-  if (!name) return $('#loc-status').textContent = '名称必填(反查全挂,只能手输)';
-  let lat = null, lng = null;
-  if (hasLat) {
-    lat = parseFloat(latRaw); lng = parseFloat(lngRaw);
-    if (Number.isNaN(lat) || lat < -90 || lat > 90) return $('#loc-status').textContent = '纬度(lat)无效,范围 -90 到 90';
-    if (Number.isNaN(lng) || lng < -180 || lng > 180) return $('#loc-status').textContent = '经度(lng)无效,范围 -180 到 180';
-  }
-  setPoint(lat, lng, name);
-  // 有坐标 → 写本地缓存(同坐标下次秒回)
-  if (lat != null && lng != null && _ggGeoPut) _ggGeoPut(lat, lng, name);
-}
-lpBind('#btn-loc-manual', 'click', useManualCoords);
-lpBind('#loc-lat', 'keydown', (e) => { if (e.key === 'Enter') useManualCoords(); });
-lpBind('#loc-lng', 'keydown', (e) => { if (e.key === 'Enter') useManualCoords(); });
-lpBind('#loc-name', 'keydown', (e) => { if (e.key === 'Enter') useManualCoords(); });
 lpBind('#loc-search', 'input', () => {
   clearTimeout(searchTimer);
   const q = $('#loc-search').value.trim();
