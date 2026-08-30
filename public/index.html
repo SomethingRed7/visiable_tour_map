@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>咕咕嘎嘎 · 旅行日记</title>
-  <link rel="stylesheet" href="style.css?v=20260824">
+  <link rel="stylesheet" href="style.css?v=20260825f">
 </head>
 <body>
   <header class="site-header">
@@ -146,6 +146,12 @@
         <button type="button" id="btn-loc-current" class="btn-small">📍 定位</button>
       </div>
       <div id="loc-results" class="loc-results"></div>
+      <div class="loc-manual">
+        <span class="loc-manual-label">或手动输入坐标</span>
+        <input id="loc-lat" type="text" inputmode="decimal" placeholder="纬度 lat (如 -38.11)" autocomplete="off">
+        <input id="loc-lng" type="text" inputmode="decimal" placeholder="经度 lng (如 176.24)" autocomplete="off">
+        <button type="button" id="btn-loc-manual" class="btn-small">用这个点</button>
+      </div>
       <div id="loc-nearby" class="loc-nearby" hidden></div>
       <p id="loc-status" class="form-status"></p>
       <div id="loc-confirm" class="loc-confirm" hidden>
@@ -157,7 +163,7 @@
 
   <script src="api.js?v=20260825"></script>
   <script src="map-common.js?v=20260825e"></script>
-  <script src="loc-picker.js?v=20260825a"></script>
+  <script src="loc-picker.js?v=20260825b"></script>
   <script src="entry-modal.js?v=20260824"></script>
   <script src="app.js?v=20260825j"></script>
 </body>

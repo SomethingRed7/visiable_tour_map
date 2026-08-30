@@ -1014,6 +1014,28 @@ body {
   border: 1px solid var(--line);
 }
 
+.loc-manual {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: 10px 0 4px;
+  padding: 8px 10px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.loc-manual-label { color: var(--text-soft); font-size: 0.8rem; flex: 1 0 100%; margin-bottom: 2px; }
+.loc-manual input {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.9rem;
+}
+
 .loc-confirm {
   display: flex;
   align-items: center;
