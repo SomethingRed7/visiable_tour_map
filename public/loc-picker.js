@@ -474,29 +474,6 @@ lpBind('#btn-loc-done', 'click', () => {
   $('#loc-overlay').hidden = true;
   if (cb) cb(picked.name || $('#loc-confirm-name').textContent || '自定义位置', picked.lat, picked.lng);
 });
-/* 手动输入(网络/反查全坏时的兜底,可只填名称留空坐标——会上相册但不上地图;或填全部)
- * 来自 Google/高德地图长按选点复制经纬度粘贴;名称/坐标二选一或都填 */
-function useManualCoords() {
-  const name = ($('#loc-name') && $('#loc-name').value.trim()) || '';
-  const latRaw = $('#loc-lat').value.trim();
-  const lngRaw = $('#loc-lng').value.trim();
-  const hasLat = latRaw !== '';
-  const hasLng = lngRaw !== '';
-  if (hasLat !== hasLng) return $('#loc-status').textContent = '纬度和经度要一起填,或都留空';
-  if (!name && !hasLat) return $('#loc-status').textContent = '至少填一个:名称或经纬度';
-  let lat = null, lng = null;
-  if (hasLat) {
-    lat = parseFloat(latRaw);
-    lng = parseFloat(lngRaw);
-    if (Number.isNaN(lat) || lat < -90 || lat > 90) return $('#loc-status').textContent = '纬度(lat)无效,范围 -90 到 90';
-    if (Number.isNaN(lng) || lng < -180 || lng > 180) return $('#loc-status').textContent = '经度(lng)无效,范围 -180 到 180';
-  }
-  setPoint(lat, lng, name || '手动输入');
-}
-lpBind('#btn-loc-manual', 'click', useManualCoords);
-lpBind('#loc-lat', 'keydown', (e) => { if (e.key === 'Enter') useManualCoords(); });
-lpBind('#loc-lng', 'keydown', (e) => { if (e.key === 'Enter') useManualCoords(); });
-lpBind('#loc-name', 'keydown', (e) => { if (e.key === 'Enter') useManualCoords(); });
 lpBind('#loc-search', 'input', () => {
   clearTimeout(searchTimer);
   const q = $('#loc-search').value.trim();
