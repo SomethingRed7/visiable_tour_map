@@ -3,7 +3,7 @@
 # 高德瓦片(webrd0{1-4}.is.autonavi.com)、OSM 瓦片(tile.openstreetmap.org)、照片预览(blob:)、AMap 服务(restapi.amap.com)
 # Nominatim 反查(浏览器直连兜底)、Photon 反查(Komoot,乡野位置更友好)
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://webapi.amap.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob: https://*.is.autonavi.com https://*.amap.com https://tile.openstreetmap.org https://*.tile.openstreetmap.org; connect-src 'self' https://webapi.amap.com https://restapi.amap.com https://*.amap.com https://nominatim.openstreetmap.org https://photon.komoot.io https://geocoding-api.open-meteo.com; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://webapi.amap.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob: https://*.is.autonavi.com https://*.amap.com https://tile.openstreetmap.org https://*.tile.openstreetmap.org; connect-src 'self' https://webapi.amap.com https://restapi.amap.com https://*.amap.com https://nominatim.openstreetmap.org https://photon.komoot.io; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
   X-Frame-Options: DENY
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   Referrer-Policy: strict-origin-when-cross-origin

@@ -271,7 +271,7 @@ function setPoint(lat, lng, name) {
 }
 
 /* 反查地名 + 附近地点:服务端 /api/geocode(高德 regeo+around 优先,失败 Nominatim+Overpass);
- * 浏览器兜底链:localStorage 缓存(同坐标秒回,避开公开服务限流)→ Photon → Nominatim(zoom 18/10, addressdetails=1)→ Open-Meteo
+ * 浏览器兜底链:localStorage 缓存(同坐标秒回,避开公开服务限流)→ Photon → Nominatim(zoom 18/10, addressdetails=1)
  * Nominatim 优先从 address 子对象选最有意义的命名要素(比 display_name 可靠) */
 const _ggGeoCache = (() => { try { return JSON.parse(localStorage.getItem('gg_geocode') || '{}'); } catch { return {}; } })();
 const _ggGeoKey = (la, ln) => (Math.round(la * 1e4) / 1e4) + ',' + (Math.round(ln * 1e4) / 1e4); // ~11m
@@ -324,12 +324,12 @@ async function reverseNearby(lat, lng) {
       nb.hidden = true;
       nb.innerHTML = '';
     }
-  } catch { /* 网络挂,fallback 到浏览器 Photon / Nominatim / Open-Meteo */ }
+  } catch { /* 网络挂,fallback 到浏览器 Photon / Nominatim */ }
   const pickFromAddr = (a) => a && (a.attraction || a.amenity || a.shop || a.tourism || a.building || a.house_name
     || a.road || a.neighbourhood || a.suburb || a.village || a.hamlet || a.town || a.city || a.county || a.state);
   if (!gotName) {
     const w = toWgs(lat, lng);
-    // 1) Photon
+    // 1) Photon(locality 才是真正的小区/位置名,如 "Mountview Green",street 是路名)
     try {
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), 5000);
@@ -338,7 +338,7 @@ async function reverseNearby(lat, lng) {
       const f = r && r.features && r.features[0];
       if (f) {
         const p = f.properties || {};
-        const name = p.name || p.street || p.suburb || p.village || p.neighbourhood || p.district || p.city || p.county || p.state;
+        const name = p.locality || p.name || p.street || p.suburb || p.village || p.neighbourhood || p.district || p.city || p.county || p.state || p.postcode;
         if (name) { picked.name = name; $('#loc-confirm-name').textContent = name; gotName = true; }
       }
     } catch { /* 继续 */ }
@@ -356,20 +356,6 @@ async function reverseNearby(lat, lng) {
           if (name) { picked.name = name; $('#loc-confirm-name').textContent = name; gotName = true; break; }
         } catch { /* 继续 */ }
       }
-    }
-    // 3) Open-Meteo 兜底(免 key,CORS 友好,限流宽松)
-    if (!gotName) {
-      try {
-        const ctrl = new AbortController();
-        const t = setTimeout(() => ctrl.abort(), 5000);
-        const r3 = await (await fetch(`https://geocoding-api.open-meteo.com/v1/reverse?latitude=${w.lat}&longitude=${w.lng}&language=zh&format=json`, { signal: ctrl.signal })).json();
-        clearTimeout(t);
-        const f = r3 && r3.results && r3.results[0];
-        if (f) {
-          const name = f.name || f.city || f.town || f.village || f.suburb || f.county || f.country;
-          if (name) { picked.name = name; $('#loc-confirm-name').textContent = name; gotName = true; }
-        }
-      } catch { /* 都不行 */ }
     }
   }
   if (gotName && picked.name) _ggGeoPut(lat, lng, picked.name);
