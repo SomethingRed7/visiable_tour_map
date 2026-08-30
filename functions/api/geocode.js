@@ -1,7 +1,15 @@
 // 地理编码 API:GET /api/geocode?q=地名 | ?lat=&lng=(反向,含附近地点)
 // 反向:配置了 AMAP_KEY 时用高德 regeo(与瓦片同源,POI 名一致,含附近 pois);
-// 否则回退 Nominatim(反查)+ Overpass(nearby)——两者都是 OSM 数据,与高德瓦片不一致
+// 否则回退 Nominatim → Photon(Komoot,OSM 反查,有 UA 不被限流)→ BigDataCloud(中文结果,免 key,CORS 友好)
+// + 服务端 in-memory 缓存(1h),同一坐标秒回
 const UA = 'gugugaga-travel-diary/1.0 (personal use)';
+const _geoCache = new Map(); // key: "lat,lng" 1h TTL
+const _geoCacheKey = (la, ln) => `${Number(la).toFixed(5)},${Number(ln).toFixed(5)}`;
+function _geoCacheGet(la, ln) {
+  const e = _geoCache.get(_geoCacheKey(la, ln));
+  return e && (Date.now() - e.t) < 3600e3 ? e.v : null;
+}
+function _geoCachePut(la, ln, v) { _geoCache.set(_geoCacheKey(la, ln), { v, t: Date.now() }); }
 
 // 地点名截短:Nominatim 返回完整地址(逗号串),只保留第一段短名(如「杭州东站」)
 function shortName(display) {
@@ -89,6 +97,38 @@ async function nearbyOverpass(lat, lng) {
   } catch { return []; }
 }
 
+/* Photon 反查(OSM,Komoot,免 key 限流宽松;有 UA 浏览器直连不会被限,服务端更稳)
+ * 优先 locality(小区名,比如 Mountview Green)> name(POI)> street(路)> suburb/village/neighbourhood > city */
+async function photonReverse(lat, lng) {
+  try {
+    const res = await fetch(`https://photon.komoot.io/reverse?lon=${lng}&lat=${lat}`, {
+      headers: { 'User-Agent': UA },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const d = await res.json();
+    const f = d && d.features && d.features[0];
+    if (!f) return null;
+    const p = f.properties || {};
+    return p.locality || p.name || p.street || p.suburb || p.village || p.neighbourhood || p.district || p.city || p.county || p.state || null;
+  } catch { return null; }
+}
+
+/* BigDataCloud 反查(中文本地化,免 key,CORS 友好;不同 IP 池,服务端稳)
+ * locality(如 罗托鲁瓦) > city > principalSubdivision > countryName */
+async function bigDataCloudReverse(lat, lng) {
+  try {
+    const res = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=zh`, {
+      headers: { 'User-Agent': UA },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const d = await res.json();
+    if (!d) return null;
+    return d.locality || d.city || d.principalSubdivision || d.countryName || null;
+  } catch { return null; }
+}
+
 export async function onRequestGet(context) {
   const url = new URL(context.request.url);
   const q = url.searchParams.get('q');
@@ -101,20 +141,32 @@ export async function onRequestGet(context) {
       const amap = await amapRegeo(context.env, lat, lng);
       if (amap) return Response.json({ results: [amap] });
 
-      const [revSettled, nearby] = await Promise.allSettled([
+      // 0) 服务端缓存(同坐标 1h 秒回,避开反复调用公开服务)
+      const cached = _geoCacheGet(lat, lng);
+      if (cached) {
+        return Response.json({ results: [{ name: cached.name, lat: parseFloat(lat), lng: parseFloat(lng), nearby: cached.nearby || [] }] });
+      }
+
+      const [revSettled, nearby, photon, bdc] = await Promise.allSettled([
         fetch(
           `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=17&accept-language=zh-CN`,
           { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(8000) }
         ),
         nearbyOverpass(lat, lng),
+        photonReverse(lat, lng),
+        bigDataCloudReverse(lat, lng),
       ]);
-      // allSettled:一方失败不影响另一方(本地 Nominatim 被墙时 Overpass 仍可用)
+      // 反查名:Nominatim → Photon(小区名)→ BigDataCloud(中文) 依次回退
       let name = '自定义位置';
       if (revSettled.status === 'fulfilled' && revSettled.value.ok) {
         const d = await revSettled.value.json();
         if (d && d.display_name) name = shortName(d.display_name);
       }
+      if (name === '自定义位置' && photon.status === 'fulfilled' && photon.value) name = String(photon.value).slice(0, 80);
+      if (name === '自定义位置' && bdc.status === 'fulfilled' && bdc.value) name = String(bdc.value).slice(0, 80);
       const nearbyList = nearby.status === 'fulfilled' ? nearby.value : [];
+      // 写缓存(1h)
+      if (name !== '自定义位置') _geoCachePut(lat, lng, { name, nearby: nearbyList });
       return Response.json({ results: [{ name, lat: parseFloat(lat), lng: parseFloat(lng), nearby: nearbyList }] });
     }
 
