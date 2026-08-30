@@ -342,7 +342,18 @@ async function reverseNearby(lat, lng) {
         if (name) { picked.name = name; $('#loc-confirm-name').textContent = name; gotName = true; }
       }
     } catch { /* 继续 */ }
-    // 2) Nominatim(zoom 18 → 10),addressdetails=1
+    // 2) BigDataCloud(中文本地化,不同 IP 池,Photon 限流时这条顶上来)
+    if (!gotName) {
+      try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 5000);
+        const r3 = await (await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${w.lat}&longitude=${w.lng}&localityLanguage=zh`, { signal: ctrl.signal })).json();
+        clearTimeout(t);
+        const name = r3 && (r3.locality || r3.city || r3.principalSubdivision || r3.countryName);
+        if (name) { picked.name = name; $('#loc-confirm-name').textContent = name; gotName = true; }
+      } catch { /* 继续 */ }
+    }
+    // 3) Nominatim(zoom 18 → 10),addressdetails=1
     if (!gotName) {
       for (const zoom of [18, 10]) {
         try {

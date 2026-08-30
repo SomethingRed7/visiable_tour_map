@@ -12,9 +12,9 @@ export function buildSnapshotHtml(snap, opts = {}) {
   // 页面标题:专辑名 → 日期区间 → 兜底
   const docTitle = snap.album || (snap.from && snap.to ? `${snap.from} ~ ${snap.to}` : '');
   const title = docTitle ? `${docTitle} · 咕咕嘎嘎` : '行程分享 · 咕咕嘎嘎';
-  // 静态快照(github.io)无响应头,CSP 走 meta:放行 leaflet CDN / 高德(瓦片+webapi) / OSM 瓦片 / Nominatim+Photon 反查 / pages.dev 照片与 API
+  // 静态快照(github.io)无响应头,CSP 走 meta:放行 leaflet CDN / 高德(瓦片+webapi) / OSM 瓦片 / Nominatim+Photon+BigDataCloud 反查 / pages.dev 照片与 API
   const cspMeta = opts.cspMeta
-    ? `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://webapi.amap.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob: https://*.is.autonavi.com https://*.amap.com https://tile.openstreetmap.org https://*.tile.openstreetmap.org https://gugugaga-viw.pages.dev; connect-src 'self' https://webapi.amap.com https://restapi.amap.com https://*.amap.com https://nominatim.openstreetmap.org https://photon.komoot.io https://gugugaga-viw.pages.dev; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'">`
+    ? `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://webapi.amap.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob: https://*.is.autonavi.com https://*.amap.com https://tile.openstreetmap.org https://*.tile.openstreetmap.org https://gugugaga-viw.pages.dev; connect-src 'self' https://webapi.amap.com https://restapi.amap.com https://*.amap.com https://nominatim.openstreetmap.org https://photon.komoot.io https://api.bigdatacloud.net https://gugugaga-viw.pages.dev; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'">`
     : '';
   return `<!DOCTYPE html>
 <html lang="zh-CN">
