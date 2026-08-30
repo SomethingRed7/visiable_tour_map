@@ -258,7 +258,8 @@
     return { lat: lat * 2 - g.lat, lng: lng * 2 - g.lng };
   }
   /* 打卡点地图:主页/分享/导出页全用这个
-   * opts: { onMarkerClick(entry), scrollWheelZoom=true, containerId, showRoute=true, fitPadding=[30,30], fullscreen=true } */
+   * opts: { onMarkerClick(entry), scrollWheelZoom=true, containerId, showRoute=true, fitPadding=[30,30], fullscreen=true }
+   * 图源固定 OpenStreetMap(全球稳定、免 key、不依赖高德 CDN);存的是 GCJ-02,OSM 是 WGS-84,仅中国境内换算 */
   async function renderCheckinMap(box, entries, opts) {
     opts = opts || {};
     const containerId = opts.containerId || (box && box.id);
@@ -281,69 +282,23 @@
     box._ggMap = map;
     setTimeout(() => map.invalidateSize(), 120);
     setTimeout(() => map.invalidateSize(), 400);
-
-    // 瓦片:高德(国内)为主;加载失败(海外/部分国产浏览器 CDN 不可达)→ 自动切 OSM 并做坐标投影
-    const markers = [];
-    let osmOn = false;
-    let tileErrors = 0;
-    let amapLayer = null;
-    let routeLayer = null;
-    let routeLine = null;
-    const project = (lat, lng) => { const p = toWgs(lat, lng); return [p.lat, p.lng]; };
-    function applyOsm() {
-      if (osmOn) return;
-      osmOn = true;
-      if (amapLayer) { map.removeLayer(amapLayer); amapLayer = null; }
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; OpenStreetMap',
-      }).addTo(map);
-      for (const mk of markers) {
-        const e = mk._entry;
-        mk.setLatLng(project(e.location.lat, e.location.lng));
-      }
-      if (routeLayer && routeLine) routeLayer.setLatLngs(routeLine.map(([la, ln]) => project(la, ln)));
-      if (markers.length === 1) {
-        map.setView(project(markers[0]._entry.location.lat, markers[0]._entry.location.lng), 12);
-      } else if (markers.length > 1) {
-        map.fitBounds(markers.map((mk) => mk.getLatLng()), { padding: opts.fitPadding || [30, 30] });
-      }
-    }
-    amapLayer = L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
-      maxZoom: 18,
-      subdomains: ['1', '2', '3', '4'],
-      attribution: '&copy; 高德地图',
-    });
-    amapLayer.on('tileerror', () => { applyOsm(); });
-    amapLayer.addTo(map);
-    // 主动探针:在 Leaflet 请求瓦片前,独立 Image 测一张高德瓦片。
-    // 不少代理/移动网络返回 HTML 200(假成功)让 tileerror 不触发——这里用 onerror / 5s 超时 / naturalWidth=0 三重兜底。
-    {
-      const probe = new Image();
-      let done = false;
-      const t = setTimeout(() => { if (!done) { done = true; applyOsm(); } }, 5000);
-      probe.onload = () => {
-        done = true;
-        clearTimeout(t);
-        if (probe.naturalWidth === 0) applyOsm(); // 返回了 HTML 200 之类的"假成功"——无图像宽度
-      };
-      probe.onerror = () => { done = true; clearTimeout(t); applyOsm(); };
-      probe.src = 'https://webrd01.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x=0&y=0&z=0';
-    }
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap',
+    }).addTo(map);
 
     if (opts.fullscreen !== false && window.LocPicker) {
       LocPicker.lpMapFullscreen(map, box);
     }
     const onClick = opts.onMarkerClick || ((e) => openMapDetail(e, box));
+    const project = (lat, lng) => { const p = toWgs(lat, lng); return [p.lat, p.lng]; };
     const bounds = [];
     for (let i = 0; i < withLoc.length; i++) {
       const e = withLoc[i];
-      const pos = osmOn ? project(e.location.lat, e.location.lng) : [e.location.lat, e.location.lng];
+      const pos = project(e.location.lat, e.location.lng);
       const mk = L.marker(pos, {
         icon: L.divIcon({ className: 'gg-marker', html: ggPinSvg(), iconSize: [28, 28], iconAnchor: [14, 27] }),
       }).addTo(map);
-      mk._entry = e;
-      markers.push(mk);
       // 原样式文字版详情弹窗 + 「展开详情」按钮(按钮打开紧凑详情面板,不遮地图)
       // 地点名精简:地图上已有明确点位,完整行政地址过长影响观看
       const name = e.location ? shortLoc(e.location.display || e.location.name || '') : '';
@@ -373,8 +328,7 @@
         return Number(entryTs(a)) - Number(entryTs(b));
       });
       const line = await getRouteLine(ordered);
-      routeLine = line;
-      routeLayer = L.polyline(line.map(([la, ln]) => (osmOn ? project(la, ln) : [la, ln])), {
+      const routeLayer = L.polyline(line.map(([la, ln]) => project(la, ln)), {
         color: '#e11d48', weight: 4, opacity: 0.9,
       }).addTo(map);
       map.fitBounds(routeLayer.getBounds(), { padding: opts.fitPadding || [30, 30] });

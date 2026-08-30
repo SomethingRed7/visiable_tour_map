@@ -68,10 +68,33 @@ function gcj2wgs(lat, lng) {
   return { lat: lat * 2 - g.lat, lng: lng * 2 - g.lng };
 }
 
-/* ---------- 依赖加载(高德 SDK;选点不再依赖 Leaflet 瓦片——瓦片 CDN 在夸克/国产移动端常加载失败,改用搜索+GPS 为主) ---------- */
+/* ---------- 依赖加载(高德 SDK 选点 + Leaflet 选点地图) ---------- */
 let picked = null; // { name, lat, lng }
+let pickerMap = null;
+let pickerMarker = null;
 let amapKey = '';      // 高德 JS key(经 /api/config 下发;空=纯浏览器定位)
 let amapSecurity = ''; // 高德安全密钥 securityJsCode(2021 后服务必需)
+
+function loadLeaflet() {
+  return new Promise((resolve, reject) => {
+    if (window.L) return resolve();
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js';
+    s.onload = () => {
+      const l = document.createElement('link');
+      l.rel = 'stylesheet';
+      l.href = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(l);
+      resolve();
+    };
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+/* 坐标系:应用存 GCJ-02,OSM 瓦片是 WGS-84;仅中国境内换算(海外点位本就是 WGS-84) */
+function inChina(lat, lng) { return lng > 73 && lng < 136 && lat > 3 && lat < 55; }
+function toWgs(lat, lng) { if (!inChina(lat, lng)) return { lat, lng }; const g = wgs2gcj(lat, lng); return { lat: lat * 2 - g.lat, lng: lng * 2 - g.lng }; }
+function fromWgs(lat, lng) { if (!inChina(lat, lng)) return { lat, lng }; return wgs2gcj(lat, lng); }
 
 function loadAmap(key, securityCode) {
   return new Promise((resolve, reject) => {
@@ -207,8 +230,36 @@ async function getRouteLine(entries) {
   if (w && w.line) return w.line;
   return straight();
 }
+/* 选点地图(OpenStreetMap 瓦片,全球可达):点地图/拖图钉选点 */
+function initPickerMap() {
+  pickerMap = L.map('loc-map', { scrollWheelZoom: true }).setView([-40, 175], 5);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap',
+  }).addTo(pickerMap);
+  pickerMap.on('click', (ev) => {
+    const p = fromWgs(ev.latlng.lat, ev.latlng.lng);
+    setPoint(p.lat, p.lng, '');
+  });
+}
+function placeMarker(lat, lng) {
+  if (!pickerMap) return;
+  if (pickerMarker) pickerMap.removeLayer(pickerMarker);
+  const w = toWgs(lat, lng);
+  pickerMarker = L.marker([w.lat, w.lng], {
+    icon: L.divIcon({ className: 'gg-marker', html: ggPinSvg(), iconSize: [28, 28], iconAnchor: [14, 27] }),
+    draggable: true,
+  }).addTo(pickerMap);
+  pickerMarker.on('dragend', () => {
+    const ll = pickerMarker.getLatLng();
+    const p = fromWgs(ll.lat, ll.lng);
+    setPoint(p.lat, p.lng, '');
+  });
+}
+
 function setPoint(lat, lng, name) {
   picked = { name, lat, lng };
+  placeMarker(lat, lng);
   $('#loc-confirm').hidden = false;
   $('#loc-confirm-name').textContent = name || '选择的位置';
   $('#loc-status').textContent = (lat != null && lng != null)
@@ -459,8 +510,22 @@ function lpOpenPicker(initLat, initLng) {
   setTimeout(() => $('#loc-search').focus(), 50);
   // 缓存城市(搜索限定时用);无则异步拉一次 IP 定位(不阻塞打开)
   if (!lpCityCache) lpIpLocate().then(() => {});
-  // 编辑现有位置 → 直接设为已选(用户可搜索/定位覆盖)
-  if (initLat != null && initLng != null) setPoint(initLat, initLng, '');
+  // 初始化选点地图(OSM 瓦片;失败不阻塞——搜索/定位仍可用)
+  (async () => {
+    try {
+      await loadLeaflet();
+      if (!pickerMap) initPickerMap();
+      setTimeout(() => pickerMap.invalidateSize(), 120);
+    } catch {
+      $('#loc-status').textContent = '地图加载失败,仍可搜索/定位选点';
+    }
+    // 编辑现有位置 → 直接设为已选(用户可搜索/定位覆盖)
+    if (initLat != null && initLng != null) {
+      placeMarker(initLat, initLng);
+      if (pickerMap) pickerMap.setView(toWgs(initLat, initLng), 14);
+      setPoint(initLat, initLng, '');
+    }
+  })();
 }
 
 /* 事件绑定(静态元素,只绑一次;页面可能不含选点器 DOM——如导出页,判空防 TypeError) */
