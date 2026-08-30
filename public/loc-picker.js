@@ -187,7 +187,9 @@ function lpLooksGcjNative() {
 async function lpCalibrate(lat, lng) {
   // 国产浏览器:已返回 GCJ-02,免转换(否则双重偏移)
   if (lpLooksGcjNative()) return { lat, lng };
-  // 标准浏览器:WGS-84 → 转换 GCJ-02
+  // 海外点位:本就是 WGS-84,别再当中国 GCJ 转(否则 NZ 偏 500m)
+  if (!inChina(lat, lng)) return { lat, lng };
+  // 国内标准浏览器:WGS-84 → 转换 GCJ-02
   return wgs2gcj(lat, lng);
 }
 /* 定位权限被拒检测(打卡/写日记共用):navigator.permissions → 'denied'|'prompt'|'unknown' */
@@ -268,19 +270,22 @@ function setPoint(lat, lng, name) {
   if (lat != null && lng != null) reverseNearby(lat, lng); // 有坐标才反查;否则跳过
 }
 
-/* 反查地名 + 附近地点:服务端 /api/geocode(高德 regeo+around 优先,失败 Nominatim+Overpass) */
+/* 反查地名 + 附近地点:服务端 /api/geocode(高德 regeo+around 优先,失败 Nominatim+Overpass);
+ * 服务端没拿到名时 → 浏览器直连 Nominatim 反查(NZ/海外用户服务端可能不可达,这里兜底) */
 async function reverseNearby(lat, lng) {
   const st = $('#loc-status');
   st.textContent = '反查中…';
+  let gotName = false;
   try {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 20000);
+    const timer = setTimeout(() => ctrl.abort(), 8000);
     const r = await (await fetch(`/api/geocode?lat=${lat}&lng=${lng}`, { signal: ctrl.signal })).json();
     clearTimeout(timer);
     const res = r.results && r.results[0];
     if (res && res.name) {
       picked.name = res.name;
       $('#loc-confirm-name').textContent = res.name;
+      gotName = true;
     }
     // crs: 'gcj'=高德(已是 GCJ-02 勿转);'wgs'=Overpass(WGS-84 需转 GCJ-02 才对得上高德瓦片)
     const nearby = ((res && res.nearby) || []).map((n) => {
@@ -302,11 +307,24 @@ async function reverseNearby(lat, lng) {
       nb.hidden = true;
       nb.innerHTML = '';
     }
-    st.textContent = `坐标 ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-  } catch {
-    $('#loc-nearby').hidden = true;
-    st.textContent = `坐标 ${lat.toFixed(5)}, ${lng.toFixed(5)}(反查失败,可直接确认)`;
+  } catch { /* 网络挂,fallback 到浏览器 Nominatim */ }
+  // 服务端没拿到名 → 浏览器直连 Nominatim(全球可达,WiFi+Chrome 必通)
+  if (!gotName) {
+    try {
+      const w = toWgs(lat, lng);
+      const ctrl2 = new AbortController();
+      const t2 = setTimeout(() => ctrl2.abort(), 5000);
+      const r2 = await (await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${w.lat}&lon=${w.lng}&zoom=18&accept-language=zh`, { signal: ctrl2.signal })).json();
+      clearTimeout(t2);
+      if (r2 && r2.display_name) {
+        const short = r2.display_name.split(',')[0].trim() || r2.display_name;
+        picked.name = short;
+        $('#loc-confirm-name').textContent = short;
+        gotName = true;
+      }
+    } catch { /* Nominatim 也不可达,留坐标 */ }
   }
+  st.textContent = `坐标 ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 }
 
 /* 高德客户端反查(Geocoder + 周边 POI),返回 true 表示已处理 */
