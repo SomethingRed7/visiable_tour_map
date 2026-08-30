@@ -309,6 +309,9 @@ async function reverseNearby(lat, lng) {
     }
   } catch { /* 网络挂,fallback 到浏览器 Photon / Nominatim */ }
   // 服务端没拿到名 → 浏览器兜底:Photon(Komoot,OSM 反查,乡野位置更友好) → Nominatim(zoom 18 详细,失败再 zoom 10 粗粒度到城市/区)
+  // 优先从 address 子对象选最有意义的命名要素(标准做法,display_name 空时也能取到)
+  const pickFromAddr = (a) => a && (a.attraction || a.amenity || a.shop || a.tourism || a.building || a.house_name
+    || a.road || a.neighbourhood || a.suburb || a.village || a.hamlet || a.town || a.city || a.county || a.state);
   if (!gotName) {
     const w = toWgs(lat, lng);
     // 1) Photon
@@ -320,7 +323,7 @@ async function reverseNearby(lat, lng) {
       const f = r && r.features && r.features[0];
       if (f) {
         const p = f.properties || {};
-        const name = p.name || p.street || p.city || p.county || p.state;
+        const name = p.name || p.street || p.suburb || p.village || p.neighbourhood || p.district || p.city || p.county || p.state;
         if (name) {
           picked.name = name;
           $('#loc-confirm-name').textContent = name;
@@ -328,18 +331,20 @@ async function reverseNearby(lat, lng) {
         }
       }
     } catch { /* 继续兜底 */ }
-    // 2) Nominatim(zoom 18 → 10)
+    // 2) Nominatim(zoom 18 → 10),addressdetails=1 取结构化地址
     if (!gotName) {
       for (const zoom of [18, 10]) {
         try {
           const ctrl = new AbortController();
           const t = setTimeout(() => ctrl.abort(), 5000);
-          const r2 = await (await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${w.lat}&lon=${w.lng}&zoom=${zoom}&accept-language=zh`, { signal: ctrl.signal })).json();
+          const r2 = await (await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${w.lat}&lon=${w.lng}&zoom=${zoom}&addressdetails=1&accept-language=zh`, { signal: ctrl.signal })).json();
           clearTimeout(t);
-          if (r2 && r2.display_name) {
-            const short = r2.display_name.split(',')[0].trim() || r2.display_name;
-            picked.name = short;
-            $('#loc-confirm-name').textContent = short;
+          const fromAddr = pickFromAddr(r2 && r2.address);
+          const fromDisplay = r2 && r2.display_name ? r2.display_name.split(',')[0].trim() : '';
+          const name = fromAddr || fromDisplay;
+          if (name) {
+            picked.name = name;
+            $('#loc-confirm-name').textContent = name;
             gotName = true;
             break;
           }
