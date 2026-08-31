@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>管理 · 咕咕嘎嘎</title>
-  <link rel="stylesheet" href="style.css?v=20260825g">
+  <link rel="stylesheet" href="style.css?v=20260831a">
   <style>
     /* 管理界面正文总体不加粗;标题与主页保持一致(site-title=800、panel-heading=700 用全局样式) */
     .write-page .login-hint a,
@@ -140,7 +140,7 @@
 
       <section id="tab-manage" class="panel manage-panel tab-pane">
         <h2 class="panel-heading">管理条目</h2>
-        <p class="manage-hint">预览 / 编辑 / 删除;支持日期过滤、翻页、按日期分组</p>
+        <p class="manage-hint">预览 / 编辑 / 删除;支持日期过滤、翻页、按日期分组;勾选多条后可一键归入专辑</p>
         <a id="btn-write" class="btn-submit write-btn" href="edit.html">✏️ 写日记</a>
         <div class="mgr-tools">
           <label class="mgr-date">从 <input type="date" id="mgr-from"></label>
@@ -159,6 +159,12 @@
             <span id="mgr-page">1 / 1</span>
             <button type="button" id="mgr-next" class="btn-small">下一页 ›</button>
           </div>
+        </div>
+        <div id="mgr-batch-bar" class="mgr-batch-bar" hidden>
+          <label class="mgr-sel-all"><input type="checkbox" id="mgr-select-all"> 全选</label>
+          <span id="mgr-sel-count">已选 0 条</span>
+          <button type="button" id="btn-batch-album" class="btn-small">一键选专辑</button>
+          <button type="button" id="btn-batch-clear" class="btn-small">取消选择</button>
         </div>
         <div id="mgr-list" class="recent-list"></div>
       </section>
@@ -205,6 +211,24 @@
     </div>
   </div>
 
+  <!-- 批量选专辑弹层(勾选多条后一键归入专辑 / 新建专辑 / 不设专辑) -->
+  <div id="batch-album-modal" class="modal" hidden>
+    <div class="modal-card">
+      <h3 class="sub-panel-heading">设置专辑</h3>
+      <p class="manage-hint" id="batch-album-hint"></p>
+      <div id="batch-album-list" class="batch-album-list"></div>
+      <div class="batch-album-row">
+        <input type="text" id="batch-album-new" maxlength="50" placeholder="输入新专辑名…">
+        <button type="button" id="btn-batch-album-new" class="btn-small">新建</button>
+      </div>
+      <div class="share-actions">
+        <button type="button" id="btn-batch-album-unset" class="btn-small">不设专辑</button>
+        <button type="button" id="btn-batch-album-close" class="btn-small">取消</button>
+      </div>
+      <p id="batch-album-status" class="form-status"></p>
+    </div>
+  </div>
+
   <!-- 预览弹层 -->
   <div id="preview-modal" class="modal" hidden>
     <div class="modal-card">
@@ -232,36 +256,14 @@
     </div>
   </div>
 
-  <!-- 打卡/写日记共用地 选择位置弹层(搜索 + OSM 地图 + 附近店选名) -->
-  <div id="loc-overlay" class="loc-overlay" hidden>
-    <div class="loc-overlay-card">
-      <div class="loc-overlay-head">
-        <span class="loc-overlay-title">选择位置</span>
-        <button type="button" id="btn-loc-close" class="btn-small">✕</button>
-      </div>
-      <div class="loc-search-row">
-        <input type="search" id="loc-search" placeholder="搜索地名/店铺,如:橘子洲" autocomplete="off" enterkeyhint="search">
-        <button type="button" id="btn-loc-current" class="btn-small">📍 定位</button>
-      </div>
-      <div id="loc-results" class="loc-results"></div>
-      <div id="loc-map" class="loc-map"></div>
-      <div id="loc-nearby" class="loc-nearby" hidden></div>
-      <p id="loc-status" class="form-status"></p>
-      <div id="loc-confirm" class="loc-confirm" hidden>
-        <span id="loc-confirm-name" class="loc-confirm-name"></span>
-        <button type="button" id="btn-loc-done" class="btn-small">确定选这个点</button>
-      </div>
-    </div>
-  </div>
-
   <footer class="site-footer">咕咕嘎嘎 · 记录每一段在路上</footer>
 
   <div id="lightbox" class="lightbox" aria-hidden="true"><img alt="查看大图"></div>
 
   <script src="api.js?v=20260825"></script>
-  <script src="map-common.js?v=20260825i"></script>
+  <script src="map-common.js?v=20260825j"></script>
   <script src="loc-picker.js?v=20260825o"></script>
   <script src="entry-modal.js?v=20260818f"></script>
-  <script src="upload.js?v=20260825h"></script>
+  <script src="upload.js?v=20260831a"></script>
 </body>
 </html>
