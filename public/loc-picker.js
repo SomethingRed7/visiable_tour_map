@@ -285,7 +285,9 @@ function setPoint(lat, lng, name) {
   $('#loc-status').textContent = (lat != null && lng != null)
     ? `坐标 ${lat.toFixed(5)}, ${lng.toFixed(5)}`
     : '仅名称(无坐标,不上地图)';
-  if (lat != null && lng != null) reverseNearby(lat, lng); // 有坐标才反查;否则跳过
+  // 仅名字未知(点地图/拖图钉)才反查;搜索/推荐点选名字已知,反查会重拉 nearby 并覆盖整个列表
+  // (用户点一个推荐,其他推荐却跟着变 —— 2026-08-31 bug 修复)
+  if (lat != null && lng != null && !name) reverseNearby(lat, lng);
 }
 
 /* 反查地名 + 附近地点:服务端 /api/geocode(高德 regeo+around 优先,失败 Nominatim+Overpass);
