@@ -618,6 +618,7 @@ function locateCurrent() {
 
 /* ---------- 打开 / 关闭 ---------- */
 function lpOpenPicker(initLat, initLng) {
+  ensurePickerDom(); // 单一组件:无 DOM 时注入 + 绑事件
   $('#loc-overlay').hidden = false;
   $('#loc-results').innerHTML = '';
   $('#loc-nearby').hidden = true;
@@ -644,40 +645,72 @@ function lpOpenPicker(initLat, initLng) {
   })();
 }
 
-/* 事件绑定(静态元素,只绑一次;页面可能不含选点器 DOM——如导出页,判空防 TypeError) */
+/* ---------- 选点器 DOM 注入(单一来源,所有页面共用同一组件,杜绝三处拷贝不一致) ---------- */
+const _locOverlayHtml = `<div id="loc-overlay" class="loc-overlay" hidden>
+  <div class="loc-overlay-card">
+    <div class="loc-overlay-head">
+      <span class="loc-overlay-title">选择位置</span>
+      <button type="button" id="btn-loc-close" class="btn-small">✕</button>
+    </div>
+    <div class="loc-search-row">
+      <input type="search" id="loc-search" placeholder="搜索地名/店铺,如:橘子洲" autocomplete="off" enterkeyhint="search">
+      <button type="button" id="btn-loc-current" class="btn-small">📍 定位</button>
+    </div>
+    <div id="loc-results" class="loc-results"></div>
+    <div id="loc-map" class="loc-map"></div>
+    <div id="loc-nearby" class="loc-nearby" hidden></div>
+    <p id="loc-status" class="form-status"></p>
+    <div id="loc-confirm" class="loc-confirm" hidden>
+      <span id="loc-confirm-name" class="loc-confirm-name"></span>
+      <button type="button" id="btn-loc-done" class="btn-small">确定选这个点</button>
+    </div>
+  </div>
+</div>`;
+let _pickerBound = false;
 const lpBind = (sel, evt, fn) => { const el = $(sel); if (el) el.addEventListener(evt, fn); };
-lpBind('#btn-loc-close', 'click', () => { $('#loc-overlay').hidden = true; });
-lpBind('#loc-overlay', 'click', (e) => { if (e.target.id === 'loc-overlay') $('#loc-overlay').hidden = true; });
-lpBind('#btn-loc-current', 'click', locateCurrent);
-lpBind('#btn-loc-done', 'click', () => {
-  if (!picked) return $('#loc-status').textContent = '先在搜索列表选一条、点「📍 定位」或手动输入坐标';
-  const cb = window.__locOnPick;
-  $('#loc-overlay').hidden = true;
-  if (cb) cb(picked.name || $('#loc-confirm-name').textContent || '自定义位置', picked.lat, picked.lng);
-});
-lpBind('#loc-search', 'input', () => {
-  clearTimeout(searchTimer);
-  const q = $('#loc-search').value.trim();
-  if (!q) { $('#loc-results').innerHTML = ''; return; }
-  searchTimer = setTimeout(async () => {
-    const ready = await ensureAmap();
-    if (ready) {
-      try {
-        const ps = new AMap.PlaceSearch({ pageSize: 5 });
-        ps.search(q, (status, result) => {
-          const pois = status === 'complete' && result && result.poiList ? result.poiList.pois : [];
-          if (pois.length) {
-            renderLocResults(pois.map((p) => ({ name: p.name, lat: p.location && p.location.lat, lng: p.location && p.location.lng })).filter((n) => n.lat != null));
-            return;
-          }
-          serverSearch(q);
-        });
-        return;
-      } catch { /* 回退 */ }
-    }
-    serverSearch(q);
-  }, 300);
-});
+
+/* 确保选点器 DOM 存在(无则注入 body 末尾),静态事件只绑一次 */
+function ensurePickerDom() {
+  if (!document.getElementById('loc-overlay')) {
+    const tpl = document.createElement('template');
+    tpl.innerHTML = _locOverlayHtml.trim();
+    document.body.appendChild(tpl.content.firstElementChild);
+  }
+  if (_pickerBound) return;
+  _pickerBound = true;
+  lpBind('#btn-loc-close', 'click', () => { $('#loc-overlay').hidden = true; });
+  lpBind('#loc-overlay', 'click', (e) => { if (e.target.id === 'loc-overlay') $('#loc-overlay').hidden = true; });
+  lpBind('#btn-loc-current', 'click', locateCurrent);
+  lpBind('#btn-loc-done', 'click', () => {
+    if (!picked) return $('#loc-status').textContent = '先在搜索列表选一条、点「📍 定位」或在地图上选';
+    const cb = window.__locOnPick;
+    $('#loc-overlay').hidden = true;
+    if (cb) cb(picked.name || $('#loc-confirm-name').textContent || '自定义位置', picked.lat, picked.lng);
+  });
+  lpBind('#loc-search', 'input', () => {
+    clearTimeout(searchTimer);
+    const q = $('#loc-search').value.trim();
+    if (!q) { $('#loc-results').innerHTML = ''; return; }
+    searchTimer = setTimeout(async () => {
+      const ready = await ensureAmap();
+      if (ready) {
+        try {
+          const ps = new AMap.PlaceSearch({ pageSize: 5 });
+          ps.search(q, (status, result) => {
+            const pois = status === 'complete' && result && result.poiList ? result.poiList.pois : [];
+            if (pois.length) {
+              renderLocResults(pois.map((p) => ({ name: p.name, lat: p.location && p.location.lat, lng: p.location && p.location.lng })).filter((n) => n.lat != null));
+              return;
+            }
+            serverSearch(q);
+          });
+          return;
+        } catch { /* 回退 */ }
+      }
+      serverSearch(q);
+    }, 300);
+  });
+}
 
 /* ---------- 地图全屏查看(专辑地图/导出页/快照页共用) ----------
  * 点右上角 ⛶ 按钮 → 地图容器移入全屏遮罩铺满视口,自动 fit 所有打卡点;

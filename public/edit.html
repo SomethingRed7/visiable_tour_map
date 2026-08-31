@@ -129,27 +129,7 @@
           <input type="hidden" id="f-lng">
         </label>
 
-        <!-- 全屏选点器(搜索优先,微信/高德式) -->
-        <div id="loc-overlay" class="loc-overlay" hidden>
-          <div class="loc-overlay-card">
-            <div class="loc-overlay-head">
-              <span class="loc-overlay-title">选择位置</span>
-              <button type="button" id="btn-loc-close" class="btn-small">✕</button>
-            </div>
-            <div class="loc-search-row">
-              <input type="search" id="loc-search" placeholder="搜索地名/店铺,如:橘子洲" autocomplete="off" enterkeyhint="search">
-              <button type="button" id="btn-loc-current" class="btn-small">📍 定位</button>
-            </div>
-            <div id="loc-results" class="loc-results"></div>
-            <div id="loc-map" class="loc-map"></div>
-            <div id="loc-nearby" class="loc-nearby" hidden></div>
-            <p id="loc-status" class="form-status"></p>
-            <div id="loc-confirm" class="loc-confirm" hidden>
-              <span id="loc-confirm-name" class="loc-confirm-name"></span>
-              <button type="button" id="btn-loc-done" class="btn-small">确定选这个点</button>
-            </div>
-          </div>
-        </div>
+        <!-- 选点器 DOM 由 loc-picker.js 注入(单一组件,勿在此重复) -->
 
         <label>
           照片
