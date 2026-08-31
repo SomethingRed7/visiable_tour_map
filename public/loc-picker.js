@@ -327,9 +327,9 @@ async function reverseNearby(lat, lng) {
       $('#loc-confirm-name').textContent = res.name;
       gotName = true;
     }
-    // crs: 'gcj'=高德(已是 GCJ-02 勿转);'wgs'=Overpass(WGS-84 需转 GCJ-02 才对得上高德瓦片)
+    // crs: 'gcj'=高德(已是 GCJ-02 勿转);'wgs'=OSM/Photon(WGS-84,仅中国境内转 GCJ-02 才对得上瓦片,海外原样)
     const nearby = ((res && res.nearby) || []).map((n) => {
-      const p = n.crs === 'wgs' ? wgs2gcj(n.lat, n.lng) : { lat: n.lat, lng: n.lng };
+      const p = n.crs === 'wgs' ? fromWgs(n.lat, n.lng) : { lat: n.lat, lng: n.lng };
       return { name: n.name, lat: p.lat, lng: p.lng };
     }).slice(0, 12);
     const nb = $('#loc-nearby');
@@ -514,8 +514,8 @@ async function serverSearch(q) {
     const res = await (await fetch(`/api/geocode?q=${encodeURIComponent(q)}${cityQ}`, { signal: ctrl.signal })).json();
     clearTimeout(timer);
     const results = (res.results || []).map((r) => {
-      // crs:'gcj'=高德结果已是 GCJ-02 勿转;无 crs=Nominatim(WGS-84)需转,否则偏 1.4km
-      const g = r.crs === 'gcj' ? { lat: r.lat, lng: r.lng } : wgs2gcj(r.lat, r.lng);
+      // crs:'gcj'=高德结果已是 GCJ-02 勿转;无 crs=Nominatim(WGS-84):仅中国境内转 GCJ-02,海外原样(否则 NZ 等偏 1.4km)
+      const g = r.crs === 'gcj' ? { lat: r.lat, lng: r.lng } : fromWgs(r.lat, r.lng);
       return { name: r.name, lat: g.lat, lng: g.lng };
     });
     renderLocResults(results);
@@ -554,7 +554,7 @@ function locateCurrent() {
           const r = res.results && res.results[0];
           if (r) $('#loc-confirm-name').textContent = r.name;
           renderNearbyChips(((r && r.nearby) || []).map((n) => {
-            const p = n.crs === 'wgs' ? wgs2gcj(n.lat, n.lng) : { lat: n.lat, lng: n.lng };
+            const p = n.crs === 'wgs' ? fromWgs(n.lat, n.lng) : { lat: n.lat, lng: n.lng };
             return { name: n.name, lat: p.lat, lng: p.lng };
           }));
         } catch { /* 保持当前位置 */ }
