@@ -3,6 +3,7 @@
 //   POST /api/albums                 → 操作(JSON body):
 //        { action: 'rename', old, new }            改名(同步该专辑下全部条目)
 //        { action: 'visibility', album, vis }      一键设置专辑下全部条目公开/私密
+//        { action: 'set_album', album, items }     管理条目批量归专辑(items=[{date,ts}],album=''=未分类)
 // 返回 { ok: true, count }(受影响条目数)
 import { verifySession } from '../_lib/auth.js';
 
@@ -68,6 +69,25 @@ export async function onRequestPost(context) {
         .run();
     }
     return Response.json({ ok: true, count: (res.meta && res.meta.changes) || 0 });
+  }
+
+  if (action === 'set_album') {
+    // 管理条目批量归专辑:items = [{date, ts}, ...],album='' 表示移入未分类(album 置 NULL)
+    const album = body.album != null ? String(body.album).trim().slice(0, 50) : '';
+    const items = Array.isArray(body.items) ? body.items.slice(0, 200) : [];
+    if (!items.length) return Response.json({ error: '没有要处理的条目' }, { status: 400 });
+    let changes = 0;
+    for (const it of items) {
+      const date = String(it.date || '');
+      const ts = String(it.ts || '');
+      if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(date) || !/^[0-9]{13}$/.test(ts)) continue;
+      const res = await context.env.DB
+        .prepare('UPDATE entries SET album = ?1 WHERE date = ?2 AND ts = ?3')
+        .bind(album || null, date, Number(ts))
+        .run();
+      changes += (res.meta && res.meta.changes) || 0;
+    }
+    return Response.json({ ok: true, count: changes });
   }
 
   return Response.json({ error: '未知操作' }, { status: 400 });

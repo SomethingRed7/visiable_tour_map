@@ -847,6 +847,43 @@ body {
 .mgr-pager { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .mgr-pager span { font-size: 0.85rem; color: var(--text-soft); white-space: nowrap; }
 
+/* 管理条目批量操作(勾选 → 一键选专辑) */
+.mgr-batch-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 12px;
+  margin: 0 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--brand-soft, #fef3c7);
+  font-size: 0.85rem;
+}
+.mgr-sel-all { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text); }
+.mgr-sel-all input,
+.recent-check input { width: 16px; height: 16px; accent-color: var(--brand); cursor: pointer; }
+#mgr-sel-count { color: var(--text-soft); white-space: nowrap; }
+
+.recent-check { display: inline-flex; align-items: center; flex-shrink: 0; cursor: pointer; }
+.mgr-item .recent-info { flex: 1; min-width: 0; }
+
+/* 批量选专辑弹层 */
+.batch-album-list { display: flex; flex-wrap: wrap; gap: 8px; max-height: 28vh; overflow: auto; }
+.batch-album-item { flex-shrink: 0; }
+.batch-album-row { display: flex; align-items: center; gap: 8px; }
+.batch-album-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.9rem;
+  background: #fff;
+  color: var(--text);
+}
+
 /* 专辑管理列表 */
 .album-mgr-list { display: flex; flex-direction: column; gap: 8px; }
 .album-mgr-item {

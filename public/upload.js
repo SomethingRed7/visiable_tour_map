@@ -247,6 +247,9 @@ function bindPhotoGridFallback(container) {
 }
 /* 管理条目状态:分页 */
 let mgrState = { page: 1, size: '20' };
+/* 批量操作:勾选集合(date|ts,跨页记忆) */
+let mgrSel = new Set();
+function mgrSelKey(date, ts) { return `${date}|${ts}`; }
 
 /* 管理条目列表:合并打卡/日记,支持起止日期过滤 + 每页条数 + 翻页 + 按日期分组(首页同款 .stream-date-head) */
 async function renderRecent() {
@@ -281,7 +284,10 @@ async function renderRecent() {
     const byDate = {};
     for (const e of pageItems) (byDate[e.date] = byDate[e.date] || []).push(e);
     const grouped = Object.keys(byDate).sort().reverse().map((date) => ({ date, items: byDate[date] }));
-    const itemHtml = (e) => `<div class="recent-item">
+    const itemHtml = (e) => {
+      const key = mgrSelKey(e.date, entryTs(e));
+      return `<div class="recent-item mgr-item">
+        <label class="recent-check" title="选择"><input type="checkbox" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}"${mgrSel.has(key) ? ' checked' : ''}></label>
         <span class="recent-info">${esc(e.date)} <span class="time-tag">${fmtTime(entryTs(e))}</span> ${e.visibility === 'private' ? '<span class="vis-tag">私有</span>' : ''} ${e.album ? `<span class="album-tag">${esc(e.album)}</span>` : ''} <b>${esc(e.title || '')}</b>${e.author ? ` · ${esc(e.author)}` : ''}</span>
         <span class="recent-actions">
           <button type="button" class="btn-small btn-vis" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}" data-vis="${e.visibility === 'private' ? 'private' : 'public'}">${e.visibility === 'private' ? '改公开' : '改私有'}</button>
@@ -290,9 +296,14 @@ async function renderRecent() {
           <button type="button" class="btn-small btn-del" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}">删除</button>
         </span>
       </div>`;
+    };
     box.innerHTML = grouped.length
       ? grouped.map((g) => `<div class="stream-date-head">${esc(g.date)}</div>${g.items.map(itemHtml).join('')}`).join('')
       : '<p class="empty">没有符合条件的条目</p>';
+    // 批量勾选(跨页记忆)与「全选」状态同步
+    bindMgrCheckboxes(box);
+    updateSelAllState();
+    updateBatchBar();
     const pageEl = $('#mgr-page');
     if (pageEl) pageEl.textContent = `${mgrState.page} / ${pages}`;
     const prevBtn = $('#mgr-prev');
@@ -329,6 +340,137 @@ function initMgrTools() {
 
   const wxDate = $('#wx-date');
   if (wxDate) wxDate.value = localToday(); // 微信推送默认今天
+
+  // 批量操作栏(静态元素,页面加载即绑)
+  const selAll = $('#mgr-select-all');
+  if (selAll) selAll.addEventListener('change', () => {
+    const checked = selAll.checked;
+    $('#mgr-list').querySelectorAll('.recent-check input').forEach((cb) => {
+      cb.checked = checked;
+      const k = mgrSelKey(cb.dataset.date, cb.dataset.ts);
+      if (checked) mgrSel.add(k); else mgrSel.delete(k);
+    });
+    updateBatchBar();
+  });
+  const batchBtn = $('#btn-batch-album');
+  if (batchBtn) batchBtn.addEventListener('click', openBatchAlbumModal);
+  const batchClear = $('#btn-batch-clear');
+  if (batchClear) batchClear.addEventListener('click', () => {
+    mgrSel.clear();
+    const sa = $('#mgr-select-all');
+    if (sa) { sa.checked = false; sa.indeterminate = false; }
+    renderRecent();
+    updateBatchBar();
+  });
+  // 批量选专辑弹层
+  const bam = $('#batch-album-modal');
+  if (bam) bam.addEventListener('click', (e) => { if (e.target === bam) closeBatchAlbumModal(); });
+  const bamClose = $('#btn-batch-album-close');
+  if (bamClose) bamClose.addEventListener('click', closeBatchAlbumModal);
+  const bamUnset = $('#btn-batch-album-unset');
+  if (bamUnset) bamUnset.addEventListener('click', () => applyBatchAlbum(''));
+  const bamNew = $('#btn-batch-album-new');
+  if (bamNew) bamNew.addEventListener('click', () => applyBatchAlbum($('#batch-album-new').value.trim()));
+  const bamNewInput = $('#batch-album-new');
+  if (bamNewInput) bamNewInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); applyBatchAlbum(bamNewInput.value.trim()); }
+  });
+}
+
+/* ---- 管理条目批量操作:勾选 → 一键选专辑(或新建) ---- */
+function updateBatchBar() {
+  const bar = $('#mgr-batch-bar');
+  const count = $('#mgr-sel-count');
+  if (bar) bar.hidden = mgrSel.size === 0;
+  if (count) count.textContent = `已选 ${mgrSel.size} 条`;
+}
+
+function updateSelAllState() {
+  const selAll = $('#mgr-select-all');
+  const box = $('#mgr-list');
+  if (!selAll || !box) return;
+  const cbs = box.querySelectorAll('.recent-check input');
+  const anyChecked = [...cbs].some((cb) => cb.checked);
+  const allChecked = cbs.length > 0 && [...cbs].every((cb) => cb.checked);
+  selAll.checked = allChecked;
+  selAll.indeterminate = anyChecked && !allChecked;
+}
+
+function bindMgrCheckboxes(box) {
+  box.querySelectorAll('.recent-check input').forEach((cb) => {
+    cb.addEventListener('change', () => {
+      const k = mgrSelKey(cb.dataset.date, cb.dataset.ts);
+      if (cb.checked) mgrSel.add(k); else mgrSel.delete(k);
+      updateSelAllState();
+      updateBatchBar();
+    });
+  });
+}
+
+function closeBatchAlbumModal() {
+  const m = $('#batch-album-modal');
+  if (m) m.hidden = true;
+  const st = $('#batch-album-status');
+  if (st) st.className = 'form-status';
+}
+
+async function openBatchAlbumModal() {
+  if (mgrSel.size === 0) return alert('请先勾选要归入专辑的条目');
+  const box = $('#batch-album-list');
+  const hint = $('#batch-album-hint');
+  if (hint) hint.textContent = `已选 ${mgrSel.size} 条,点一个专辑一键归入;也可以新建`;
+  if (box) {
+    box.innerHTML = '<p class="empty">加载中…</p>';
+    try {
+      const data = await (await fetch('/api/albums')).json();
+      const albums = (data.albums || []).map((a) => a.album);
+      box.innerHTML = albums.length
+        ? albums.map((a) => `<button type="button" class="btn-small batch-album-item" data-album="${esc(a)}">${esc(a)}</button>`).join('')
+        : '<p class="empty">还没有专辑,直接输入名字新建</p>';
+      box.querySelectorAll('.batch-album-item').forEach((b) => b.addEventListener('click', () => applyBatchAlbum(b.dataset.album)));
+    } catch {
+      box.innerHTML = '<p class="empty">专辑加载失败,可直接输入名字新建</p>';
+    }
+  }
+  const ni = $('#batch-album-new');
+  if (ni) ni.value = '';
+  const st = $('#batch-album-status');
+  if (st) { st.className = 'form-status'; st.textContent = ''; }
+  const m = $('#batch-album-modal');
+  if (m) m.hidden = false;
+}
+
+/* 把已勾选条目批量设为 album(空串 = 不设专辑/未分类) */
+async function applyBatchAlbum(album) {
+  const st = $('#batch-album-status');
+  if (st) { st.className = 'form-status'; st.textContent = '设置中…'; }
+  const items = [...mgrSel].map((k) => {
+    const i = k.indexOf('|');
+    return { date: k.slice(0, i), ts: k.slice(i + 1) };
+  });
+  try {
+    const res = await (await fetch('/api/albums', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'set_album', album, items }),
+    })).json();
+    if (!res.ok) {
+      if (st) { st.className = 'form-status error'; st.textContent = res.error || '设置失败'; }
+      return;
+    }
+    const n = res.count;
+    mgrSel.clear();
+    const sa = $('#mgr-select-all');
+    if (sa) { sa.checked = false; sa.indeterminate = false; }
+    closeBatchAlbumModal();
+    updateBatchBar();
+    renderRecent();
+    syncAlbumView();
+    renderAlbums();
+    alert(`已把 ${n} 条条目设为${album ? `专辑「${album}」` : '不设专辑(未分类)'} ✅`);
+  } catch {
+    if (st) { st.className = 'form-status error'; st.textContent = '网络异常,请重试'; }
+  }
 }
 
 /* ---- 专辑管理 ---- */
