@@ -232,13 +232,35 @@
     </div>
   </div>
 
+  <!-- 打卡/写日记共用地 选择位置弹层(搜索 + OSM 地图 + 附近店选名) -->
+  <div id="loc-overlay" class="loc-overlay" hidden>
+    <div class="loc-overlay-card">
+      <div class="loc-overlay-head">
+        <span class="loc-overlay-title">选择位置</span>
+        <button type="button" id="btn-loc-close" class="btn-small">✕</button>
+      </div>
+      <div class="loc-search-row">
+        <input type="search" id="loc-search" placeholder="搜索地名/店铺,如:橘子洲" autocomplete="off" enterkeyhint="search">
+        <button type="button" id="btn-loc-current" class="btn-small">📍 定位</button>
+      </div>
+      <div id="loc-results" class="loc-results"></div>
+      <div id="loc-map" class="loc-map"></div>
+      <div id="loc-nearby" class="loc-nearby" hidden></div>
+      <p id="loc-status" class="form-status"></p>
+      <div id="loc-confirm" class="loc-confirm" hidden>
+        <span id="loc-confirm-name" class="loc-confirm-name"></span>
+        <button type="button" id="btn-loc-done" class="btn-small">确定选这个点</button>
+      </div>
+    </div>
+  </div>
+
   <footer class="site-footer">咕咕嘎嘎 · 记录每一段在路上</footer>
 
   <div id="lightbox" class="lightbox" aria-hidden="true"><img alt="查看大图"></div>
 
   <script src="api.js?v=20260825"></script>
   <script src="map-common.js?v=20260825i"></script>
-  <script src="loc-picker.js?v=20260818f"></script>
+  <script src="loc-picker.js?v=20260825o"></script>
   <script src="entry-modal.js?v=20260818f"></script>
   <script src="upload.js?v=20260825h"></script>
 </body>
