@@ -60,6 +60,88 @@ async function bigDataCloudReverse(lat, lng) {
   } catch { return null; }
 }
 
+/* 附近 POI(优先 Photon,稳;Overpass 兜底)
+ * 返回 top 5(name+lat+lng+crs:wgs),调用方按距离/有分类排,最近 POI 用作主名
+ * (Nominatim 常只返 road 把店名盖住)。Photon 的 reverse?limit=N 直接给 POI 排序好的列表 */
+async function photonNearby(lat, lng) {
+  try {
+    const res = await fetch(`https://photon.komoot.io/reverse?lon=${lng}&lat=${lat}&limit=10`, {
+      headers: { 'User-Agent': UA },
+      signal: AbortSignal.timeout(7000),
+    });
+    if (!res.ok) return [];
+    const d = await res.json();
+    const seen = new Set();
+    const all = [];
+    for (const f of (d.features || [])) {
+      const p = f.properties || {};
+      const name = (p.name || p.street || '').trim();
+      if (!name || seen.has(name)) continue;
+      const c = (f.geometry || {}).coordinates || [];
+      const flng = c[0]; const flat = c[1];
+      if (flat == null || flng == null) continue;
+      const osmKey = p.osm_key || '';
+      const osmValue = p.osm_value || '';
+      // 过滤:路名(highway)和纯路牌;保留 amenity/shop/tourism/building/office/place 等
+      if (osmKey === 'highway') continue;
+      if (osmKey === 'place' && osmValue === 'house') continue;
+      const hasCat = ['amenity', 'shop', 'tourism', 'building', 'leisure', 'office', 'craft'].includes(osmKey);
+      const dist = Math.hypot(flat - lat, flng - lng);
+      seen.add(name);
+      all.push({ name, lat: flat, lng: flng, osmKey, osmValue, hasCat, dist });
+    }
+    // 有分类优先(POI/店/楼),同优先级按距离近;同名同距稳定排序
+    all.sort((a, b) => (b.hasCat - a.hasCat) || (a.dist - b.dist) || a.name.localeCompare(b.name));
+    return all.slice(0, 5).map((p) => ({ name: p.name, lat: p.lat, lng: p.lng, crs: 'wgs' }));
+  } catch { return []; }
+}
+
+/* Overpass 附近 POI 兜底(Photon 限流时),并发三镜像任一成功即返回 */
+const _overpassMirrors = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter',
+];
+async function _overpassFetchOnce(url, q, timeoutMs) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'data=' + encodeURIComponent(q),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) throw new Error('http ' + res.status);
+    return await res.json();
+  } finally { clearTimeout(timer); }
+}
+async function overpassNearby(lat, lng) {
+  const q = `[out:json][timeout:8];(node["name"](around:120,${lat},${lng});way["name"](around:120,${lat},${lng});relation["name"](around:120,${lat},${lng}););out center tags 40;`;
+  let d = null;
+  try {
+    d = await Promise.any(_overpassMirrors.map((u, i) => _overpassFetchOnce(u, q, [8000, 14000, 14000][i])));
+  } catch { return []; }
+  if (!d) return [];
+  const seen = new Set();
+  const all = [];
+  for (const e of (d.elements || [])) {
+    const t = e.tags || {};
+    const name = (t.name || '').trim();
+    if (!name || seen.has(name)) continue;
+    if (t.highway) continue; // 过滤路名
+    const elat = e.lat ?? (e.center || {}).lat;
+    const elng = e.lon ?? (e.center || {}).lon;
+    if (elat == null || elng == null) continue;
+    const hasCat = !!(t.amenity || t.shop || t.tourism || t.building || t.leisure || t.office || t.craft);
+    const dist = Math.hypot(elat - lat, elng - lng);
+    seen.add(name);
+    all.push({ name, lat: elat, lng: elng, hasCat, dist });
+  }
+  all.sort((a, b) => (b.hasCat - a.hasCat) || (a.dist - b.dist) || a.name.localeCompare(b.name));
+  return all.slice(0, 5).map((p) => ({ name: p.name, lat: p.lat, lng: p.lng, crs: 'wgs' }));
+}
+
 export async function onRequestGet(context) {
   try {
     const url = new URL(context.request.url);
@@ -72,17 +154,27 @@ export async function onRequestGet(context) {
       const cached = _geoCacheGet(lat, lng);
       if (cached) return Response.json({ results: [{ name: cached.name, lat: parseFloat(lat), lng: parseFloat(lng), nearby: cached.nearby || [] }] });
 
-      // 1) Nominatim
-      let name = await nominatimReverse(lat, lng);
-      // 2) Photon
+      // 1) 并行:Photon 附近 POI(快/稳,带 amenity/shop/tourism 等)+ Nominatim 反查(常只返 road)
+      const [pois, nomName] = await Promise.all([
+        photonNearby(parseFloat(lat), parseFloat(lng)),
+        nominatimReverse(lat, lng),
+      ]);
+      // 2) Photon reverse / BigDataCloud 兜底主名(海外无 OSM POI 或 Nominatim 限流时)
+      let name = nomName;
       if (!name) name = await photonReverse(lat, lng);
-      // 3) BigDataCloud
       if (!name) name = await bigDataCloudReverse(lat, lng);
+
+      let nearby = pois;
+      // 3) Photon 失败时再试 Overpass 兜底(并发三镜像)
+      if (!nearby.length) nearby = await overpassNearby(parseFloat(lat), parseFloat(lng));
+      // POI 名优先:Nominatim 在 zoom=17 常把 amenity 折成 road,把店名盖住;
+      // 附近有 POI 时用最近的作主名(更"店名"),POI 缺则保留路名兜底
+      if (nearby.length) name = nearby[0].name;
 
       if (name) {
         const finalName = String(name).slice(0, 80);
-        try { _geoCachePut(lat, lng, { name: finalName, nearby: [] }); } catch { /* 忽略 */ }
-        return Response.json({ results: [{ name: finalName, lat: parseFloat(lat), lng: parseFloat(lng), nearby: [] }] });
+        try { _geoCachePut(lat, lng, { name: finalName, nearby }); } catch { /* 忽略 */ }
+        return Response.json({ results: [{ name: finalName, lat: parseFloat(lat), lng: parseFloat(lng), nearby }] });
       }
       return Response.json({ results: [] });
     }
