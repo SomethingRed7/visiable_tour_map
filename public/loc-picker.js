@@ -380,7 +380,9 @@ function loadNearbyPois(lat, lng) {
   const nb = $('#loc-nearby');
   if (!nb || lat == null || lng == null) { if (nb) nb.hidden = true; return; }
   const w = toWgs(lat, lng);
-  const q = `[out:json][timeout:8];(node["name"](around:120,${w.lat},${w.lng})["shop"];way["name"](around:120,${w.lat},${w.lng})["shop"];node["name"](around:120,${w.lat},${w.lng})["amenity"];way["name"](around:120,${w.lat},${w.lng})["amenity"];node["name"](around:120,${w.lat},${w.lng})["tourism"];way["name"](around:120,${w.lat},${w.lng})["tourism"];);out center tags 30;`;
+  // 任意有名字的 node/way(包含 building=* 这种没分类但有名字的,像 "Four B");
+  // 客户端再过滤掉 highway(路名)和排重,按"有分类 + 距离近"排前 8
+  const q = `[out:json][timeout:8];(node["name"](around:120,${w.lat},${w.lng});way["name"](around:120,${w.lat},${w.lng});relation["name"](around:120,${w.lat},${w.lng}););out center tags 40;`;
   fetch('https://overpass-api.de/api/interpreter', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -391,26 +393,30 @@ function loadNearbyPois(lat, lng) {
     .then((d) => {
       if (!d) { nb.hidden = true; return; }
       const seen = new Set();
-      const out = [];
+      const all = [];
       for (const e of (d.elements || [])) {
         const t = e.tags || {};
         const name = (t.name || '').trim();
         if (!name || seen.has(name)) continue;
+        if (t.highway) continue; // 过滤路名
         const elat = e.lat ?? (e.center || {}).lat;
         const elng = e.lon ?? (e.center || {}).lon;
         if (elat == null || elng == null) continue;
+        const hasCat = !!(t.amenity || t.shop || t.tourism || t.building || t.leisure || t.office || t.craft);
+        const dist = Math.hypot(elat - w.lat, elng - w.lng);
         seen.add(name);
-        out.push({ name, lat: elat, lng: elng });
-        if (out.length >= 8) break;
+        all.push({ name, lat: elat, lng: elng, hasCat, dist });
       }
-      if (!out.length) { nb.hidden = true; return; }
+      if (!all.length) { nb.hidden = true; return; }
+      // 有分类的优先(POI/店/楼),同优先级按距离近;同名同距的稳定排序
+      all.sort((a, b) => (b.hasCat - a.hasCat) || (a.dist - b.dist) || a.name.localeCompare(b.name));
+      const out = all.slice(0, 8);
       nb.hidden = false;
-      nb.innerHTML = '<div class="loc-nearby-title">附近 8 家(点一个用它的名字 + 精确坐标)</div>' +
+      nb.innerHTML = '<div class="loc-nearby-title">附近店/点(点一个用它的名字 + 精确坐标)</div>' +
         out.map((p, i) => `<button type="button" class="loc-nearby-chip" data-i="${i}">${esc(p.name)}</button>`).join('');
       [...nb.querySelectorAll('.loc-nearby-chip')].forEach((b) => {
         b.addEventListener('click', () => {
           const p = out[Number(b.dataset.i)];
-          // Overpass = WGS-84,需 fromWgs 转回 GCJ(应用存的格式)
           const g = fromWgs(p.lat, p.lng);
           setPoint(g.lat, g.lng, p.name);
         });
