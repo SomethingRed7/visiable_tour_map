@@ -329,27 +329,11 @@
       });
       const line = await getRouteLine(ordered);
       const routePts = line.map(([la, ln]) => project(la, ln));
-      // 虚线 + 半透明 = "大致路径"提示(没拿到真实道路路由时的兜底视觉);方向箭头让时序一目了然
-      const routeLayer = L.polyline(routePts, {
-        color: '#e11d48', weight: 3, opacity: 0.65,
-        dashArray: '6, 8', lineCap: 'round', lineJoin: 'round', interactive: false,
+      // 实线 = 导航轨迹(高德/OSRM 真实道路);直线兜底时也保持整洁
+      L.polyline(routePts, {
+        color: '#e11d48', weight: 4, opacity: 0.9, lineCap: 'round', lineJoin: 'round', interactive: false,
       }).addTo(map);
-      // 每段中点放方向箭头(>2km 才放,避免城镇内一堆)
-      for (let i = 0; i < routePts.length - 1; i++) {
-        const [la1, ln1] = routePts[i], [la2, ln2] = routePts[i + 1];
-        const dLa = (la2 - la1) * 111, dLn = (ln2 - ln1) * 111 * Math.cos(la1 * Math.PI / 180);
-        if (Math.hypot(dLa, dLn) < 2) continue;
-        const bearing = (Math.atan2(dLn, dLa) * 180 / Math.PI + 360) % 360;
-        L.marker([(la1 + la2) / 2, (ln1 + ln2) / 2], {
-          icon: L.divIcon({
-            className: 'route-arrow',
-            iconSize: [12, 12], iconAnchor: [6, 6],
-            html: `<svg viewBox="0 0 12 12" width="12" height="12" style="transform:rotate(${bearing}deg);opacity:.7"><path d="M6 0 L12 12 L6 9 L0 12 Z" fill="#e11d48"/></svg>`,
-          }),
-          interactive: false,
-        }).addTo(map);
-      }
-      map.fitBounds(routeLayer.getBounds(), { padding: opts.fitPadding || [30, 30] });
+      map.fitBounds(L.latLngBounds(routePts), { padding: opts.fitPadding || [30, 30] });
     } else if (withLoc.length === 1) {
       map.setView(bounds[0], 12);
     } else {

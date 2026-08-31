@@ -204,8 +204,8 @@ async function lpDeniedCheck() {
   return 'unknown';
 }
 
-/* 路线获取(driving → walking → 直线):高德 v3/direction(国内稳定,GCJ-02 直接匹配瓦片)
- * 高德精确经过 waypoints,无需吸附检测;仅高德完全失败(极少)才直线兜底。
+/* 路线获取(driving → walking → OSRM → 直线):高德 v3/direction(国内稳定,GCJ-02 直接匹配瓦片);
+ * 高德不可达(海外/限流)时 → 浏览器直连 OSRM(免 key,沿真实道路,CORS 已开)兜底
  * entries: [{date, ts, location:{lat,lng}}](GCJ-02)按时间排序;
  * 返回 [[lat,lng],...](GCJ-02,与瓦片对齐) */
 async function getRouteLine(entries) {
@@ -218,18 +218,36 @@ async function getRouteLine(entries) {
       const timer = setTimeout(() => ctrl.abort(), 8000);
       const route = await (await fetch(`/api/route?profile=${profile}&pts=${encodeURIComponent(ptsStr)}`, { signal: ctrl.signal })).json();
       clearTimeout(timer);
-      if (route.coordinates && route.coordinates.length > 1) {
-        if (route.source.startsWith('amap')) return { line: route.coordinates }; // GCJ-02 直接用
-        return { failed: true }; // 高德不可达 → 直线(不白等下一级,高德比 OSRM 稳定得多)
+      if (route.coordinates && route.coordinates.length > 1 && route.source.startsWith('amap')) {
+        return { line: route.coordinates }; // GCJ-02 直接用
       }
       return { failed: true };
     } catch { return { failed: true }; }
+  };
+  // 浏览器直连 OSRM(真实道路导航轨迹;pts 是 GCJ-02 → toWgs 转 WGS-84 发,OSRM 返回 WGS 再 fromWgs 转回,中国境内才转)
+  const tryOsrm = async () => {
+    try {
+      if (pts.length < 2) return null;
+      const wpts = pts.map(([la, ln]) => { const w = toWgs(la, ln); return `${w.lng},${w.lat}`; }).join(';');
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 10000);
+      const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${wpts}?overview=full&geometries=geojson`, { signal: ctrl.signal });
+      clearTimeout(timer);
+      if (!r.ok) return null;
+      const d = await r.json();
+      const coords = d && d.routes && d.routes[0] && d.routes[0].geometry && d.routes[0].geometry.coordinates;
+      if (!coords || coords.length < 2) return null;
+      return coords.map(([lngN, latN]) => { const g = fromWgs(latN, lngN); return [g.lat, g.lng]; });
+    } catch { return null; }
   };
   const d = await tryProfile('driving');
   if (d && d.line) return d.line;
   // driving 失败/不可达 → 试 walking(高德 walking 覆盖面更广,如步行景区/禁车路段)
   const w = await tryProfile('walking');
   if (w && w.line) return w.line;
+  // 高德全挂 → OSRM 真实道路轨迹(海外用户主路径)
+  const osrm = await tryOsrm();
+  if (osrm) return osrm;
   return straight();
 }
 /* 选点地图(OpenStreetMap 瓦片,全球可达):点地图/拖图钉选点 */
