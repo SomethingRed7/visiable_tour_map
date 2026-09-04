@@ -10,6 +10,10 @@ function _geoCacheGet(la, ln) {
 }
 function _geoCachePut(la, ln, v) { _geoCache.set(_geoCacheKey(la, ln), { v, t: Date.now() }); }
 
+// 国家级粗判(同 loc-picker.inChina,避免重复转换):海外走 Photon 按 lat/lon 偏好,
+// 国内 Nominatim + city 兜底,品牌搜索不再跑到地球另一边
+function inChina(lat, lng) { return lng > 73 && lng < 136 && lat > 3 && lat < 55; }
+
 function shortName(display) {
   const first = String(display || '').split(/[,，]/)[0].trim();
   return (first || String(display || '')).slice(0, 40);
@@ -96,6 +100,39 @@ async function photonNearby(lat, lng) {
   } catch { return []; }
 }
 
+/* Photon forward 搜索(按 lat/lon 距离偏好 — 海外品牌关键:NZ 搜 pak'n save 不再跑到加州)
+ * 返回 [{name, lat, lng}] —— name = 名字 + 城市/区域(去重) */
+async function photonSearch(q, lat, lng) {
+  try {
+    const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&lat=${lat}&lon=${lng}&limit=8&lang=en`, {
+      headers: { 'User-Agent': UA },
+      signal: AbortSignal.timeout(7000),
+    });
+    if (!res.ok) return [];
+    const d = await res.json();
+    const out = [];
+    const seen = new Set();
+    for (const f of (d.features || [])) {
+      const p = f.properties || {};
+      const name = (p.name || '').trim();
+      if (!name || seen.has(name)) continue;
+      const c = (f.geometry || {}).coordinates || [];
+      const flat = c[1]; const flng = c[0];
+      if (flat == null || flng == null) continue;
+      const placeBits = [];
+      if (p.city && p.city !== name) placeBits.push(p.city);
+      else if (p.town) placeBits.push(p.town);
+      else if (p.village) placeBits.push(p.village);
+      else if (p.suburb) placeBits.push(p.suburb);
+      else if (p.state && p.state !== name) placeBits.push(p.state);
+      const display = placeBits.length ? `${name}, ${placeBits.join(', ')}` : name;
+      seen.add(name);
+      out.push({ name: display.slice(0, 80), lat: flat, lng: flng });
+    }
+    return out;
+  } catch { return []; }
+}
+
 /* Overpass 附近 POI 兜底(Photon 限流时),并发三镜像任一成功即返回 */
 const _overpassMirrors = [
   'https://overpass-api.de/api/interpreter',
@@ -149,7 +186,27 @@ export async function onRequestGet(context) {
     const lat = url.searchParams.get('lat');
     const lng = url.searchParams.get('lng');
 
-    if (lat && lng && Number.isFinite(parseFloat(lat)) && Number.isFinite(parseFloat(lng))) {
+    // 路由优先级:forward(q) 优先于 reverse(lat+lng);否则 q 被忽略,只返反向名(2026-09 bug)
+    if (q) {
+      const qlat = parseFloat(lat), qlng = parseFloat(lng);
+      const hasCoords = Number.isFinite(qlat) && Number.isFinite(qlng);
+      // 海外 + 有坐标 → Photon 按 lat/lon 距离偏好(关键:搜 NZ 品牌不再返回加州同名店)
+      if (hasCoords && !inChina(qlat, qlng)) {
+        const ps = await photonSearch(q, qlat, qlng);
+        if (ps.length) return Response.json({ results: ps });
+      }
+      // 兜底 Nominatim 搜索(国内或无坐标)
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=5&accept-language=zh&q=${encodeURIComponent(q)}`, {
+          headers: { 'User-Agent': UA },
+          signal: AbortSignal.timeout(8000),
+        });
+        if (res.ok) {
+          const arr = await res.json();
+          return Response.json({ results: (arr || []).map((a) => ({ name: a.display_name?.slice(0, 80), lat: parseFloat(a.lat), lng: parseFloat(a.lon) })) });
+        }
+      } catch { /* 忽略 */ }
+    } else if (lat && lng && Number.isFinite(parseFloat(lat)) && Number.isFinite(parseFloat(lng))) {
       // 0) 缓存
       const cached = _geoCacheGet(lat, lng);
       if (cached) return Response.json({ results: [{ name: cached.name, lat: parseFloat(lat), lng: parseFloat(lng), nearby: cached.nearby || [] }] });
@@ -177,20 +234,6 @@ export async function onRequestGet(context) {
         return Response.json({ results: [{ name: finalName, lat: parseFloat(lat), lng: parseFloat(lng), nearby }] });
       }
       return Response.json({ results: [] });
-    }
-
-    if (q) {
-      // 简单 forward:Nominatim 搜索(有 UA 不会被限)
-      try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=5&accept-language=zh&q=${encodeURIComponent(q)}`, {
-          headers: { 'User-Agent': UA },
-          signal: AbortSignal.timeout(8000),
-        });
-        if (res.ok) {
-          const arr = await res.json();
-          return Response.json({ results: (arr || []).map((a) => ({ name: a.display_name?.slice(0, 80), lat: parseFloat(a.lat), lng: parseFloat(a.lon) })) });
-        }
-      } catch { /* 忽略 */ }
     }
   } catch { /* 兜底 */ }
   return Response.json({ results: [] });

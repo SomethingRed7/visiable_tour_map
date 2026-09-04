@@ -509,12 +509,14 @@ async function serverSearch(q) {
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 6000);
-    // 限定城市(lpCityCache 来自 IP 定位),避免同名店铺搜到外地
-    const cityQ = lpCityCache ? `&city=${encodeURIComponent(lpCityCache)}` : '';
-    const res = await (await fetch(`/api/geocode?q=${encodeURIComponent(q)}${cityQ}`, { signal: ctrl.signal })).json();
+    // 把当前地图视野中心传给服务端,海外品牌搜索(NZ pak'n save 等)按距离偏好返回正确国家的结果
+    // ——不再让 lpCityCache 瞎猜,IP 城市可能错
+    const center = pickerMap && pickerMap.getCenter ? pickerMap.getCenter() : null;
+    const ll = center ? `&lat=${center.lat.toFixed(5)}&lng=${center.lng.toFixed(5)}` : '';
+    const res = await (await fetch(`/api/geocode?q=${encodeURIComponent(q)}${ll}`, { signal: ctrl.signal })).json();
     clearTimeout(timer);
     const results = (res.results || []).map((r) => {
-      // crs:'gcj'=高德结果已是 GCJ-02 勿转;无 crs=Nominatim(WGS-84):仅中国境内转 GCJ-02,海外原样(否则 NZ 等偏 1.4km)
+      // crs:'gcj'=高德结果已是 GCJ-02 勿转;无 crs=Nominatim/Photon(WGS-84):仅中国境内转 GCJ-02,海外原样(否则 NZ 等偏 1.4km)
       const g = r.crs === 'gcj' ? { lat: r.lat, lng: r.lng } : fromWgs(r.lat, r.lng);
       return { name: r.name, lat: g.lat, lng: g.lng };
     });
