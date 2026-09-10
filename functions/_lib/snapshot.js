@@ -23,7 +23,7 @@ export function buildSnapshotHtml(snap, opts = {}) {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${esc(title)}</title>
 ${cspMeta}
-<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/style.css?v=20260910b">
 </head>
 <body>
 <header class="site-header">
@@ -56,7 +56,7 @@ ${cspMeta}
 <div id="lightbox" class="lightbox" aria-hidden="true"><img alt="查看大图"></div>
 <script type="application/json" id="snapshot-data">${json}</script>
 <script src="/api.js"></script>
-<script src="/map-common.js"></script>
+<script src="/map-common.js?v=20260910a"></script>
 <script src="/loc-picker.js"></script>
 <script src="/share-view.js"></script>
 </body>

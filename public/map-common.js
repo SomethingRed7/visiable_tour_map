@@ -153,6 +153,48 @@
   /* 地图打卡点「展开详情」:紧凑面板贴在地图容器右上方,不遮整张地图、可一键关闭、可上下滚动看全部图片。
    * 面板挂在 document.body(fixed),不在 Leaflet 容器内 —— Leaflet 容器 touch-action:none 会吞掉子元素滚动;
    * 全屏时 box 铺满视口,面板自动跟到页面最上方。 */
+  /* 聚合点列表:点聚合图钉 → 列出该处全部打卡(手机底部抽屉,目标大、好戳)
+   * 点某条 → 复用现有详情面板(onClick);✕ / 点地图空白 / 缩放 关闭 */
+  function closeClusterSheet() {
+    const el = document.getElementById('gg-cluster-sheet');
+    if (el) el.hidden = true;
+  }
+  function openClusterSheet(entries, onClick) {
+    if (!entries || !entries.length) return;
+    let el = document.getElementById('gg-cluster-sheet');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'gg-cluster-sheet';
+      el.className = 'gg-sheet';
+      document.body.appendChild(el);
+    }
+    el.innerHTML =
+      '<div class="gg-sheet-head">' +
+        `<span class="gg-sheet-title">此处 ${entries.length} 条打卡</span>` +
+        '<button type="button" class="gg-sheet-close" aria-label="关闭">✕</button>' +
+      '</div>' +
+      '<div class="gg-sheet-list">' +
+      entries.map((e, i) => {
+        const loc = e.location ? shortLoc(e.location.display || e.location.name || '') : '';
+        const title = e.title ? ' · ' + esc(e.title) : '';
+        return `<button type="button" class="gg-sheet-row" data-i="${i}">` +
+          `<span class="gg-sheet-row-main">${esc(e.date)} ${fmtTime(e.ts)}${title}</span>` +
+          (loc ? `<span class="gg-sheet-row-sub">📍 ${esc(loc)}</span>` : '') +
+          '</button>';
+      }).join('') +
+      '</div>';
+    el.hidden = false;
+    const closeBtn = el.querySelector('.gg-sheet-close');
+    if (closeBtn) closeBtn.addEventListener('click', closeClusterSheet);
+    el.querySelectorAll('.gg-sheet-row').forEach((b) => {
+      b.addEventListener('click', () => {
+        const e = entries[Number(b.dataset.i)];
+        closeClusterSheet();
+        if (e) onClick(e);
+      });
+    });
+  }
+
   function openMapDetail(e, container) {
     if (!e || !container) return;
     let panel = document.getElementById('map-detail-panel');
@@ -275,6 +317,7 @@
     }
     // 同容器重复渲染 → 移除旧 map(避免僵尸瓦片)
     if (box._ggMap) { try { box._ggMap.remove(); } catch {} ; box._ggMap = null; }
+    closeClusterSheet(); // 旧地图的聚合列表不能留到新地图上
     const map = L.map(containerId, {
       scrollWheelZoom: opts.scrollWheelZoom !== false,
       zoomControl: opts.zoomControl !== false,
@@ -293,20 +336,60 @@
     const onClick = opts.onMarkerClick || ((e) => openMapDetail(e, box));
     const project = (lat, lng) => { const p = toWgs(lat, lng); return [p.lat, p.lng]; };
     const bounds = [];
+    const items = [];
     for (let i = 0; i < withLoc.length; i++) {
       const e = withLoc[i];
       const pos = project(e.location.lat, e.location.lng);
-      const mk = L.marker(pos, {
+      items.push({ e, i, latlng: L.latLng(pos[0], pos[1]) });
+      bounds.push(pos);
+    }
+    /* 打卡点图钉:屏幕距离 <44px 的点合成一个聚合点,点它弹出该处全部打卡列表
+     * —— 密集处单点很难戳中(用户 2026-09-10 反馈),聚合后目标大且不会选错 */
+    const CLUSTER_PX = 44;
+    const layer = L.layerGroup().addTo(map);
+    function singleMarker(it) {
+      const mk = L.marker(it.latlng, {
         icon: L.divIcon({ className: 'gg-marker', html: ggPinSvg(), iconSize: [28, 28], iconAnchor: [14, 27] }),
-      }).addTo(map);
+      });
       // 原样式文字版详情弹窗 + 「展开详情」按钮(按钮打开紧凑详情面板,不遮地图)
       // 地点名精简:地图上已有明确点位,完整行政地址过长影响观看
-      const name = e.location ? shortLoc(e.location.display || e.location.name || '') : '';
+      const name = it.e.location ? shortLoc(it.e.location.display || it.e.location.name || '') : '';
       mk.bindPopup(
-        `<b>${esc(e.date)} ${fmtTime(e.ts)}</b> ${esc(e.title || '')}<br>${esc(name)}` +
-        `<br><button type="button" class="popup-detail-btn" style="margin-top:6px;padding:4px 12px;border:1px solid #e5e7eb;border-radius:999px;background:#fff;color:#e11d48;cursor:pointer;font-size:.8rem" data-i="${i}">展开详情</button>`
+        `<b>${esc(it.e.date)} ${fmtTime(it.e.ts)}</b> ${esc(it.e.title || '')}<br>${esc(name)}` +
+        `<br><button type="button" class="popup-detail-btn" style="margin-top:6px;padding:4px 12px;border:1px solid #e5e7eb;border-radius:999px;background:#fff;color:#e11d48;cursor:pointer;font-size:.8rem" data-i="${it.i}">展开详情</button>`
       );
-      bounds.push(pos);
+      return mk;
+    }
+    function clusterMarker(members) {
+      let la = 0, ln = 0;
+      for (const m of members) { la += m.latlng.lat; ln += m.latlng.lng; }
+      const mk = L.marker([la / members.length, ln / members.length], {
+        icon: L.divIcon({
+          className: 'gg-marker gg-cluster-marker',
+          html: `<div class="gg-cluster">${members.length}</div>`,
+          iconSize: [36, 36],
+          iconAnchor: [18, 18],
+        }),
+      });
+      mk.on('click', () => openClusterSheet(members.map((m) => m.e), onClick));
+      return mk;
+    }
+    /* 按当前缩放的屏幕距离聚合;缩放后重算(缩小→并成一处,放大→自动拆开) */
+    function rebuildMarkers() {
+      layer.clearLayers();
+      if (!items.length) return;
+      const cps = items.map((it) => map.latLngToContainerPoint(it.latlng));
+      const used = new Array(items.length).fill(false);
+      for (let a = 0; a < items.length; a++) {
+        if (used[a]) continue;
+        used[a] = true;
+        const members = [items[a]];
+        for (let b = a + 1; b < items.length; b++) {
+          if (used[b]) continue;
+          if (cps[a].distanceTo(cps[b]) <= CLUSTER_PX) { used[b] = true; members.push(items[b]); }
+        }
+        layer.addLayer(members.length === 1 ? singleMarker(members[0]) : clusterMarker(members));
+      }
     }
     // 弹窗内「展开详情」按钮 → 紧凑详情面板(文字+部分图片);CSP 禁内联 onclick,须 addEventListener
     map.on('popupopen', (ev) => {
@@ -339,6 +422,10 @@
     } else {
       map.fitBounds(bounds, { padding: opts.fitPadding || [30, 30] });
     }
+    // 初始视野定下来后才能算屏幕距离(容器点依赖当前缩放);缩放后再算一次
+    rebuildMarkers();
+    map.on('zoomend', () => { closeClusterSheet(); rebuildMarkers(); });
+    map.on('click', closeClusterSheet); // 点地图空白收起列表
   }
 
   const M = { esc, shortLoc, fmtTime, thumbUrl, ggPinSvg, loadLeaflet, entryTs, photoGridHtml, entryCard, detailCard, bindPhotoGridFallback, openEntryCard, openMapDetail, renderCheckinMap, bindPreviewModal };

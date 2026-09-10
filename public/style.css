@@ -580,6 +580,84 @@ body {
 }
 .album-map .leaflet-container { font: inherit; width: 100%; }
 
+/* 地图打卡点聚合:屏幕距离 <44px 的点合成一个(用户反馈密集处单点戳不中)。
+ * 圆形 + 数字比图钉更醒目,点开列出该处全部打卡 */
+.gg-cluster {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #e11d48;
+  color: #fff;
+  border: 3px solid #fff;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, .35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* 聚合点列表抽屉:手机上贴底(拇指够得着),桌面居中卡片 */
+.gg-sheet {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 0;
+  z-index: 10001; /* 高于地图全屏遮罩 9999 与详情面板 10000 */
+  width: 100%;
+  max-width: 560px;
+  max-height: 58vh;
+  overflow: auto;
+  background: #fff;
+  color: var(--text);
+  border-radius: 14px 14px 0 0;
+  box-shadow: 0 -6px 24px rgba(0, 0, 0, .22);
+  padding: 10px 12px calc(12px + env(safe-area-inset-bottom, 0px));
+  font-size: 0.9rem;
+}
+.gg-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.gg-sheet-title { font-weight: 600; }
+.gg-sheet-close {
+  border: none;
+  background: none;
+  color: #9ca3af;
+  font-size: 1.15rem;
+  line-height: 1;
+  padding: 0 4px;
+  cursor: pointer;
+}
+.gg-sheet-list { display: flex; flex-direction: column; gap: 6px; }
+.gg-sheet-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.gg-sheet-row:active { background: #f9fafb; }
+.gg-sheet-row-main { font-weight: 600; }
+.gg-sheet-row-sub { font-size: 0.78rem; color: var(--text-soft); }
+
+@media (min-width: 900px) {
+  /* 桌面不需要贴底:居中卡片,别挡住整条地图底边 */
+  .gg-sheet { bottom: 24px; max-width: 440px; border-radius: 14px; }
+}
+
 /* 地图全屏查看(专辑/导出/快照三处共用):右上角 ⛶ 按钮 + 全屏遮罩 */
 .map-fs-btn {
   position: absolute; top: 10px; right: 10px; z-index: 1000;
