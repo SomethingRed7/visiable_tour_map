@@ -779,6 +779,18 @@ function lpMapFullscreen(map, container) {
     overlay.appendChild(head);
     overlay.appendChild(body);
     document.body.appendChild(overlay);
+    /* 遮罩高度 = 实测可视区,不依赖 CSS 100%/100vh:
+     * 手机浏览器地址栏动态收起/展开时 inset:0 会比实际可视区矮一截,
+     * 底部露出下面的页面内容(用户 2026-09-10 反馈「错位」) */
+    const setOverlayH = () => {
+      const vv = window.visualViewport;
+      const h = (vv && vv.height) ? vv.height : window.innerHeight;
+      if (h) overlay.style.height = Math.round(h) + 'px';
+    };
+    setOverlayH();
+    window.addEventListener('resize', setOverlayH);
+    window.addEventListener('orientationchange', setOverlayH);
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', setOverlayH);
     container.style.height = '100%'; // 覆盖 .album-map 固定高度(桌面 200px/移动 160px)
     container.style.borderRadius = '0';
     container.style.marginBottom = '0';
@@ -788,6 +800,9 @@ function lpMapFullscreen(map, container) {
       setTimeout(() => map.invalidateSize(), 350);
     });
     const exit = () => {
+      window.removeEventListener('resize', setOverlayH);
+      window.removeEventListener('orientationchange', setOverlayH);
+      if (window.visualViewport) window.visualViewport.removeEventListener('resize', setOverlayH);
       // 防御:container 可能在嵌套残留的其它遮罩里(旧版可重复点 ⛶)→ 先摘出来
       if (container.parentNode && container.parentNode !== parent) {
         container.parentNode.removeChild(container);

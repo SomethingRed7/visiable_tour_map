@@ -187,7 +187,10 @@
     const closeBtn = el.querySelector('.gg-sheet-close');
     if (closeBtn) closeBtn.addEventListener('click', closeClusterSheet);
     el.querySelectorAll('.gg-sheet-row').forEach((b) => {
-      b.addEventListener('click', () => {
+      b.addEventListener('click', (ev) => {
+        // 必须阻止冒泡:否则事件继续到 document,触发详情面板自身的
+        // 「点非弹窗处关闭」,刚打开的面板会被立刻关掉(2026-09-10 用户反馈点不进去)
+        ev.stopPropagation();
         const e = entries[Number(b.dataset.i)];
         closeClusterSheet();
         if (e) onClick(e);

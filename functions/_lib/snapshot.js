@@ -56,8 +56,8 @@ ${cspMeta}
 <div id="lightbox" class="lightbox" aria-hidden="true"><img alt="查看大图"></div>
 <script type="application/json" id="snapshot-data">${json}</script>
 <script src="/api.js"></script>
-<script src="/map-common.js?v=20260910a"></script>
-<script src="/loc-picker.js"></script>
+<script src="/map-common.js?v=20260910b"></script>
+<script src="/loc-picker.js?v=20260910a"></script>
 <script src="/share-view.js"></script>
 </body>
 </html>`;
