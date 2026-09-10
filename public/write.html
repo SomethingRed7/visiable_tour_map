@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>管理 · 咕咕嘎嘎</title>
-  <link rel="stylesheet" href="style.css?v=20260831a">
+  <link rel="stylesheet" href="style.css?v=20260910a">
   <style>
     /* 管理界面正文总体不加粗;标题与主页保持一致(site-title=800、panel-heading=700 用全局样式) */
     .write-page .login-hint a,
@@ -164,7 +164,7 @@
           <label class="mgr-sel-all"><input type="checkbox" id="mgr-select-all"> 全选</label>
           <span id="mgr-sel-count">已选 0 条</span>
           <button type="button" id="btn-batch-album" class="btn-small">一键选专辑</button>
-          <button type="button" id="btn-batch-clear" class="btn-small">取消选择</button>
+          <button type="button" id="btn-batch-clear" class="btn-small" aria-label="取消选择" title="取消选择">✕</button>
         </div>
         <div id="mgr-list" class="recent-list"></div>
       </section>

@@ -130,6 +130,16 @@ body {
   padding: 16px 20px 40px;
 }
 
+/* 登录后 #login-panel 被 hidden,桌面两列网格仍留位 → #editor-area 落到窄的 4fr 列
+ * (1080px 下仅 341px,右侧 683px 空着,管理列表/写日记表单都被挤扁)。
+ * 跨两列铺满后按站点 640 内容宽居中(与 .manage-panel/.modal-card 同宽)(2026-09-10) */
+#editor-area {
+  grid-column: 1 / -1;
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
 .panel {
   background: var(--card);
   border-radius: var(--radius);
@@ -847,26 +857,54 @@ body {
 .mgr-pager { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .mgr-pager span { font-size: 0.85rem; color: var(--text-soft); white-space: nowrap; }
 
-/* 管理条目批量操作(勾选 → 一键选专辑) */
+/* 管理条目批量操作(勾选 → 一键选专辑)
+ * 单行不换行:手机窄屏下 4 个控件换行会占掉一整屏(2026-09-10)
+ * 全选/计数在左,主操作在右,取消收成 ✕ 图标省宽度 */
 .mgr-batch-bar {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 8px 12px;
-  padding: 8px 12px;
+  gap: 8px;
+  padding: 7px 10px;
   margin: 0 0 12px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--brand-soft, #fef3c7);
   font-size: 0.85rem;
 }
-.mgr-sel-all { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text); }
+.mgr-sel-all { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text); flex-shrink: 0; }
 .mgr-sel-all input,
 .recent-check input { width: 16px; height: 16px; accent-color: var(--brand); cursor: pointer; }
-#mgr-sel-count { color: var(--text-soft); white-space: nowrap; }
+/* 计数占据剩余空间,极窄屏下省略号,绝不挤掉右侧按钮 */
+#mgr-sel-count {
+  color: var(--text-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+/* 主操作:实心主色,与「写日记」按钮同款(唯一视觉重心) */
+#btn-batch-album {
+  flex-shrink: 0;
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}
+#btn-batch-album:active { opacity: 0.85; }
+/* 取消:图标化,保 32px 触控区 */
+#btn-batch-clear {
+  flex-shrink: 0;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 6px 8px;
+  line-height: 1;
+}
 
 .recent-check { display: inline-flex; align-items: center; flex-shrink: 0; cursor: pointer; }
-.mgr-item .recent-info { flex: 1; min-width: 0; }
+/* basis 用 auto(不是 0):手机窄屏下按钮组很宽,若 basis=0 会把文字挤成几 px;
+ * auto 让文字以内容为基准占满第一行,按钮自然换行到第二行 */
+.mgr-item .recent-info { flex: 1 1 auto; min-width: 0; }
 
 /* 批量选专辑弹层 */
 .batch-album-list { display: flex; flex-wrap: wrap; gap: 8px; max-height: 28vh; overflow: auto; }
