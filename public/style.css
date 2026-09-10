@@ -690,13 +690,21 @@ body {
 .map-fs-btn:hover { color: var(--brand); }
 .map-fs-overlay {
   position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 9999; background: #fff;
-  display: flex; flex-direction: column;
 }
+/* 退出按钮直接浮在地图上,不再占一整条白条 → 地图铺满全屏(用户 2026-09-11 反馈)。
+ * pointer-events:none 让这块区域不挡地图,只有按钮本身可点 */
 .map-fs-head {
-  display: flex; justify-content: flex-end; padding: 10px 14px;
-  background: #fff; border-bottom: 1px solid var(--line);
+  position: absolute; top: calc(10px + env(safe-area-inset-top, 0px)); right: 10px; z-index: 1000;
+  pointer-events: none;
 }
-.map-fs-body { flex: 1; position: relative; min-height: 0; }
+.map-fs-exit {
+  pointer-events: auto;
+  background: rgba(255, 255, 255, .92);
+  border: none;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .25);
+  color: #374151;
+}
+.map-fs-body { position: absolute; top: 0; right: 0; bottom: 0; left: 0; }
 
 /* 移动端适配(≤600px):主按钮全宽大点击区 + 输入字号≥16px 防 iOS 聚焦自动缩放 */
 @media (max-width: 600px) {
