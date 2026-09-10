@@ -155,9 +155,23 @@
    * 全屏时 box 铺满视口,面板自动跟到页面最上方。 */
   /* 聚合点列表:点聚合图钉 → 列出该处全部打卡(手机底部抽屉,目标大、好戳)
    * 点某条 → 复用现有详情面板(onClick);✕ / 点地图空白 / 缩放 关闭 */
+  /* 从聚合列表点进详情时,记住这个列表 → 关掉详情后回到列表(而不是掉回光地图) */
+  let _clusterReturn = null;
   function closeClusterSheet() {
     const el = document.getElementById('gg-cluster-sheet');
     if (el) el.hidden = true;
+    _clusterReturn = null; // 列表已被主动关掉(✕/点地图/缩放)→ 不再回退
+  }
+  /* 关详情面板:若这面板是从聚合列表点进来的,顺手把列表还原回去 */
+  function hideMapDetailPanel(panel) {
+    if (!panel) return;
+    panel.style.display = 'none';
+    if (panel._ro) panel._ro.disconnect();
+    if (_clusterReturn) {
+      const r = _clusterReturn;
+      _clusterReturn = null;
+      openClusterSheet(r.entries, r.onClick);
+    }
   }
   function openClusterSheet(entries, onClick) {
     if (!entries || !entries.length) return;
@@ -193,6 +207,7 @@
         ev.stopPropagation();
         const e = entries[Number(b.dataset.i)];
         closeClusterSheet();
+        _clusterReturn = { entries, onClick }; // 关详情后回到这个列表
         if (e) onClick(e);
       });
     });
@@ -224,10 +239,7 @@
       // 点非弹窗处 → 关闭弹窗
       document.addEventListener('click', (ev) => {
         if (panel.style.display === 'none') return;
-        if (!panel.contains(ev.target)) {
-          panel.style.display = 'none';
-          if (panel._ro) panel._ro.disconnect();
-        }
+        if (!panel.contains(ev.target)) hideMapDetailPanel(panel);
       });
     }
     // 锚定当前地图容器并跟随其位置变化
@@ -251,10 +263,7 @@
       (e.text ? `<div style="color:#374151;white-space:pre-wrap;margin-bottom:6px">${esc(e.text)}</div>` : '') +
       (photos.length ? `<div class="photo-grid">${photos.map((p) => `<img src="${thumbUrl(p)}" data-full="${p}" alt="照片" loading="lazy">`).join('')}</div>` : '');
     const closeBtn = panel.querySelector('.map-detail-close');
-    if (closeBtn) closeBtn.addEventListener('click', () => {
-      panel.style.display = 'none';
-      if (panel._ro) panel._ro.disconnect();
-    });
+    if (closeBtn) closeBtn.addEventListener('click', () => hideMapDetailPanel(panel));
     bindPhotoGridFallback(panel);
     const lb = document.getElementById('lightbox');
     panel.querySelectorAll('.photo-grid img').forEach((img) => {
