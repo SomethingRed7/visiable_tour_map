@@ -437,7 +437,13 @@
     // 初始视野定下来后才能算屏幕距离(容器点依赖当前缩放);缩放后再算一次
     rebuildMarkers();
     map.on('zoomend', () => { closeClusterSheet(); rebuildMarkers(); });
-    map.on('click', closeClusterSheet); // 点地图空白收起列表
+    /* 点地图空白:详情开着时等同于点详情 ✕ —— 交给详情面板的「点外部关闭」去还原列表
+     * (同样是「关闭当前层」的语义,行为一致);否则才收起列表 */
+    map.on('click', () => {
+      const panel = document.getElementById('map-detail-panel');
+      if (panel && panel.style.display !== 'none') return;
+      closeClusterSheet();
+    });
   }
 
   const M = { esc, shortLoc, fmtTime, thumbUrl, ggPinSvg, loadLeaflet, entryTs, photoGridHtml, entryCard, detailCard, bindPhotoGridFallback, openEntryCard, openMapDetail, renderCheckinMap, bindPreviewModal };
