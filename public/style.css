@@ -658,6 +658,27 @@ body {
   .gg-sheet { bottom: 24px; max-width: 440px; border-radius: 14px; }
 }
 
+/* 打卡点详情面板:屏幕居中卡片(旧版锚在地图右上角,手机上偏右又贴顶)。
+ * 内容超高时面板内部滚动,不撑破视口;dvh 防止手机地址栏收起时超出可视区 */
+.map-detail-panel {
+  position: fixed;
+  z-index: 10000;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(420px, calc(100vw - 32px));
+  max-height: 84vh;
+  max-height: 84dvh;
+  overflow: auto;
+  background: #fff;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, .28);
+  padding: 12px 14px;
+  font-size: 0.9rem;
+}
+
 /* 地图全屏查看(专辑/导出/快照三处共用):右上角 ⛶ 按钮 + 全屏遮罩 */
 .map-fs-btn {
   position: absolute; top: 10px; right: 10px; z-index: 1000;

@@ -166,7 +166,6 @@
   function hideMapDetailPanel(panel) {
     if (!panel) return;
     panel.style.display = 'none';
-    if (panel._ro) panel._ro.disconnect();
     if (_clusterReturn) {
       const r = _clusterReturn;
       _clusterReturn = null;
@@ -213,38 +212,20 @@
     });
   }
 
-  function openMapDetail(e, container) {
-    if (!e || !container) return;
+  function openMapDetail(e) {
+    if (!e) return;
     let panel = document.getElementById('map-detail-panel');
     if (!panel) {
       panel = document.createElement('div');
       panel.id = 'map-detail-panel';
       panel.className = 'map-detail-panel';
-      panel.style.cssText = 'position:fixed;z-index:10000;width:min(320px,calc(100vw - 24px));max-height:72vh;overflow:auto;background:#fff;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.25);padding:10px 12px;font-size:.9rem;color:#1f2937;border:1px solid #e5e7eb;display:none;';
       document.body.appendChild(panel);
-      const reposition = () => {
-        if (panel.style.display === 'none' || !panel._anchor) return;
-        const r = panel._anchor.getBoundingClientRect();
-        const w = panel.offsetWidth || 320;
-        panel.style.top = Math.max(8, r.top + 10) + 'px';
-        panel.style.left = Math.max(8, r.left + Math.max(0, r.width - w - 10)) + 'px';
-      };
-      panel._reposition = reposition;
-      window.addEventListener('scroll', reposition, { passive: true });
-      window.addEventListener('resize', reposition);
-      // 全屏切换/地图重排:box 尺寸变化 → 重新对齐
-      if (window.ResizeObserver) {
-        panel._ro = new ResizeObserver(() => reposition());
-      }
       // 点非弹窗处 → 关闭弹窗
       document.addEventListener('click', (ev) => {
         if (panel.style.display === 'none') return;
         if (!panel.contains(ev.target)) hideMapDetailPanel(panel);
       });
     }
-    // 锚定当前地图容器并跟随其位置变化
-    if (panel._ro) panel._ro.observe(container);
-    panel._anchor = container;
     const meta = [];
     if (e.ts) meta.push(fmtTime(e.ts));
     if (e.author) meta.push(esc(e.author));
@@ -273,7 +254,6 @@
       });
     });
     panel.style.display = 'block';
-    panel._reposition();
   }
   /* ---- GCJ-02/WGS-84 坐标(仅中国境内 GCJ 有偏移;海外点位本就是 WGS-84,不能转) ---- */
   function inChina(lat, lng) {
@@ -345,7 +325,7 @@
     if (opts.fullscreen !== false && window.LocPicker) {
       LocPicker.lpMapFullscreen(map, box);
     }
-    const onClick = opts.onMarkerClick || ((e) => openMapDetail(e, box));
+    const onClick = opts.onMarkerClick || ((e) => openMapDetail(e));
     const project = (lat, lng) => { const p = toWgs(lat, lng); return [p.lat, p.lng]; };
     const bounds = [];
     const items = [];
