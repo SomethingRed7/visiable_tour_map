@@ -266,7 +266,9 @@ async function emSave() {
       return emSetStatus(data.error || `失败(HTTP ${res.status})`, true);
     }
     emClose();
-    if (emState.__onSaved) emState.__onSaved();
+    // 把刚保存的条目回传给调用方(/api/upload 与 /api/update 都返回 {ok, entry}),
+    // 首页据此跳到该日期并刷新,直接看到刚记的那条
+    if (emState.__onSaved) emState.__onSaved(data.entry || null);
     emSetStatus('');
   } catch (e) {
     emSetStatus(e.message || '网络异常,请重试', true);

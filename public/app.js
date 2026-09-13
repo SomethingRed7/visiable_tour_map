@@ -167,12 +167,20 @@ function selectDate(ds) {
 }
 
 // 当天动态渲染(selectDate 与打卡后刷新共用)
-/* 日记弹窗保存后刷新(重拉条目 + 日历/当日动态/专辑流) */
-async function refreshAll() {
+/* 日记弹窗保存后刷新(重拉条目 + 日历/当日动态/专辑流)
+ * savedEntry:弹窗回传的刚保存条目;有则跳到它那天并切到「当日动态」,
+ * 否则「记一把」之后新的那条不会出现在界面上(未选日期时当日动态根本不渲染) */
+async function refreshAll(savedEntry) {
   try {
     const data = await (await fetch('/api/entries')).json();
     allEntries = data.entries || [];
   } catch { /* 保留旧数据 */ }
+  const ds = savedEntry && savedEntry.date;
+  if (ds) {
+    selectDate(ds);      // 重绘日历 + 当日动态 + 当日待办
+    switchTab('entries');
+    return;
+  }
   renderCalendar();
   if (selectedDate) {
     renderDayEntries(selectedDate);
