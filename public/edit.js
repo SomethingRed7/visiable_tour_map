@@ -223,11 +223,36 @@ $('#f-album').addEventListener('change', () => {
 });
 
 /* 照片预览(与打卡弹窗一致:方形缩略图,无文件名) */
+/* 待上传照片:累积暂存(不能直接读 #f-photos.files —— 原生 file input 每次选择都会覆盖它,
+ * 「再选一次追加」会把上一次选的顶掉,用户 2026-09-15 反馈) */
+let pickedPhotos = [];
+
 function renderPreview() {
-  const files = [...$('#f-photos').files];
-  $('#photo-preview').innerHTML = files
-    .map((f, i) => `<div class="preview-item"><img src="${URL.createObjectURL(f)}" alt="预览 ${i + 1}"></div>`)
+  const box = $('#photo-preview');
+  if (!pickedPhotos.length) { box.innerHTML = ''; return; }
+  box.innerHTML = pickedPhotos
+    .map((f, i) => `<div class="preview-item"><img src="${URL.createObjectURL(f)}" alt="预览 ${i + 1}">`
+      + `<button type="button" class="preview-x" data-i="${i}" title="移除这张">✕</button></div>`)
     .join('');
+  box.querySelectorAll('.preview-x').forEach((b) => {
+    b.addEventListener('click', () => {
+      pickedPhotos.splice(Number(b.dataset.i), 1);
+      renderPreview();
+    });
+  });
+}
+
+/* change:追加本次选中并清空 input(清空后同批文件再选也会触发 change,且不会重复累加) */
+function addPickedPhotos() {
+  const input = $('#f-photos');
+  const picked = [...input.files];
+  input.value = '';
+  if (!picked.length) return;
+  const room = 20 - pickedPhotos.length;
+  if (room <= 0) return setStatus('最多 20 张照片', true);
+  pickedPhotos = pickedPhotos.concat(picked.slice(0, room));
+  if (picked.length > room) setStatus(`最多 20 张照片,只加了前 ${room} 张`, true);
+  renderPreview();
 }
 
 /* ---------- 地点:📍 自动定位 + 🗺️ 地图选点(共享 loc-picker.js,与打卡弹窗同一组件) ---------- */
@@ -366,7 +391,7 @@ async function doUpload() {
   const location = $('#f-location').value.trim() || null;
   const lat = $('#f-lat').value;
   const lng = $('#f-lng').value;
-  const files = [...$('#f-photos').files];
+  const files = pickedPhotos; // 累积暂存的待上传照片(不能读 input,它每次选择都会被覆盖)
 
   if (!date) return setStatus('请选择日期', true);
   if (!title && !text && files.length === 0) return setStatus('至少填标题/文字/照片之一', true);
@@ -408,7 +433,8 @@ async function doUpload() {
     form.reset();
     $('#f-date').value = new Date().toISOString().slice(0, 10);
     $('#f-location').value = $('#f-lat').value = $('#f-lng').value = '';
-    $('#photo-preview').innerHTML = '';
+    pickedPhotos = [];
+    renderPreview();
     if (typeof renderRecent === 'function') renderRecent();
   } catch (e) {
     setStatus(e.message, true);
@@ -427,7 +453,7 @@ form.addEventListener('submit', (e) => {
   if (editing) doUpdate();
   else doUpload();
 });
-$('#f-photos').addEventListener('change', renderPreview);
+$('#f-photos').addEventListener('change', addPickedPhotos);
 function entryTs(e) {
   if (e.ts) return String(e.ts);
   if (e.photos && e.photos[0]) {
@@ -526,7 +552,8 @@ async function enterEdit(date, ts) {
   $('#f-lat').value = locLat;
   $('#f-lng').value = locLng;
   $('#f-photos').value = '';
-  $('#photo-preview').innerHTML = '';
+  pickedPhotos = [];
+  renderPreview();
   $('#success-banner').hidden = true;
   setStatus('编辑模式:可改文字/地点,点照片 ✕ 移除,选新照片追加', false);
   renderEditPhotos();
@@ -562,7 +589,8 @@ function cancelEdit() {
   $('#btn-cancel-edit').hidden = true;
   setStatus('', false);
   form.reset();
-  $('#photo-preview').innerHTML = ''; // form.reset 不清 div,预览残留会误显示为"待上传"
+  pickedPhotos = [];
+  renderPreview(); // form.reset 不清 div,预览残留会误显示为"待上传"
   $('#f-date').value = new Date().toISOString().slice(0, 10);
   $('#f-location').value = $('#f-lat').value = $('#f-lng').value = '';
   applyDefaults();
@@ -578,7 +606,7 @@ async function doUpdate() {
   const location = $('#f-location').value.trim() || null;
   const lat = $('#f-lat').value;
   const lng = $('#f-lng').value;
-  const files = [...$('#f-photos').files];
+  const files = pickedPhotos; // 累积暂存的待上传照片(不能读 input,它每次选择都会被覆盖)
 
   const fd = new FormData();
   fd.append('date', date);

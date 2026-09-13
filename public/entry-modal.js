@@ -168,15 +168,38 @@ function emOpenMap() {
   });
 }
 
-/* 新照片预览(打卡同款虚线框 + 方形缩略图) */
+/* 新照片预览:渲染的是 emState.files(累积暂存),不是 input 的 FileList。
+ * ⚠️ 原生 file input 每次选择都会**覆盖** FileList,若直接读 input,
+ * 「再选一次追加照片」会把上一次选的顶掉(用户 2026-09-15 反馈「已选择的没了」) */
 function emRenderNewPhotos() {
   const box = $('#em-new-preview');
-  const files = [...$('#em-files').files];
-  if (!files.length) { box.hidden = true; box.innerHTML = ''; return; }
+  if (!emState.files.length) { box.hidden = true; box.innerHTML = ''; return; }
   box.hidden = false;
-  box.innerHTML = files
-    .map((f, i) => `<div class="preview-item"><img src="${URL.createObjectURL(f)}" alt="预览 ${i + 1}"></div>`)
+  box.innerHTML = emState.files
+    .map((f, i) => `<div class="preview-item"><img src="${URL.createObjectURL(f)}" alt="预览 ${i + 1}">`
+      + `<button type="button" class="preview-x" data-i="${i}" title="移除这张">✕</button></div>`)
     .join('');
+  box.querySelectorAll('.preview-x').forEach((b) => {
+    b.addEventListener('click', () => {
+      emState.files.splice(Number(b.dataset.i), 1);
+      emRenderNewPhotos();
+    });
+  });
+}
+
+/* input 的 change:把本次选中的**追加**进 emState.files,并立即清空 input
+ * (清空后同一批文件再选一次也会触发 change,且不会重复累加) */
+function emAddPickedPhotos() {
+  const input = $('#em-files');
+  const picked = [...input.files];
+  input.value = '';
+  if (!picked.length) return;
+  const keptOld = $('#em-existing').querySelectorAll('.ckin-old:not(.removed)').length;
+  const room = 20 - keptOld - emState.files.length;
+  if (room <= 0) return emSetStatus('最多 20 张照片', true);
+  emState.files = emState.files.concat(picked.slice(0, room));
+  if (picked.length > room) emSetStatus(`最多 20 张照片,只加了前 ${room} 张`, true);
+  emRenderNewPhotos();
 }
 
 /* 保存:新建 → /api/upload;编辑 → /api/update */
@@ -189,7 +212,7 @@ async function emSave() {
   const albumRaw = $('#em-album').value;
   const vis = $('#em-vis').value;
   const location = $('#em-loc').value.trim() || null;
-  const files = [...$('#em-files').files];
+  const files = emState.files; // 累积暂存的待上传照片(不能读 input,它每次选择都会被覆盖)
 
   if (!date) return emSetStatus('请选择日期', true);
 
@@ -271,7 +294,7 @@ function emInit() {
   const mapBtn = $('#em-map');
   if (mapBtn) mapBtn.addEventListener('click', emOpenMap);
   const files = $('#em-files');
-  if (files) files.addEventListener('change', emRenderNewPhotos);
+  if (files) files.addEventListener('change', emAddPickedPhotos);
   const save = $('#em-save');
   if (save) save.addEventListener('click', emSave);
 }

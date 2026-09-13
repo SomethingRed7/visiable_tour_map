@@ -23,7 +23,7 @@ export function buildSnapshotHtml(snap, opts = {}) {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${esc(title)}</title>
 ${cspMeta}
-<link rel="stylesheet" href="/style.css?v=20260914a">
+<link rel="stylesheet" href="/style.css?v=20260914b">
 </head>
 <body>
 <header class="site-header">

@@ -1074,6 +1074,7 @@ body {
 }
 
 .preview-item {
+  position: relative; /* 给待上传照片的 ✕ 定位 */
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -1087,6 +1088,17 @@ body {
   height: auto;
   max-height: 128px;
   border-radius: 8px;
+}
+
+/* 待上传照片的单张移除(与已上传照片的 .ckin-old-x 同款视觉) */
+.preview-x {
+  position: absolute; top: -6px; right: -6px;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: #dc2626; color: #fff;
+  font-size: 11px; line-height: 1;
+  cursor: pointer;
 }
 
 .form-status { font-size: 0.88rem; color: var(--text-soft); min-height: 1.2em; margin: 0; }
