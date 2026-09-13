@@ -298,8 +298,11 @@ function emInit() {
 /* 公共 API(调用方在 open 时传 onSaved) */
 window.EntryModal = {
   open(opts) {
-    emState.__onSaved = (opts && opts.onSaved) || null;
     emOpen(opts || {});
+    // ⚠️ 必须在 emOpen 之后再挂:emOpen 里 `emState = { entry, ... }` 会整个替换对象,
+    // 先挂会被丢掉 → __onSaved 恒为 undefined,保存后所有 onSaved 回调都不触发
+    // (首页刷新 / 管理页 renderRecent / 专辑页 syncAlbumView 一起失效)
+    emState.__onSaved = (opts && opts.onSaved) || null;
   },
 };
 
