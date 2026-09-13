@@ -173,34 +173,7 @@ function setStatus(msg, isErr) {
   el.className = 'form-status' + (isErr ? ' error' : '');
 }
 
-/* 浏览器端压缩:Image + objectURL(兼容微信内置浏览器;现代浏览器自动处理 EXIF 方向) */
-function compressImage(file, maxLen, quality) {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      try {
-        const scale = Math.min(1, maxLen / Math.max(img.width, img.height));
-        const w = Math.max(1, Math.round(img.width * scale));
-        const h = Math.max(1, Math.round(img.height * scale));
-        const canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        URL.revokeObjectURL(url);
-        canvas.toBlob((blob) => resolve(blob), 'image/jpeg', quality);
-      } catch (e) {
-        URL.revokeObjectURL(url);
-        reject(e);
-      }
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error(`图片无法解码:${file.name}(HEIC 请用 iPhone Safari 打开)`));
-    };
-    img.src = url;
-  });
-}
+/* 图片压缩走 photo.js 的共享实现(解码一次出 full+thumb,带超时兜底) */
 
 /* 相册 select(原生下拉,移动端兼容;datalist 在微信/安卓 WebView 表现差已弃用) */
 async function loadAlbums() {
@@ -415,8 +388,7 @@ async function doUpload() {
   try {
     for (let i = 0; i < files.length; i++) {
       setStatus(`压缩照片 ${i + 1}/${files.length}...`);
-      const full = await compressImage(files[i], 1600, 0.85);
-      const thumb = await compressImage(files[i], 480, 0.75);
+      const { full, thumb } = await ggCompressPhoto(files[i]);
       fd.append('photo_full', full, files[i].name);
       fd.append('photo_thumb', thumb, files[i].name);
     }
@@ -624,8 +596,7 @@ async function doUpdate() {
   try {
     for (let i = 0; i < files.length; i++) {
       setStatus(`压缩照片 ${i + 1}/${files.length}...`);
-      const full = await compressImage(files[i], 1600, 0.85);
-      const thumb = await compressImage(files[i], 480, 0.75);
+      const { full, thumb } = await ggCompressPhoto(files[i]);
       fd.append('photo_full', full, files[i].name);
       fd.append('photo_thumb', thumb, files[i].name);
     }

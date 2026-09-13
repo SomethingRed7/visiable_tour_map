@@ -619,33 +619,7 @@ let ckinLat = null;  // 自动定位得到的坐标(随保存提交,服务端直
 let ckinLng = null;
 let ckinDragJustDone = false; // 触屏拖拽结束后吞掉紧随的 click
 
-function compressImage(file, maxLen, quality) {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      try {
-        const scale = Math.min(1, maxLen / Math.max(img.width, img.height));
-        const w = Math.max(1, Math.round(img.width * scale));
-        const h = Math.max(1, Math.round(img.height * scale));
-        const canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        URL.revokeObjectURL(url);
-        canvas.toBlob((blob) => resolve(blob), 'image/jpeg', quality);
-      } catch (e) {
-        URL.revokeObjectURL(url);
-        reject(e);
-      }
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error('图片无法解码(HEIC 请用 iPhone Safari 打开)'));
-    };
-    img.src = url;
-  });
-}
+/* 图片压缩走 photo.js 的共享实现(解码一次出 full+thumb,带超时兜底,不再这里重复一份) */
 
 function openCheckinModal(t, ds, editEntry) {
   ckinTodo = t;
@@ -782,10 +756,8 @@ async function handleCkinFiles(ev) {
   const st = $('#ckin-status');
   for (const f of files) {
     try {
-      const [full, thumb] = await Promise.all([
-        compressImage(f, 1600, 0.85),
-        compressImage(f, 480, 0.75),
-      ]);
+      // 共享压缩:解码一次出 full+thumb(原先是 Promise.all 并行解两次大图,手机上极易卡住)
+      const { full, thumb } = await ggCompressPhoto(f);
       ckinFulls.push(new File([full], `p${ckinFulls.length}.jpg`, { type: 'image/jpeg' }));
       ckinThumbs.push(new File([thumb], `p${ckinThumbs.length}.jpg`, { type: 'image/jpeg' }));
       const img = document.createElement('img');

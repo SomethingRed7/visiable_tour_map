@@ -16,25 +16,7 @@ function esc(s) {
 
 function emThumbUrl(p) { return p.replace(/\.(jpg|jpeg|png)$/i, '-thumb.$1'); }
 
-/* 图片压缩(与写日记页同款:canvas 等比缩放 + JPEG) */
-function emCompressImage(file, maxLen, quality) {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      const scale = Math.min(1, maxLen / Math.max(img.width, img.height));
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, Math.round(img.width * scale));
-      canvas.height = Math.max(1, Math.round(img.height * scale));
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      URL.revokeObjectURL(url);
-      canvas.toBlob((blob) => resolve(blob), 'image/jpeg', quality);
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('图片读取失败')); };
-    img.src = url;
-  });
-}
+/* 图片压缩走 photo.js 的共享实现(解码一次出 full+thumb,带超时兜底) */
 
 /* 弹窗状态 */
 let emState = { entry: null, removedPaths: [], lat: null, lng: null, files: [] };
@@ -249,15 +231,14 @@ async function emSave() {
   btn.disabled = true;
   btn.textContent = emState.entry ? '保存中...' : '发布中...';
   try {
-    // 新照片压缩(≤20 张,单文件 ≤10MB 由服务端校验)
+    // 新照片压缩(≤20 张,单文件 ≤10MB 由服务端校验);ggCompressPhoto 解码一次出 full+thumb 且带超时
     for (let i = 0; i < files.length; i++) {
       emSetStatus(`压缩照片 ${i + 1}/${files.length}...`);
-      const full = await emCompressImage(files[i], 1600, 0.85);
-      const thumb = await emCompressImage(files[i], 480, 0.75);
+      const { full, thumb } = await ggCompressPhoto(files[i]);
       fd.append('photo_full', full, files[i].name);
       fd.append('photo_thumb', thumb, files[i].name);
     }
-    emSetStatus(emState.entry ? '保存中...' : '发布中...');
+    emSetStatus('上传中...'); // 与压缩阶段分开显示,卡在哪一步一眼能看出
     const url = emState.entry ? '/api/update' : '/api/upload';
     const res = await fetch(url, { method: 'POST', body: fd });
     const data = await res.json().catch(() => ({}));
