@@ -268,6 +268,17 @@ body {
   padding-top: 10px;
 }
 
+/* 当日面板底部「前一天 / 后一天」:两端对齐 + 细分隔线;按钮沿用 .btn-small */
+.day-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.day-nav .btn-small { min-height: 34px; }
+
 .todo-head {
   display: flex;
   align-items: center;

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>咕咕嘎嘎 · 旅行日记</title>
-  <link rel="stylesheet" href="style.css?v=20260910d">
+  <link rel="stylesheet" href="style.css?v=20260914a">
 </head>
 <body>
   <header class="site-header">
@@ -42,6 +42,11 @@
           <a id="btn-entry-add" class="btn-add-entry" href="edit.html" hidden>记一把</a>
         </div>
         <div id="day-entries" class="entries"></div>
+      </div>
+      <!-- 前一天/后一天:与直接点日历那天走同一条路径(跨月时日历跟着翻) -->
+      <div class="day-nav" id="day-nav" hidden>
+        <button type="button" id="day-prev" class="btn-small">‹ 前一天</button>
+        <button type="button" id="day-next" class="btn-small">后一天 ›</button>
       </div>
     </section>
   </main>
@@ -138,6 +143,6 @@
   <script src="map-common.js?v=20260910e"></script>
   <script src="loc-picker.js?v=20260910a"></script>
   <script src="entry-modal.js?v=20260914b"></script>
-  <script src="app.js?v=20260914a"></script>
+  <script src="app.js?v=20260914b"></script>
 </body>
 </html>

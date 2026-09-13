@@ -161,9 +161,32 @@ function renderCalendar() {
 
 function selectDate(ds) {
   selectedDate = ds;
+  // 日历跟随所选日期:否则跨月选中(翻页按钮 / 记一把存到别的月份)时日历与面板各说各话
+  if (ds) currentMonth = ds.slice(0, 7);
+  const nav = $('#day-nav');
+  if (nav) nav.hidden = !ds; // 未选日期(初始占位文案)时不显示翻页
   renderCalendar();
   renderDayEntries(ds);
   renderDayTodos(ds);
+}
+
+/* 前一天 / 后一天:与直接点日历那天完全一致 —— 同样走 selectDate(跨月由它同步日历月份) */
+function shiftDay(delta) {
+  if (!selectedDate) return;
+  const d = new Date(selectedDate + 'T00:00:00');
+  d.setDate(d.getDate() + delta);
+  const p = (n) => String(n).padStart(2, '0');
+  selectDate(`${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`);
+  // 按钮在面板底部:翻页后把面板滚回顶部,否则新内容可能不在视野里(尤其当天没内容会塌陷)
+  const panel = document.querySelector('.day-panel');
+  if (panel) panel.scrollIntoView({ block: 'start', behavior: 'smooth' });
+}
+
+function initDayNav() {
+  const prev = $('#day-prev');
+  const next = $('#day-next');
+  if (prev) prev.addEventListener('click', () => shiftDay(-1));
+  if (next) next.addEventListener('click', () => shiftDay(1));
 }
 
 // 当天动态渲染(selectDate 与打卡后刷新共用)
@@ -1216,6 +1239,7 @@ async function init() {
   });
   initCalendar();
   initTabs();
+  initDayNav(); // 当日面板底部「前一天/后一天」
   initPortalUser(); // 探测登录态 + 拉私有待办(待办橙点/待办区仅登录可见)
 
   const now = new Date();
