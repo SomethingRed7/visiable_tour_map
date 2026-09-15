@@ -312,9 +312,13 @@ async function getRouteLine(entries) {
   if (osrm) return osrm;
   return straight();
 }
-/* 选点地图(OpenStreetMap 瓦片,全球可达):点地图/拖图钉选点 */
-function initPickerMap() {
-  pickerMap = L.map('loc-map', { scrollWheelZoom: true }).setView([-40, 175], 5);
+/* 选点地图:底图按区域自动选(国内高德 / 海外 OSM),点地图/拖图钉选点。
+ * initLat/initLng(存储的 GCJ-02)有值时直接用目标点开图 —— 否则会先按默认视野
+ * 请求一批瓦片、再 setView 切过去,首次显示白等一轮(用户反馈「显示有点慢」) */
+function initPickerMap(initLat, initLng) {
+  const hasInit = initLat != null && initLng != null;
+  const start = hasInit ? toWgs(initLat, initLng) : [-40, 175];
+  pickerMap = L.map('loc-map', { scrollWheelZoom: true }).setView(start, hasInit ? 14 : 5);
   ggFollowTiles(pickerMap); // 底图跟随中心:国内高德瓦片(OSM 国内常不可达),海外 OSM
   pickerMap.on('click', (ev) => {
     const p = fromWgs(ev.latlng.lat, ev.latlng.lng);
@@ -719,7 +723,9 @@ function lpOpenPicker(initLat, initLng) {
   (async () => {
     try {
       await loadLeaflet();
-      if (!pickerMap) initPickerMap();
+      // 带上初始点:L.marker/视野一开始就对,底图也就直接按该区域选源,
+      // 不会先请求一批海外瓦片再切过去(首屏显示慢的一个来源)
+      if (!pickerMap) initPickerMap(initLat, initLng);
       setTimeout(() => pickerMap.invalidateSize(), 120);
     } catch {
       $('#loc-status').textContent = '地图加载失败,仍可搜索/定位选点';
@@ -900,3 +906,11 @@ window.LocPicker = {
   lpDeniedCheck, // 定位权限被拒检测(打卡/写日记共用)
   lpMapFullscreen, // 地图全屏查看(专辑/导出/快照三处共用)
 };
+
+/* Leaflet 预热:页面空闲时提前拉好库,第一次打开选点器/地图就不必等 CDN
+ * (原来只在 open 时才 await loadLeaflet,地图区会先空白一会儿 —— 用户反馈「显示有点慢」) */
+(function preloadLeaflet() {
+  const go = () => { try { loadLeaflet().catch(() => {}); } catch { /* 忽略 */ } };
+  if (window.requestIdleCallback) requestIdleCallback(go, { timeout: 3000 });
+  else setTimeout(go, 1500);
+})();
