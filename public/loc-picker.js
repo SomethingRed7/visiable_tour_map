@@ -126,9 +126,13 @@ function gaodeLayerCls() {
         const t = _tileXY(fromWgs(nw.lat, nw.lng).lat, fromWgs(nw.lat, nw.lng).lng, z);   // 对应的高德 GCJ-02 瓦片
         if (Number.isFinite(t.x) && Number.isFinite(t.y)) { tx = t.x; ty = t.y; }
       } catch { /* 用兜底瓦片号 */ }
-      const subs = String(this.options.subdomains || '1234');
+      // ⚠️ Leaflet 会把 subdomains 字符串自动 split('') 成数组(['1','2','3','4']);
+      // 再 String() 一次会得到 "1,2,3,4"(含逗号),charAt 可能取到 ',' →
+      // 请求打到 webrd0,.is.autonavi.com 这种域名 → DNS 失败 → 地图上出现灰洞
+      const subs = this.options.subdomains;
+      const arr = Array.isArray(subs) ? subs : String(subs || '1234').split('');
       return L.Util.template(this._url, {
-        s: subs.charAt(Math.abs(tx + ty) % subs.length),
+        s: arr[Math.abs(tx + ty) % arr.length],
         x: tx, y: ty, z,
       });
     },

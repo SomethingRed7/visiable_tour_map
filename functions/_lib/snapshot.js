@@ -57,7 +57,7 @@ ${cspMeta}
 <script type="application/json" id="snapshot-data">${json}</script>
 <script src="/api.js"></script>
 <script src="/map-common.js?v=20260915a"></script>
-<script src="/loc-picker.js?v=20260915b"></script>
+<script src="/loc-picker.js?v=20260915c"></script>
 <script src="/share-view.js"></script>
 </body>
 </html>`;
