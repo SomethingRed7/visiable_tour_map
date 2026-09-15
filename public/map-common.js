@@ -317,10 +317,19 @@
     box._ggMap = map;
     setTimeout(() => map.invalidateSize(), 120);
     setTimeout(() => map.invalidateSize(), 400);
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap',
-    }).addTo(map);
+    // 底图按数据所在区域选:国内用高德瓦片(tile.openstreetmap.org 国内常不可达 → 整片灰),
+    // 海外用 OSM。点集的质心落在哪就用哪套;平移跨区域时自动换层
+    if (window.ggAttachTiles) {
+      let cLat = 0, cLng = 0;
+      for (const e of withLoc) { cLat += e.location.lat; cLng += e.location.lng; }
+      ggAttachTiles(map, cLat / withLoc.length, cLng / withLoc.length);
+      map.on('moveend', () => { const c = map.getCenter(); ggAttachTiles(map, c.lat, c.lng); });
+    } else {
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap',
+      }).addTo(map);
+    }
 
     if (opts.fullscreen !== false && window.LocPicker) {
       LocPicker.lpMapFullscreen(map, box);

@@ -96,6 +96,68 @@ function inChina(lat, lng) { return lng > 73 && lng < 136 && lat > 3 && lat < 55
 function toWgs(lat, lng) { if (!inChina(lat, lng)) return { lat, lng }; const g = wgs2gcj(lat, lng); return { lat: lat * 2 - g.lat, lng: lng * 2 - g.lng }; }
 function fromWgs(lat, lng) { if (!inChina(lat, lng)) return { lat, lng }; return wgs2gcj(lat, lng); }
 
+/* ---------- 底图:国内高德瓦片 / 海外 OSM ----------
+ * tile.openstreetmap.org 在国内经常不可达,地图会整片灰(用户 2026-09-15 反馈)。
+ * 高德瓦片是 GCJ-02,而地图空间是 WGS-84,因此**按瓦片做偏移修正**,
+ * 这样图钉/轨迹的算法完全不用动(CSP 已放行 *.is.autonavi.com,栅格瓦片免 key)。 */
+const TILE_OSM = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+const TILE_GAODE = 'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}';
+/* 墨卡托瓦片号(与 Leaflet 的 CRS 一致,EPSG:3857 标准公式)。
+ * 自己算而不用 map.project().divideBy().floor(),后者层级多、任一环出 NaN 就整片灰 */
+function _tileXY(lat, lng, z) {
+  const n = Math.pow(2, z);
+  const rad = Math.max(-85.05112878, Math.min(85.05112878, lat)) * Math.PI / 180;
+  return {
+    x: Math.floor((lng + 180) / 360 * n),
+    y: Math.floor((1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2 * n),
+  };
+}
+let _gaodeCls = null;
+function gaodeLayerCls() {
+  // 懒建:L 是运行时按需加载的,模块初始化时还不存在
+  if (_gaodeCls) return _gaodeCls;
+  _gaodeCls = L.TileLayer.extend({
+    getTileUrl(coords) {
+      const z = coords.z;
+      let tx = coords.x, ty = coords.y; // 兜底=未修正(宁可偏移,也不能抛错导致整片灰)
+      try {
+        const size = this.getTileSize();
+        const nw = this._map.unproject(L.point(coords.x * size.x, coords.y * size.y), z); // 瓦片左上角(WGS-84)
+        const t = _tileXY(fromWgs(nw.lat, nw.lng).lat, fromWgs(nw.lat, nw.lng).lng, z);   // 对应的高德 GCJ-02 瓦片
+        if (Number.isFinite(t.x) && Number.isFinite(t.y)) { tx = t.x; ty = t.y; }
+      } catch { /* 用兜底瓦片号 */ }
+      const subs = String(this.options.subdomains || '1234');
+      return L.Util.template(this._url, {
+        s: subs.charAt(Math.abs(tx + ty) % subs.length),
+        x: tx, y: ty, z,
+      });
+    },
+  });
+  return _gaodeCls;
+}
+function ggTileLayerFor(lat, lng) {
+  return inChina(lat, lng)
+    ? new (gaodeLayerCls())(TILE_GAODE, { subdomains: '1234', maxZoom: 18, attribution: '&copy; 高德地图' })
+    : L.tileLayer(TILE_OSM, { maxZoom: 19, attribution: '&copy; OpenStreetMap' });
+}
+/* 按中心点挂底图;跨区域(国内↔海外)时自动换层。
+ * 判断依据直接看当前层的实际域名,而不是只比标志位 —— 标志位与真实层不一致时会卡死在灰屏 */
+function ggAttachTiles(map, lat, lng) {
+  const gcj = inChina(lat, lng);
+  const cur = map._ggTileLayer;
+  if (cur && /is\.autonavi\.com/.test(cur._url || '') === gcj) { map._ggGcj = gcj; return; }
+  if (cur) { try { map.removeLayer(cur); } catch { /* 已移除 */ } }
+  map._ggGcj = gcj;
+  map._ggTileLayer = ggTileLayerFor(lat, lng).addTo(map);
+  try { map._ggTileLayer.bringToBack(); } catch { /* 无妨 */ }
+}
+/* 跟随地图中心自动切换(平移/定位/搜索到另一区域时) */
+function ggFollowTiles(map) {
+  const sync = () => { const c = map.getCenter(); ggAttachTiles(map, c.lat, c.lng); };
+  map.on('moveend', sync);
+  sync();
+}
+
 function loadAmap(key, securityCode) {
   return new Promise((resolve, reject) => {
     if (window.AMap && window.AMap.Geolocation) return resolve();
@@ -253,10 +315,7 @@ async function getRouteLine(entries) {
 /* 选点地图(OpenStreetMap 瓦片,全球可达):点地图/拖图钉选点 */
 function initPickerMap() {
   pickerMap = L.map('loc-map', { scrollWheelZoom: true }).setView([-40, 175], 5);
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap',
-  }).addTo(pickerMap);
+  ggFollowTiles(pickerMap); // 底图跟随中心:国内高德瓦片(OSM 国内常不可达),海外 OSM
   pickerMap.on('click', (ev) => {
     const p = fromWgs(ev.latlng.lat, ev.latlng.lng);
     setPoint(p.lat, p.lng, '');
@@ -316,6 +375,9 @@ async function reverseNearby(lat, lng) {
   }
   st.textContent = '反查中…';
   let gotName = false;
+  // 提到 try 外面:下面兜底判断要读它。原来 const 声明在 try 块内,
+  // 块外引用直接 ReferenceError → 浏览器直连 Overpass 的兜底从来没跑到过
+  let nearby = [];
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 8000);
@@ -328,7 +390,7 @@ async function reverseNearby(lat, lng) {
       gotName = true;
     }
     // crs: 'gcj'=高德(已是 GCJ-02 勿转);'wgs'=OSM/Photon(WGS-84,仅中国境内转 GCJ-02 才对得上瓦片,海外原样)
-    const nearby = ((res && res.nearby) || []).map((n) => {
+    nearby = ((res && res.nearby) || []).map((n) => {
       const p = n.crs === 'wgs' ? fromWgs(n.lat, n.lng) : { lat: n.lat, lng: n.lng };
       return { name: n.name, lat: p.lat, lng: p.lng };
     }).slice(0, 12);
