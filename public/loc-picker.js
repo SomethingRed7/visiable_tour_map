@@ -96,70 +96,44 @@ function inChina(lat, lng) { return lng > 73 && lng < 136 && lat > 3 && lat < 55
 function toWgs(lat, lng) { if (!inChina(lat, lng)) return { lat, lng }; const g = wgs2gcj(lat, lng); return { lat: lat * 2 - g.lat, lng: lng * 2 - g.lng }; }
 function fromWgs(lat, lng) { if (!inChina(lat, lng)) return { lat, lng }; return wgs2gcj(lat, lng); }
 
-/* ---------- 底图:国内高德瓦片 / 海外 OSM ----------
- * tile.openstreetmap.org 在国内经常不可达,地图会整片灰(用户 2026-09-15 反馈)。
- * 高德瓦片是 GCJ-02,而地图空间是 WGS-84,因此**按瓦片做偏移修正**,
- * 这样图钉/轨迹的算法完全不用动(CSP 已放行 *.is.autonavi.com,栅格瓦片免 key)。 */
+/* ---------- 底图 + 地图空间(两者必须一致,否则图钉与底图差几百米)----------
+ * 国内:地图空间直接用 GCJ-02(应用存的就是 GCJ-02),叠高德瓦片(也是 GCJ-02)→ 零误差。
+ *   曾试过"地图空间仍用 WGS-84 + 把高德瓦片按瓦片号做 GCJ 修正":
+ *   瓦片是 256px 整块,只能对齐整块,块内像素偏移无法修正 →
+ *   底图相对图钉最多偏半块(z16 约几百米),用户反馈「定位不准」(2026-09-16)。
+ * 海外:地图空间 WGS-84 + OSM 瓦片(本来一致,一直很准)。
+ * tile.openstreetmap.org 在国内经常不可达(整片灰),所以国内必须走高德。 */
 const TILE_OSM = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 const TILE_GAODE = 'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}';
-/* 墨卡托瓦片号(与 Leaflet 的 CRS 一致,EPSG:3857 标准公式)。
- * 自己算而不用 map.project().divideBy().floor(),后者层级多、任一环出 NaN 就整片灰 */
-function _tileXY(lat, lng, z) {
-  const n = Math.pow(2, z);
-  const rad = Math.max(-85.05112878, Math.min(85.05112878, lat)) * Math.PI / 180;
-  return {
-    x: Math.floor((lng + 180) / 360 * n),
-    y: Math.floor((1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2 * n),
-  };
-}
-let _gaodeCls = null;
-function gaodeLayerCls() {
-  // 懒建:L 是运行时按需加载的,模块初始化时还不存在
-  if (_gaodeCls) return _gaodeCls;
-  _gaodeCls = L.TileLayer.extend({
-    getTileUrl(coords) {
-      const z = coords.z;
-      let tx = coords.x, ty = coords.y; // 兜底=未修正(宁可偏移,也不能抛错导致整片灰)
-      try {
-        const size = this.getTileSize();
-        const nw = this._map.unproject(L.point(coords.x * size.x, coords.y * size.y), z); // 瓦片左上角(WGS-84)
-        const t = _tileXY(fromWgs(nw.lat, nw.lng).lat, fromWgs(nw.lat, nw.lng).lng, z);   // 对应的高德 GCJ-02 瓦片
-        if (Number.isFinite(t.x) && Number.isFinite(t.y)) { tx = t.x; ty = t.y; }
-      } catch { /* 用兜底瓦片号 */ }
-      // ⚠️ Leaflet 会把 subdomains 字符串自动 split('') 成数组(['1','2','3','4']);
-      // 再 String() 一次会得到 "1,2,3,4"(含逗号),charAt 可能取到 ',' →
-      // 请求打到 webrd0,.is.autonavi.com 这种域名 → DNS 失败 → 地图上出现灰洞
-      const subs = this.options.subdomains;
-      const arr = Array.isArray(subs) ? subs : String(subs || '1234').split('');
-      return L.Util.template(this._url, {
-        s: arr[Math.abs(tx + ty) % arr.length],
-        x: tx, y: ty, z,
-      });
-    },
-  });
-  return _gaodeCls;
-}
+let pickerGcj = false; // 选点地图的空间:true=GCJ-02(国内),false=WGS-84(海外)
+/* 存储坐标(GCJ-02)↔ 地图空间坐标。海外两者相同,故 toWgs/fromWgs 自动退化为恒等 */
+const toMap = (lat, lng) => (pickerGcj ? { lat, lng } : toWgs(lat, lng));
+const fromMap = (lat, lng) => (pickerGcj ? { lat, lng } : fromWgs(lat, lng));
 function ggTileLayerFor(lat, lng) {
+  // 用 Leaflet 原生 tileLayer(它自己会正确处理 subdomains,别自己拼 {s})
   return inChina(lat, lng)
-    ? new (gaodeLayerCls())(TILE_GAODE, { subdomains: '1234', maxZoom: 18, attribution: '&copy; 高德地图' })
+    ? L.tileLayer(TILE_GAODE, { subdomains: '1234', maxZoom: 18, attribution: '&copy; 高德地图' })
     : L.tileLayer(TILE_OSM, { maxZoom: 19, attribution: '&copy; OpenStreetMap' });
 }
-/* 按中心点挂底图;跨区域(国内↔海外)时自动换层。
- * 判断依据直接看当前层的实际域名,而不是只比标志位 —— 标志位与真实层不一致时会卡死在灰屏 */
+/* 换底图(幂等);返回是否真的换过。区域判断看目标坐标,不看地图中心 ——
+ * 地图中心在 GCJ 空间时不能拿去和 WGS 比较后"再转一次" */
 function ggAttachTiles(map, lat, lng) {
+  if (!map) return false;
   const gcj = inChina(lat, lng);
-  const cur = map._ggTileLayer;
-  if (cur && /is\.autonavi\.com/.test(cur._url || '') === gcj) { map._ggGcj = gcj; return; }
-  if (cur) { try { map.removeLayer(cur); } catch { /* 已移除 */ } }
+  if (map._ggGcj === gcj && map._ggTileLayer) return false;
+  if (map._ggTileLayer) { try { map.removeLayer(map._ggTileLayer); } catch { /* 已移除 */ } }
   map._ggGcj = gcj;
   map._ggTileLayer = ggTileLayerFor(lat, lng).addTo(map);
   try { map._ggTileLayer.bringToBack(); } catch { /* 无妨 */ }
+  return true;
 }
-/* 跟随地图中心自动切换(平移/定位/搜索到另一区域时) */
-function ggFollowTiles(map) {
-  const sync = () => { const c = map.getCenter(); ggAttachTiles(map, c.lat, c.lng); };
-  map.on('moveend', sync);
-  sync();
+/* 切到某区域:底图与地图空间必须同时切(调用方负责重新落图钉) */
+function ggSetSpace(map, lat, lng) {
+  const gcj = inChina(lat, lng);
+  if (gcj === pickerGcj && map && map._ggTileLayer) return false;
+  pickerGcj = gcj;
+  ggAttachTiles(map, lat, lng);
+  return true;
 }
 
 function loadAmap(key, securityCode) {
@@ -321,30 +295,37 @@ async function getRouteLine(entries) {
  * 请求一批瓦片、再 setView 切过去,首次显示白等一轮(用户反馈「显示有点慢」) */
 function initPickerMap(initLat, initLng) {
   const hasInit = initLat != null && initLng != null;
-  const start = hasInit ? toWgs(initLat, initLng) : [-40, 175];
+  // 空间由目标点决定:国内 → GCJ 空间(与高德瓦片零误差);无目标点先用海外默认视野
+  pickerGcj = hasInit ? inChina(initLat, initLng) : false;
+  const start = hasInit ? toMap(initLat, initLng) : [-40, 175];
   pickerMap = L.map('loc-map', { scrollWheelZoom: true }).setView(start, hasInit ? 14 : 5);
-  ggFollowTiles(pickerMap); // 底图跟随中心:国内高德瓦片(OSM 国内常不可达),海外 OSM
+  ggAttachTiles(pickerMap, hasInit ? initLat : -40, hasInit ? initLng : 175);
   pickerMap.on('click', (ev) => {
-    const p = fromWgs(ev.latlng.lat, ev.latlng.lng);
+    const p = fromMap(ev.latlng.lat, ev.latlng.lng);
     setPoint(p.lat, p.lng, '');
   });
 }
 function placeMarker(lat, lng) {
   if (!pickerMap) return;
   if (pickerMarker) pickerMap.removeLayer(pickerMarker);
-  const w = toWgs(lat, lng);
+  const w = toMap(lat, lng);
   pickerMarker = L.marker([w.lat, w.lng], {
     icon: L.divIcon({ className: 'gg-marker', html: ggPinSvg(), iconSize: [28, 28], iconAnchor: [14, 27] }),
     draggable: true,
   }).addTo(pickerMap);
   pickerMarker.on('dragend', () => {
     const ll = pickerMarker.getLatLng();
-    const p = fromWgs(ll.lat, ll.lng);
+    const p = fromMap(ll.lat, ll.lng);
     setPoint(p.lat, p.lng, '');
   });
 }
 
 function setPoint(lat, lng, name) {
+  // 目标点与当前地图空间不在同一区域(国内↔海外)时,底图与空间必须一起切,
+  // 否则图钉与底图会差几百米(GCJ 偏移)。切完地图要重新居中到该点
+  if (pickerMap && lat != null && lng != null && inChina(lat, lng) !== pickerGcj) {
+    if (ggSetSpace(pickerMap, lat, lng)) pickerMap.setView(toMap(lat, lng), pickerMap.getZoom());
+  }
   picked = { name, lat, lng };
   placeMarker(lat, lng);
   $('#loc-confirm').hidden = false;
@@ -581,8 +562,10 @@ async function serverSearch(q) {
     const timer = setTimeout(() => ctrl.abort(), 6000);
     // 把当前地图视野中心传给服务端,海外品牌搜索(NZ pak'n save 等)按距离偏好返回正确国家的结果
     // ——不再让 lpCityCache 瞎猜,IP 城市可能错
+    // ⚠️ 地图空间可能是 GCJ-02(国内),而服务端/Photon/Nominatim 要 WGS-84,必须先转回
     const center = pickerMap && pickerMap.getCenter ? pickerMap.getCenter() : null;
-    const ll = center ? `&lat=${center.lat.toFixed(5)}&lng=${center.lng.toFixed(5)}` : '';
+    const cw = center ? toWgs(center.lat, center.lng) : null;
+    const ll = cw ? `&lat=${cw.lat.toFixed(5)}&lng=${cw.lng.toFixed(5)}` : '';
     const res = await (await fetch(`/api/geocode?q=${encodeURIComponent(q)}${ll}`, { signal: ctrl.signal })).json();
     clearTimeout(timer);
     const results = (res.results || []).map((r) => {
@@ -736,8 +719,10 @@ function lpOpenPicker(initLat, initLng) {
     }
     // 编辑现有位置 → 直接设为已选(用户可搜索/定位覆盖)
     if (initLat != null && initLng != null) {
+      // 复用时地图可能还停在上一次的空间(GCJ↔WGS),先切到本次目标所在区域
+      if (pickerMap && inChina(initLat, initLng) !== pickerGcj) ggSetSpace(pickerMap, initLat, initLng);
       placeMarker(initLat, initLng);
-      if (pickerMap) pickerMap.setView(toWgs(initLat, initLng), 14);
+      if (pickerMap) pickerMap.setView(toMap(initLat, initLng), 14);
       setPoint(initLat, initLng, '');
     }
   })();

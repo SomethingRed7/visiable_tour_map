@@ -317,13 +317,18 @@
     box._ggMap = map;
     setTimeout(() => map.invalidateSize(), 120);
     setTimeout(() => map.invalidateSize(), 400);
-    // 底图按数据所在区域选:国内用高德瓦片(tile.openstreetmap.org 国内常不可达 → 整片灰),
-    // 海外用 OSM。点集的质心落在哪就用哪套;平移跨区域时自动换层
+    /* 底图与地图空间必须一致:
+     * 国内 → GCJ-02 空间 + 高德瓦片(应用存的就是 GCJ,严丝合缝零误差;OSM 国内常不可达会整片灰)
+     * 海外 → WGS-84 空间 + OSM 瓦片
+     * 由点集质心所在区域决定(一个相册基本在同一国家)。
+     * 曾用「WGS 空间 + 按瓦片号做 GCJ 修正」:瓦片是 256px 整块,块内偏移修不了 →
+     * 图钉与底图最多差半块(z16 几百米),用户反馈「定位不准」(2026-09-16)。 */
+    let cLat = 0, cLng = 0;
+    for (const e of withLoc) { cLat += e.location.lat; cLng += e.location.lng; }
+    const gcjSpace = inChina(cLat / withLoc.length, cLng / withLoc.length);
     if (window.ggAttachTiles) {
-      let cLat = 0, cLng = 0;
-      for (const e of withLoc) { cLat += e.location.lat; cLng += e.location.lng; }
+      // 同一个 helper(loc-picker 提供):挂底图 + 记录 map._ggTileLayer/_ggGcj
       ggAttachTiles(map, cLat / withLoc.length, cLng / withLoc.length);
-      map.on('moveend', () => { const c = map.getCenter(); ggAttachTiles(map, c.lat, c.lng); });
     } else {
       L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
@@ -335,7 +340,10 @@
       LocPicker.lpMapFullscreen(map, box);
     }
     const onClick = opts.onMarkerClick || ((e) => openMapDetail(e));
-    const project = (lat, lng) => { const p = toWgs(lat, lng); return [p.lat, p.lng]; };
+    // GCJ 空间直接用存储坐标;否则转 WGS-84 对 OSM
+    const project = gcjSpace
+      ? (lat, lng) => [lat, lng]
+      : (lat, lng) => { const p = toWgs(lat, lng); return [p.lat, p.lng]; };
     const bounds = [];
     const items = [];
     for (let i = 0; i < withLoc.length; i++) {
