@@ -330,7 +330,8 @@
       // 同一个 helper(loc-picker 提供):挂底图 + 记录 map._ggTileLayer/_ggGcj
       ggAttachTiles(map, cLat / withLoc.length, cLng / withLoc.length);
     } else {
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      // 兜底(loc-picker 未加载时):OSM 也走本站代理,否则国内看海外路线会整片灰
+      L.tileLayer(`${window.API_ORIGIN || ''}/tiles/{z}/{x}/{y}.png`, {
         maxZoom: 19,
         attribution: '&copy; OpenStreetMap',
       }).addTo(map);

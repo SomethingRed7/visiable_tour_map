@@ -102,8 +102,9 @@ function fromWgs(lat, lng) { if (!inChina(lat, lng)) return { lat, lng }; return
  *   瓦片是 256px 整块,只能对齐整块,块内像素偏移无法修正 →
  *   底图相对图钉最多偏半块(z16 约几百米),用户反馈「定位不准」(2026-09-16)。
  * 海外:地图空间 WGS-84 + OSM 瓦片(本来一致,一直很准)。
- * tile.openstreetmap.org 在国内经常不可达(整片灰),所以国内必须走高德。 */
-const TILE_OSM = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+ * tile.openstreetmap.org 国内不可达 → 国内走高德;海外走 OSM 但**经本站代理**
+ * (functions/tiles/[[path]].js),否则人在国内看海外路线还是整片灰(用户 2026-09-17 反馈)。 */
+const tileOsmUrl = () => `${window.API_ORIGIN || ''}/tiles/{z}/{x}/{y}.png`;
 const TILE_GAODE = 'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}';
 let pickerGcj = false; // 选点地图的空间:true=GCJ-02(国内),false=WGS-84(海外)
 /* 存储坐标(GCJ-02)↔ 地图空间坐标。海外两者相同,故 toWgs/fromWgs 自动退化为恒等 */
@@ -113,7 +114,7 @@ function ggTileLayerFor(lat, lng) {
   // 用 Leaflet 原生 tileLayer(它自己会正确处理 subdomains,别自己拼 {s})
   return inChina(lat, lng)
     ? L.tileLayer(TILE_GAODE, { subdomains: '1234', maxZoom: 18, attribution: '&copy; 高德地图' })
-    : L.tileLayer(TILE_OSM, { maxZoom: 19, attribution: '&copy; OpenStreetMap' });
+    : L.tileLayer(tileOsmUrl(), { maxZoom: 19, attribution: '&copy; OpenStreetMap' });
 }
 /* 换底图(幂等);返回是否真的换过。区域判断看目标坐标,不看地图中心 ——
  * 地图中心在 GCJ 空间时不能拿去和 WGS 比较后"再转一次" */
