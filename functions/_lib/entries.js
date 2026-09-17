@@ -35,13 +35,14 @@ export async function resolveLocation(locationName, latRaw, lngRaw) {
 // 照片校验(大小/魔数)+ 同日 SHA-256 去重;返回 [{file, hash}];超限抛 {message}
 export async function validatePhotos(env, date, fulls, maxPhotos) {
   if (fulls.length > maxPhotos) throw { message: `一次最多 ${maxPhotos} 张照片` };
-  const existingHashes = new Set();
+  // hash → 已有该图的条目:报错时才能"指名"(说清哪条日记里已有),前端也好把那张标出来
+  const existing = new Map();
   try {
-    const rows = await env.DB.prepare('SELECT photo_hashes FROM entries WHERE date = ?1')
+    const rows = await env.DB.prepare('SELECT ts, title, photo_hashes FROM entries WHERE date = ?1')
       .bind(date)
       .all();
     for (const r of rows.results || []) {
-      for (const h of JSON.parse(r.photo_hashes || '[]')) existingHashes.add(h);
+      for (const h of JSON.parse(r.photo_hashes || '[]')) existing.set(h, { date, ts: r.ts, title: r.title || '' });
     }
   } catch { /* DB 不可用则跳过去重 */ }
   const out = [];
@@ -51,7 +52,13 @@ export async function validatePhotos(env, date, fulls, maxPhotos) {
     if (err) throw { message: err };
     const digest = await crypto.subtle.digest('SHA-256', buf);
     const hash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
-    if (existingHashes.has(hash)) throw { message: '这张照片今天已经传过啦,换一张或去掉重复' };
+    if (existing.has(hash)) {
+      // out.length 即这张在 fulls 中的下标(前面的都已按序 push)
+      throw {
+        message: '这张照片今天已经传过啦,换一张或去掉重复',
+        dup: { name: f.name, index: out.length, entry: existing.get(hash) },
+      };
+    }
     out.push({ file: f, hash });
   }
   return out;

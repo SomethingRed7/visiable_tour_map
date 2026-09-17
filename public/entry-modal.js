@@ -267,7 +267,9 @@ async function emSave() {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       if (res.status === 401) { emClose(); if (typeof bounceOn401 === 'function') bounceOn401(res); }
-      return emSetStatus(data.error || `失败(HTTP ${res.status})`, true);
+      // 重复照片:把那张描红并指名(第几张 + 哪条日记已有),而不是只丢一句「已经有一张了」
+      const dupMsg = window.ggMarkDupPhoto ? ggMarkDupPhoto('#em-new-preview', files, data.dup) : null;
+      return emSetStatus(dupMsg || data.error || `失败(HTTP ${res.status})`, true);
     }
     emClose();
     // 把刚保存的条目回传给调用方(/api/upload 与 /api/update 都返回 {ok, entry}),

@@ -1101,6 +1101,17 @@ body {
   cursor: pointer;
 }
 
+/* 服务端指出「这张和已有照片重复」的那一张:描红 + 角标,一眼定位到是哪张 */
+.preview-item.dup img { outline: 2px solid #dc2626; outline-offset: 1px; }
+.preview-item.dup::after {
+  content: '重复';
+  position: absolute; left: 2px; bottom: 2px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: #dc2626; color: #fff;
+  font-size: 10px; line-height: 1.4;
+}
+
 .form-status { font-size: 0.88rem; color: var(--text-soft); min-height: 1.2em; margin: 0; }
 
 .form-status.error { color: #b91c1c; }

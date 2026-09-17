@@ -50,7 +50,8 @@ export async function onRequestPost(context) {
     const vp = await validatePhotos(context.env, date, fulls, MAX_PHOTOS);
     photoHashes = vp.map((p) => p.hash);
   } catch (e) {
-    return Response.json({ error: e.message }, { status: 400 });
+    // dup:哪张重复 + 哪条日记里已有 → 前端把那张描红并指名(用户 2026-09-17 反馈)
+    return Response.json(e.dup ? { error: e.message, dup: e.dup } : { error: e.message }, { status: 400 });
   }
 
   // 地点:已有坐标直存;否则地名 geocode(失败仅存地名)

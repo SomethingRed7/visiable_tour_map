@@ -75,4 +75,30 @@
   }
 
   window.ggCompressPhoto = ggCompressPhoto;
+
+  /* 重复照片标注:服务端返回的 dup = { name, index, entry? }。
+   * 原来只提示「已经有一张了」,十几张缩略图里要用户自己猜是哪张(用户 2026-09-17 反馈)。
+   * 这里把那张描红 + 标「重复」、滚到可见处,并返回指名到文件与条目的文案。 */
+  function ggMarkDupPhoto(boxSel, files, dup) {
+    if (!dup) return null;
+    const box = document.querySelector(boxSel);
+    if (box) box.querySelectorAll('.preview-item.dup').forEach((n) => n.classList.remove('dup'));
+    // 优先按文件名定位(与服务端发送顺序一致),兜底用下标
+    let idx = (Array.isArray(files) && dup.name) ? files.findIndex((f) => f.name === dup.name) : -1;
+    if (idx < 0 && Number.isInteger(dup.index)) idx = dup.index;
+    if (box && idx >= 0) {
+      const item = box.querySelectorAll('.preview-item')[idx];
+      if (item) {
+        item.classList.add('dup');
+        try { item.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch { item.scrollIntoView(); }
+      }
+    }
+    // 文案要指名:第几张 + 文件名 + 是哪条日记已有
+    const where = dup.entry
+      ? (dup.entry.title ? `日记「${dup.entry.title}」里` : '同一天的另一条日记里')
+      : '这条日记里';
+    return `${idx >= 0 ? `第 ${idx + 1} 张 ` : ''}${dup.name || '这张照片'} 与${where}已有的一张重复(已描红),点它右上角 ✕ 去掉`;
+  }
+
+  window.ggMarkDupPhoto = ggMarkDupPhoto;
 })();

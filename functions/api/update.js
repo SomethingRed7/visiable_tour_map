@@ -135,7 +135,11 @@ export async function onRequestPost(context) {
       const digest = await crypto.subtle.digest('SHA-256', buf);
       const hash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
       if (ownHashes.has(hash)) {
-        return Response.json({ error: '这张照片在这条日记里已经有一张了,换一张或去掉重复' }, { status: 400 });
+        // dup:指名是哪一张(文件名 + 下标),前端据此把那张描红标出来
+        return Response.json({
+          error: '这张照片在这条日记里已经有一张了,换一张或去掉重复',
+          dup: { name: f.name, index: i, entry: { date, ts: Number(ts), title } },
+        }, { status: 400 });
       }
       const base = `${date}/${ts}-${nextIdx + i}`;
       await context.env.PHOTOS.put(`${base}.jpg`, f.stream(), { httpMetadata: { contentType: 'image/jpeg' } });

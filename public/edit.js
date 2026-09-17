@@ -422,7 +422,9 @@ async function doUpload() {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       bounceOn401(res);
-      return setStatus(data.error || `上传失败(HTTP ${res.status})`, true);
+      // 重复照片:把那张描红并指名(第几张 + 哪条日记已有)
+      const dupMsg = window.ggMarkDupPhoto ? ggMarkDupPhoto('#photo-preview', pickedPhotos, data.dup) : null;
+      return setStatus(dupMsg || data.error || `上传失败(HTTP ${res.status})`, true);
     }
 
     // 成功:记住本次选择 + 横幅 + 清空表单
@@ -633,7 +635,9 @@ async function doUpdate() {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       bounceOn401(res);
-      return setStatus(data.error || `保存失败(HTTP ${res.status})`, true);
+      // 重复照片:把那张描红并指名(第几张 + 哪条日记已有)
+      const dupMsg = window.ggMarkDupPhoto ? ggMarkDupPhoto('#photo-preview', pickedPhotos, data.dup) : null;
+      return setStatus(dupMsg || data.error || `保存失败(HTTP ${res.status})`, true);
     }
     cancelEdit();
     setStatus('已保存 ✅', false);
