@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>咕咕嘎嘎 · 旅行日记</title>
-  <link rel="stylesheet" href="style.css?v=20260917a">
+  <link rel="stylesheet" href="style.css?v=20260917b">
 </head>
 <body>
   <header class="site-header">
@@ -42,6 +42,8 @@
           <a id="btn-entry-add" class="btn-add-entry" href="edit.html" hidden>记一把</a>
         </div>
         <div id="day-entries" class="entries"></div>
+        <!-- 当天足迹:当天带定位的条目点位 + 轨迹(复用 map-common.renderCheckinMap,与专辑/分享/导出页同款组件) -->
+        <div id="day-map" class="day-map"></div>
       </div>
       <!-- 前一天/后一天:与直接点日历那天走同一条路径(跨月时日历跟着翻) -->
       <div class="day-nav" id="day-nav" hidden>
@@ -144,6 +146,6 @@
   <script src="map-common.js?v=20260917c"></script>
   <script src="loc-picker.js?v=20260917d"></script>
   <script src="entry-modal.js?v=20260917a"></script>
-  <script src="app.js?v=20260914c"></script>
+  <script src="app.js?v=20260917a"></script>
 </body>
 </html>

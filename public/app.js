@@ -312,6 +312,28 @@ function renderDayEntries(ds) {
     : '<p class="empty">当日无事发生</p>';
   bindPhotoGridFallback($('#day-entries'));
   bindStreamEditBtns($('#day-entries'));
+  renderDayMap(dayEntries);
+}
+
+/* 当天足迹地图:当天带定位的条目 → 点位 + 轨迹。
+ * 完全复用 map-common.renderCheckinMap(与专辑页/分享页/导出页同一个组件:底图按区域自动选高德或 OSM、
+ * 图钉按屏幕距离聚合、点图钉看文字+图片详情、右上角 ⛶ 全屏),轨迹由 loc-picker.getRouteLine 提供。
+ * 不重复实现任何地图逻辑。 */
+function renderDayMap(dayEntries) {
+  const box = $('#day-map');
+  if (!box || !window.MapCommon) return;
+  // 「当日待办」tab 下动态面板是隐藏的:容器宽高为 0,Leaflet 会算错视野与瓦片,
+  // 所以先不建图;切回「当日动态」时 switchTab 会重跑 renderDayEntries 再画
+  const pane = $('#tab-entries');
+  if (pane && pane.hidden) return;
+  const located = (dayEntries || []).filter((e) => e.location && e.location.lat != null && e.location.lng != null);
+  if (!located.length) {
+    box.style.display = 'none';
+    if (box._ggMap) { try { box._ggMap.remove(); } catch { /* 已移除 */ } box._ggMap = null; }
+    return;
+  }
+  // 地图嵌在会滚动的长页里 → 关掉滚轮缩放(与导出页一致),手机上本就没有滚轮,不受影响
+  MapCommon.renderCheckinMap(box, located, { containerId: 'day-map', scrollWheelZoom: false }).catch(() => { /* 地图失败不影响列表 */ });
 }
 
 /* ---------- 私有待办(规划打卡;仅登录用户可见) ---------- */
