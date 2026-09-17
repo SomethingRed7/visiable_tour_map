@@ -245,8 +245,8 @@ async function lpDeniedCheck() {
   return 'unknown';
 }
 
-/* 路线获取(driving → walking → OSRM → 直线):高德 v3/direction(国内稳定,GCJ-02 直接匹配瓦片);
- * 高德不可达(海外/限流)时 → 浏览器直连 OSRM(免 key,沿真实道路,CORS 已开)兜底
+/* 路线获取(海外→OSRM;国内→driving → walking → OSRM → 直线):
+ * 高德 v3/direction(国内稳定,GCJ-02 直接匹配瓦片);海外高德无数据 → 直接 OSRM(免 key,沿真实道路)
  * entries: [{date, ts, location:{lat,lng}}](GCJ-02)按时间排序;
  * 返回 [[lat,lng],...](GCJ-02,与瓦片对齐) */
 async function getRouteLine(entries) {
@@ -281,12 +281,17 @@ async function getRouteLine(entries) {
       return coords.map(([lngN, latN]) => { const g = fromWgs(latN, lngN); return [g.lat, g.lng]; });
     } catch { return null; }
   };
-  const d = await tryProfile('driving');
-  if (d && d.line) return d.line;
-  // driving 失败/不可达 → 试 walking(高德 walking 覆盖面更广,如步行景区/禁车路段)
-  const w = await tryProfile('walking');
-  if (w && w.line) return w.line;
-  // 高德全挂 → OSRM 真实道路轨迹(海外用户主路径)
+  /* 海外行程:高德没有海外路网数据,先试它只会白等 8s 超时 ×2 —— 直接走 OSRM。
+   * (国内行程仍按 driving → walking → OSRM 顺序) */
+  const overseas = pts.length > 0 && pts.every(([la, ln]) => !inChina(la, ln));
+  if (!overseas) {
+    const d = await tryProfile('driving');
+    if (d && d.line) return d.line;
+    // driving 失败/不可达 → 试 walking(高德 walking 覆盖面更广,如步行景区/禁车路段)
+    const w = await tryProfile('walking');
+    if (w && w.line) return w.line;
+  }
+  // 高德全挂(或海外) → OSRM 真实道路轨迹(海外用户主路径)
   const osrm = await tryOsrm();
   if (osrm) return osrm;
   return straight();
@@ -833,6 +838,10 @@ function lpMapFullscreen(map, container) {
     const body = document.createElement('div');
     body.className = 'map-fs-body';
     const parent = container.parentNode;
+    /* 记录容器原来的位置:退出全屏时必须**插回原处**。
+     * 曾用 parent.appendChild 还原 → 地图从「条目列表上方」跳到「整个区块最下方」,
+     * 看起来就是「点开地图、关闭之后没了」(用户 2026-09-17 反馈)。 */
+    const nextSibling = container.nextSibling;
     body.appendChild(container);
     overlay.appendChild(head);
     overlay.appendChild(body);
@@ -867,7 +876,12 @@ function lpMapFullscreen(map, container) {
       }
       // 清掉所有全屏遮罩(无论嵌套多少层,一次退出全恢复)
       document.querySelectorAll('.map-fs-overlay').forEach((o) => o.remove());
-      if (parent && parent.isConnected) parent.appendChild(container);
+      if (parent && parent.isConnected) {
+        // 插回原来的位置(原锚点还在就插它前面,否则才退回 append)
+        const anchor = nextSibling && nextSibling.parentNode === parent ? nextSibling : null;
+        if (anchor) parent.insertBefore(container, anchor);
+        else parent.appendChild(container);
+      }
       container.style.height = '';
       container.style.borderRadius = '';
       container.style.marginBottom = '';

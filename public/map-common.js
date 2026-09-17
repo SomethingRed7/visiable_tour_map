@@ -415,19 +415,15 @@
         });
       }
     });
-    if (opts.showRoute !== false && withLoc.length > 1 && window.getRouteLine) {
-      const ordered = withLoc.slice().sort((a, b) => {
-        if (a.date !== b.date) return a.date < b.date ? -1 : 1;
-        return Number(entryTs(a)) - Number(entryTs(b));
-      });
-      const line = await getRouteLine(ordered);
-      const routePts = line.map(([la, ln]) => project(la, ln));
-      // 实线 = 导航轨迹(高德/OSRM 真实道路);直线兜底时也保持整洁
-      L.polyline(routePts, {
-        color: '#e11d48', weight: 4, opacity: 0.9, lineCap: 'round', lineJoin: 'round', interactive: false,
-      }).addTo(map);
-      map.fitBounds(L.latLngBounds(routePts), { padding: opts.fitPadding || [30, 30] });
-    } else if (withLoc.length === 1) {
+    /* ① 先把视野定下来 —— 只按打卡点算,不等路线。
+     * 关键:Leaflet 的瓦片与图钉都要等 setView 之后才会画。
+     * 曾经 fitBounds 放在 `await getRouteLine()` 之后:海外专辑的高德路线取不到,
+     * 要依次等高德 driving 8s 超时 + walking 8s 超时 + OSRM 10s,
+     * 这期间地图 `_loaded=false` → 一个瓦片都不请求、图钉也不画 →
+     * 用户看到整片空白(2026-09-17 反馈「瓦片没显示」)。
+     * 另外 `L.polyline(...).addTo(未 setView 的地图)` 会直接抛
+     * 「Set map center and zoom first.」,把后面的 fitBounds 也带走。 */
+    if (withLoc.length === 1) {
       map.setView(bounds[0], 12);
     } else {
       map.fitBounds(bounds, { padding: opts.fitPadding || [30, 30] });
@@ -442,6 +438,26 @@
       if (panel && panel.style.display !== 'none') return;
       closeClusterSheet();
     });
+
+    /* ② 路线是「增强」:异步补一条红实线,慢或失败都不影响底图与图钉。
+     * 视野已按打卡点定好、点集本身就是路线的包络,所以路线到了**不再重设视野** ——
+     * 避免「先给一个视野、几秒后又跳一下」。 */
+    if (opts.showRoute !== false && withLoc.length > 1 && window.getRouteLine) {
+      try {
+        const ordered = withLoc.slice().sort((a, b) => {
+          if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+          return Number(entryTs(a)) - Number(entryTs(b));
+        });
+        const line = await getRouteLine(ordered);
+        const routePts = line.map(([la, ln]) => project(la, ln));
+        if (routePts.length > 1) {
+          // 实线 = 导航轨迹(高德/OSRM 真实道路);直线兜底时也保持整洁
+          L.polyline(routePts, {
+            color: '#e11d48', weight: 4, opacity: 0.9, lineCap: 'round', lineJoin: 'round', interactive: false,
+          }).addTo(map);
+        }
+      } catch { /* 路线取不到就只显示图钉(底图与图钉已经在了) */ }
+    }
   }
 
   const M = { esc, shortLoc, fmtTime, thumbUrl, ggPinSvg, loadLeaflet, entryTs, photoGridHtml, entryCard, detailCard, bindPhotoGridFallback, openEntryCard, openMapDetail, renderCheckinMap, bindPreviewModal };
