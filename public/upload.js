@@ -626,11 +626,17 @@ function syncAlbumView() {
   });
 }
 
-function renderAlbumChips() {
+async function renderAlbumChips() {
   const chips = $('#album-chips');
   if (!chips) return;
-  const albums = [...new Set(mgrAllEntries.map((e) => e.album).filter(Boolean))];
-  const hasUncat = mgrAllEntries.some((e) => !e.album);
+  // 专辑清单以服务端 /api/albums 为准(它按 SQL 统计,完整);拉不到(未登录/离线)再退回本地条目缓存
+  let albums = [...new Set(mgrAllEntries.map((e) => e.album).filter(Boolean))];
+  let hasUncat = mgrAllEntries.some((e) => !e.album);
+  try {
+    const data = await (await fetch('/api/albums')).json();
+    if (data && Array.isArray(data.albums)) albums = data.albums.map((a) => a.album);
+    if (data && data.uncategorized) hasUncat = data.uncategorized.count > 0;
+  } catch { /* 保持本地缓存那份 */ }
   chips.innerHTML = '';
   const mk = (label, album) => {
     const b = document.createElement('button');
@@ -648,6 +654,15 @@ function renderAlbumChips() {
   if (hasUncat) mk('未分类', '');
 }
 
+/* 按专辑取条目:一律走服务端 ?album=(SQL 过滤),不要从 mgrAllEntries 里筛 ——
+ * 全量接口有条数上限,老专辑(如「长沙2026」)会被截掉,表现为「这个专辑还没有条目」(2026-09-17 用户报) */
+async function fetchAlbumEntries(album) {
+  try {
+    const data = await (await fetch(`/api/entries?album=${encodeURIComponent(album)}`)).json();
+    return data.entries || [];
+  } catch { return []; }
+}
+
 async function renderAlbumView() {
   const stream = $('#stream');
   const mapBox = $('#album-map');
@@ -660,16 +675,19 @@ async function renderAlbumView() {
     if (mgrActiveAlbum) shareBtn.href = '/export?album=' + encodeURIComponent(mgrActiveAlbum);
   }
   const title = $('#stream-title');
-  let list = mgrAllEntries;
-  if (mgrActiveAlbum === '') list = list.filter((e) => !e.album); // 未分类:album 为空/NULL
-  else if (mgrActiveAlbum) list = list.filter((e) => e.album === mgrActiveAlbum);
-  if (!mgrActiveAlbum) {
+  // 注意用 == null 而不是 !mgrActiveAlbum:未分类的专辑名就是空串 ''(falsy),
+  // 原来写成 !mgrActiveAlbum 会让「未分类」永远停在占位文案(顺手修)
+  if (mgrActiveAlbum == null) {
     if (title) title.textContent = '专辑';
     stream.innerHTML = `<p class="empty">${mgrAllEntries.length ? '选择一个专辑查看' : '还没有日记 ✏️'}</p>`;
     mapBox.style.display = 'none';
     return;
   }
   if (title) title.textContent = mgrActiveAlbum === '' ? '专辑 · 未分类' : `专辑 · ${mgrActiveAlbum}`;
+  // 条目从服务端按专辑现取(SQL 过滤,完整),不再从本地缓存筛 —— 见 fetchAlbumEntries 注释
+  const album = mgrActiveAlbum;
+  let list = await fetchAlbumEntries(album);
+  if (mgrActiveAlbum !== album) return; // 取数期间又切了别的专辑 → 让新的那次渲染说了算
   list = [...list].sort((a, b) => (a.date === b.date ? 0 : a.date < b.date ? -1 : 1)); // 专辑内正序
   const byDate = {};
   for (const e of list.slice(0, 60)) (byDate[e.date] = byDate[e.date] || []).push(e);

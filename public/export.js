@@ -123,11 +123,13 @@ async function init() {
   $('#btn-share').textContent = exToken ? '保存更新' : '生成分享快照';
 
   const [entriesData, todosData] = await Promise.all([
-    fetch('/api/entries').then((r) => r.json()),
+    // 按专辑分享时直接让服务端在 SQL 里过滤:全量接口有条数上限,
+    // 老专辑(如「长沙2026」)会被截掉 → 分享页空白(2026-09-17 与管理页专辑视图同源问题)
+    fetch(exAlbum ? `/api/entries?album=${encodeURIComponent(exAlbum)}` : '/api/entries').then((r) => r.json()),
     fetch('/api/todos').then((r) => r.json()).catch(() => ({ todos: [] })),
   ]);
   let list = entriesData.entries || [];
-  if (exAlbum) list = list.filter((e) => e.album === exAlbum);
+  if (exAlbum) list = list.filter((e) => e.album === exAlbum); // 服务端已过滤,这层只是保险
   if (rangeOk) list = list.filter((e) => e.date >= exFrom && e.date <= exTo);
   exAllEntries = list;
   // 待办仅日期区间时参与;纯专辑模式待办不参与(待办无专辑概念)
