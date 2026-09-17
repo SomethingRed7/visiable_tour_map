@@ -344,12 +344,14 @@ function setPoint(lat, lng, name) {
   if (lat != null && lng != null && !name) reverseNearby(lat, lng);
 }
 
-/* 反查地名 + 附近地点:服务端 /api/geocode(高德 regeo+around 优先,失败 Nominatim+Overpass);
+/* 反查地名 + 附近地点:服务端 /api/geocode(国内=高德 regeo+around 优先,坐标同为 GCJ-02;
+ * 海外或高德失败=OSM 系,服务端已把 GCJ 转 WGS 再查);
  * 浏览器兜底链:localStorage 缓存(同坐标秒回,避开公开服务限流)→ Photon → Nominatim(zoom 18/10, addressdetails=1)
  * Nominatim 优先从 address 子对象选最有意义的命名要素(比 display_name 可靠) */
 /* localStorage 缓存(同坐标秒回,避开反复调用公开服务被限流)
- * v2:schema 变更(主名改用最近 POI 覆盖路名)— 老缓存可能存的是 road 名,直接废 */
-const _ggGeoCacheVer = 'v2';
+ * v3:服务端反查改为「国内高德优先 + 兜底路径修正 GCJ→WGS」——v2 缓存里
+ *     存着偏移 ~550m 的错误名字(如星图光年轩被认成桂语里),直接废掉重查 */
+const _ggGeoCacheVer = 'v3';
 const _ggGeoCache = (() => { try { const r = JSON.parse(localStorage.getItem('gg_geocode') || '{}'); return (r && r.__v === _ggGeoCacheVer) ? (r.data || {}) : {}; } catch { return {}; } })();
 const _ggGeoKey = (la, ln) => (Math.round(la * 1e4) / 1e4) + ',' + (Math.round(ln * 1e4) / 1e4); // ~11m
 function _ggGeoGet(la, ln) { const e = _ggGeoCache[_ggGeoKey(la, ln)]; return e && (Date.now() - e.t) < 7 * 86400e3 ? e.n : null; }

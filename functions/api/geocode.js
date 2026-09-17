@@ -1,5 +1,6 @@
 // 地理编码 API:GET /api/geocode?q=地名 | ?lat=&lng=(反向)
-// 反向:Nominatim → Photon(免 key 限流宽松,有 UA)→ BigDataCloud(中文结果)
+// 反向(国内):高德 regeo + place/around(数据与地图瓦片同源,GCJ-02 直接用)
+// 反向(海外 / 高德失败):Nominatim → Photon → BigDataCloud(免 key,有 UA),坐标须先 GCJ→WGS
 // 简化稳健版:每步独立 try/catch,绝不互相牵连
 const UA = 'gugugaga-travel-diary/1.0 (personal use)';
 const _geoCache = new Map();
@@ -13,6 +14,108 @@ function _geoCachePut(la, ln, v) { _geoCache.set(_geoCacheKey(la, ln), { v, t: D
 // 国家级粗判(同 loc-picker.inChina,避免重复转换):海外走 Photon 按 lat/lon 偏好,
 // 国内 Nominatim + city 兜底,品牌搜索不再跑到地球另一边
 function inChina(lat, lng) { return lng > 73 && lng < 136 && lat > 3 && lat < 55; }
+
+/* ---------- GCJ-02 ⇄ WGS-84(国内偏移 ~500m)----------
+ * ⚠️ 前端点图/拖图钉/定位传来的坐标一律是 ****GCJ-02****(应用存储与 Leaflet 地图空间都是 GCJ),
+ * 而 Nominatim/Photon/Overpass/BigDataCloud 全部按 ****WGS-84**** 解释坐标。
+ * 之前直接把 GCJ 丢给它们 → 反查点东南偏 ~550m,名字认成隔壁小区
+ * (实测 2026-09-17:点在「万科·星图光年轩」,反查却给出 600m 外的「万科·桂语里」)。
+ * 算法与 loc-picker.js 同款(纯 JS 无依赖,本站各文件各持一份)。 */
+function transformLat(x, y) {
+  let ret = -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
+  ret += ((20.0 * Math.sin(6.0 * x * Math.PI) + 20.0 * Math.sin(2.0 * x * Math.PI)) * 2.0) / 3.0;
+  ret += ((20.0 * Math.sin(y * Math.PI) + 40.0 * Math.sin((y / 3.0) * Math.PI)) * 2.0) / 3.0;
+  ret += ((160.0 * Math.sin((y / 12.0) * Math.PI) + 320.0 * Math.sin((y * Math.PI) / 30.0)) * 2.0) / 3.0;
+  return ret;
+}
+function transformLng(x, y) {
+  let ret = 300.0 + x + 2.0 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
+  ret += ((20.0 * Math.sin(6.0 * x * Math.PI) + 20.0 * Math.sin(2.0 * x * Math.PI)) * 2.0) / 3.0;
+  ret += ((20.0 * Math.sin(x * Math.PI) + 40.0 * Math.sin((x / 3.0) * Math.PI)) * 2.0) / 3.0;
+  ret += ((150.0 * Math.sin((x / 12.0) * Math.PI) + 300.0 * Math.sin((x / 30.0) * Math.PI)) * 2.0) / 3.0;
+  return ret;
+}
+function wgs2gcj(lat, lng) {
+  const a = 6378245.0, ee = 0.00669342162296594323;
+  let dLat = transformLat(lng - 105.0, lat - 35.0);
+  let dLng = transformLng(lng - 105.0, lat - 35.0);
+  const radLat = (lat / 180.0) * Math.PI;
+  let magic = Math.sin(radLat);
+  magic = 1 - ee * magic * magic;
+  const sqrtMagic = Math.sqrt(magic);
+  dLat = (dLat * 180.0) / (((a * (1 - ee)) / (magic * sqrtMagic)) * Math.PI);
+  dLng = (dLng * 180.0) / ((a / sqrtMagic) * Math.cos(radLat) * Math.PI);
+  return { lat: lat + dLat, lng: lng + dLng };
+}
+function gcj2wgs(lat, lng) {
+  const g = wgs2gcj(lat, lng);
+  return { lat: lat * 2 - g.lat, lng: lng * 2 - g.lng };
+}
+/* 楼栋号/门牌对「选地点」没意义("11幢" / "X号楼"),别让它当主名或铺满候选 */
+function isBuildingNo(name) {
+  return /^[0-9]+(号楼|[幢栋])/.test(String(name || '')) || /^[0-9]+[单元室]/.test(String(name || ''));
+}
+
+/* 高德 regeo 的详细地址去掉省/市/区/街道前缀:"浙江省杭州市余杭区良渚街道万科·星图光年轩(南门)"
+ * → "万科·星图光年轩(南门)"(纯 POI 名更好用) */
+function shortAddr(regeo) {
+  let s = String((regeo && regeo.formatted_address) || '').trim();
+  const ac = (regeo && regeo.addressComponent) || {};
+  for (const k of ['province', 'city', 'district', 'township']) {
+    const v = ac[k];
+    if (typeof v === 'string' && v) s = s.split(v).join('');
+  }
+  return s.replace(/^[,，、\s]+/, '').slice(0, 60);
+}
+
+/* 高德 Web 服务反查(国内首选):主名=regeo 最近 POI(与高德 App 所见一致),
+ * 附近=place/around 按距离;坐标是 GCJ-02,直接配地图瓦片,标 crs:'gcj' 让前端别再转换 */
+async function amapReverse(key, lat, lng) {
+  if (!key) return null;
+  const loc = `${lng},${lat}`;
+  const get = async (url) => {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+      if (!res.ok) return null;
+      const d = await res.json();
+      return d && d.status === '1' ? d : null;
+    } catch { return null; }
+  };
+  // place/around 参数坑:extensions=base / 多值 types 都会返回空,必须不带 extensions、不带 types + sortrule=distance
+  const [rg, ar] = await Promise.all([
+    get(`https://restapi.amap.com/v3/geocode/regeo?key=${key}&location=${loc}&radius=200&extensions=all`),
+    get(`https://restapi.amap.com/v3/place/around?key=${key}&location=${loc}&radius=1000&offset=30&page=1&sortrule=distance`),
+  ]);
+  const regeo = rg && rg.regeocode ? rg.regeocode : null;
+  const toItem = (p) => {
+    const c = String((p && p.location) || '').split(',');
+    const la = parseFloat(c[1]);
+    const ln = parseFloat(c[0]);
+    const name = String((p && p.name) || '').trim();
+    if (!name || !Number.isFinite(la) || !Number.isFinite(ln)) return null;
+    return { name, lat: la, lng: ln, type: String((p && p.type) || '') };
+  };
+  const pois = (((regeo && regeo.pois) || []).map(toItem)).filter(Boolean);
+  const around = (((ar && ar.pois) || []).map(toItem)).filter(Boolean);
+  const name = (pois[0] && pois[0].name) || (around[0] && around[0].name) || shortAddr(regeo);
+  if (!name) return null;
+  // 候选:周边(距离序)在前,regeo POI 补充;去重、去掉楼栋号,按距离排
+  const plain = around.filter((p) => p.type.indexOf('门牌信息') < 0).length;
+  const seen = new Set([name]);
+  const all = [];
+  for (const p of [...around, ...pois]) {
+    if (seen.has(p.name)) continue;
+    if (plain >= 5 && p.type.indexOf('门牌信息') >= 0) continue;
+    if (isBuildingNo(p.name)) continue;
+    seen.add(p.name);
+    all.push(p);
+  }
+  all.sort((a, b) => Math.hypot(a.lat - lat, a.lng - lng) - Math.hypot(b.lat - lat, b.lng - lng));
+  return {
+    name: String(name).slice(0, 80),
+    nearby: all.slice(0, 20).map((p) => ({ name: p.name, lat: p.lat, lng: p.lng, crs: 'gcj' })),
+  };
+}
 
 function shortName(display) {
   const first = String(display || '').split(/[,，]/)[0].trim();
@@ -166,8 +269,9 @@ async function overpassNearby(lat, lng) {
     const t = e.tags || {};
     const name = (t.name || '').trim();
     if (!name || seen.has(name)) continue;
-    if (t.highway) continue; // 过滤路名
-    const elat = e.lat ?? (e.center || {}).lat;
+      if (osmKey === 'highway') continue; // 过滤路名
+      if (isBuildingNo(name)) continue;
+      const elat = e.lat ?? (e.center || {}).lat;
     const elng = e.lon ?? (e.center || {}).lon;
     if (elat == null || elng == null) continue;
     const hasCat = !!(t.amenity || t.shop || t.tourism || t.building || t.leisure || t.office || t.craft);
@@ -207,31 +311,46 @@ export async function onRequestGet(context) {
         }
       } catch { /* 忽略 */ }
     } else if (lat && lng && Number.isFinite(parseFloat(lat)) && Number.isFinite(parseFloat(lng))) {
+      const LA = parseFloat(lat);
+      const LN = parseFloat(lng);
       // 0) 缓存
-      const cached = _geoCacheGet(lat, lng);
-      if (cached) return Response.json({ results: [{ name: cached.name, lat: parseFloat(lat), lng: parseFloat(lng), nearby: cached.nearby || [] }] });
+      const cached = _geoCacheGet(LA, LN);
+      if (cached) return Response.json({ results: [{ name: cached.name, lat: LA, lng: LN, nearby: cached.nearby || [] }] });
 
-      // 1) 并行:Photon 附近 POI(快/稳,带 amenity/shop/tourism 等)+ Nominatim 反查(常只返 road)
+      const isCN = inChina(LA, LN);
+
+      // 0.5) 国内:高德优先 —— 数据与地图瓦片同源、坐标同为 GCJ-02(零换算零偏差),
+      // 商铺/小区收录远胜 OSM(OSM 在这一带只有零星几个小区名)
+      if (isCN) {
+        const am = await amapReverse(context.env.AMAP_WEB_KEY || '', LA, LN);
+        if (am && am.name) {
+          try { _geoCachePut(LA, LN, am); } catch { /* 忽略 */ }
+          return Response.json({ results: [{ name: am.name, lat: LA, lng: LN, nearby: am.nearby }] });
+        }
+      }
+
+      // 1) OSM 兜底(海外常态 / 国内高德失败):先 GCJ→WGS,否则偏 ~550m 认错地方
+      const W = isCN ? gcj2wgs(LA, LN) : { lat: LA, lng: LN };
       const [pois, nomName] = await Promise.all([
-        photonNearby(parseFloat(lat), parseFloat(lng)),
-        nominatimReverse(lat, lng),
+        photonNearby(W.lat, W.lng),
+        nominatimReverse(W.lat, W.lng),
       ]);
       // 2) Photon reverse / BigDataCloud 兜底主名(海外无 OSM POI 或 Nominatim 限流时)
       let name = nomName;
-      if (!name) name = await photonReverse(lat, lng);
-      if (!name) name = await bigDataCloudReverse(lat, lng);
+      if (!name) name = await photonReverse(W.lat, W.lng);
+      if (!name) name = await bigDataCloudReverse(W.lat, W.lng);
 
       let nearby = pois;
       // 3) Photon 失败时再试 Overpass 兜底(并发三镜像)
-      if (!nearby.length) nearby = await overpassNearby(parseFloat(lat), parseFloat(lng));
+      if (!nearby.length) nearby = await overpassNearby(W.lat, W.lng);
       // POI 名优先:Nominatim 在 zoom=17 常把 amenity 折成 road,把店名盖住;
       // 附近有 POI 时用最近的作主名(更"店名"),POI 缺则保留路名兜底
       if (nearby.length) name = nearby[0].name;
 
       if (name) {
         const finalName = String(name).slice(0, 80);
-        try { _geoCachePut(lat, lng, { name: finalName, nearby }); } catch { /* 忽略 */ }
-        return Response.json({ results: [{ name: finalName, lat: parseFloat(lat), lng: parseFloat(lng), nearby }] });
+        try { _geoCachePut(LA, LN, { name: finalName, nearby }); } catch { /* 忽略 */ }
+        return Response.json({ results: [{ name: finalName, lat: LA, lng: LN, nearby }] });
       }
       return Response.json({ results: [] });
     }
