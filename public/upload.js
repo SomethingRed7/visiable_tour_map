@@ -580,8 +580,14 @@ async function openPreview(date, ts) {
   $('#preview-body').innerHTML = `<div class="preview-date">${esc(e.date)}</div>` + entryCardHtml(e);
   $('#preview-modal').hidden = false;
   bindPhotoGridFallback($('#preview-body'));
+  // 点照片看大图:走共享 lightbox(点任意处/Esc 关),不再新开标签页 ——
+  // 管理页没有 app.js,以前这里只能 new window,且页面里的 #lightbox 没人绑关闭
   $('#preview-body').querySelectorAll('.photo-grid img').forEach((img) => {
-    img.addEventListener('click', () => window.open(img.dataset.full || img.src, '_blank'));
+    img.addEventListener('click', () => {
+      const src = img.dataset.full || img.src;
+      if (window.MapCommon && MapCommon.openLightbox) MapCommon.openLightbox(src);
+      else window.open(src, '_blank');
+    });
   });
 }
 

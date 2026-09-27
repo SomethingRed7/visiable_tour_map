@@ -128,17 +128,9 @@
     body.innerHTML = `<div class="preview-date">${esc(e.date)}</div>` + detailCard(e);
     modal.hidden = false;
     bindPhotoGridFallback(body);
-    // 照片点击:有 lightbox 走 lightbox(与主页当日动态一致,不跳转),否则新窗口
-    const lb = document.getElementById('lightbox');
+    // 照片点击:走共享 lightbox(与主页当日动态一致,不跳转);页面没有 #lightbox 时它自己退回新窗口
     body.querySelectorAll('.photo-grid img').forEach((img) => {
-      img.addEventListener('click', () => {
-        if (lb) {
-          lb.querySelector('img').src = img.dataset.full || img.src;
-          lb.classList.add('open');
-        } else {
-          window.open(img.dataset.full || img.src, '_blank');
-        }
-      });
+      img.addEventListener('click', () => openLightbox(img.dataset.full || img.src));
     });
   }
   /* 详情弹层关闭(关闭按钮 + 点遮罩),所有页面共用 */
@@ -150,6 +142,40 @@
     if (btn) btn.addEventListener('click', close);
     modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
   }
+
+  /* ---------- 大图查看器(lightbox)----------
+   * 打开的地方在本文件(预览弹层 openEntryCard、地图详情面板 openMapDetail)以及首页动态流点击。
+   * ⚠️「关闭」原先只写在首页的 app.js 里 → write(管理页)、export(导出页)有 #lightbox 却没人绑关闭:
+   * 从地图详情面板/预览弹层点开照片,它开在弹层**底下**(旧 z-index 100 < 弹层 1001 / 面板 10000),
+   * 弹层一关就只剩一张全屏大图,点哪都不关(2026-09-17 用户报「点到一张图片退不出来了」)。
+   * 现在统一收在这里:点任意处 / Esc 都能关,层级提到最上(见 style.css .lightbox z-index)。 */
+  let _lbBound = false;
+  function lightboxEl() { return document.getElementById('lightbox'); }
+  function closeLightbox() {
+    const lb = lightboxEl();
+    if (!lb || !lb.classList.contains('open')) return;
+    lb.classList.remove('open');
+    lb.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('lb-open');
+  }
+  function bindLightbox() {
+    const lb = lightboxEl();
+    if (!lb || _lbBound) return; // 幂等:多页/多次调用只绑一次
+    _lbBound = true;
+    lb.addEventListener('click', closeLightbox);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeLightbox(); });
+  }
+  /* 打开大图:页面没有 #lightbox(旧分享页)时退回新窗口 */
+  function openLightbox(src) {
+    const lb = lightboxEl();
+    if (!lb) { window.open(src, '_blank'); return; }
+    lb.querySelector('img').src = src;
+    lb.classList.add('open');
+    lb.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('lb-open'); // 防底下页面跟着滚
+    bindLightbox();
+  }
+  bindLightbox(); // 脚本在 </body> 前执行,#lightbox 已在 DOM 里:进页面就挂好关闭
   /* 地图打卡点「展开详情」:紧凑面板贴在地图容器右上方,不遮整张地图、可一键关闭、可上下滚动看全部图片。
    * 面板挂在 document.body(fixed),不在 Leaflet 容器内 —— Leaflet 容器 touch-action:none 会吞掉子元素滚动;
    * 全屏时 box 铺满视口,面板自动跟到页面最上方。 */
@@ -246,12 +272,8 @@
     const closeBtn = panel.querySelector('.map-detail-close');
     if (closeBtn) closeBtn.addEventListener('click', () => hideMapDetailPanel(panel));
     bindPhotoGridFallback(panel);
-    const lb = document.getElementById('lightbox');
     panel.querySelectorAll('.photo-grid img').forEach((img) => {
-      img.addEventListener('click', () => {
-        if (lb) { lb.querySelector('img').src = img.dataset.full || img.src; lb.classList.add('open'); }
-        else window.open(img.dataset.full || img.src, '_blank');
-      });
+      img.addEventListener('click', () => openLightbox(img.dataset.full || img.src));
     });
     panel.style.display = 'block';
   }
@@ -460,7 +482,7 @@
     }
   }
 
-  const M = { esc, shortLoc, fmtTime, thumbUrl, ggPinSvg, loadLeaflet, entryTs, photoGridHtml, entryCard, detailCard, bindPhotoGridFallback, openEntryCard, openMapDetail, renderCheckinMap, bindPreviewModal };
+  const M = { esc, shortLoc, fmtTime, thumbUrl, ggPinSvg, loadLeaflet, entryTs, photoGridHtml, entryCard, detailCard, bindPhotoGridFallback, openEntryCard, openMapDetail, renderCheckinMap, bindPreviewModal, openLightbox, closeLightbox };
   window.MapCommon = M;
   // 同时把常用函数挂到 window,旧代码(ggPinSvg/loadLeaflet/...等)无需改名
   window.esc = esc; window.shortLoc = shortLoc; window.fmtTime = fmtTime; window.thumbUrl = thumbUrl;
@@ -468,4 +490,5 @@
   window.photoGridHtml = photoGridHtml; window.entryCard = entryCard; window.detailCard = detailCard;
   window.bindPhotoGridFallback = bindPhotoGridFallback; window.openEntryCard = openEntryCard;
   window.openMapDetail = openMapDetail; window.renderCheckinMap = renderCheckinMap; window.bindPreviewModal = bindPreviewModal;
+  window.openLightbox = openLightbox; window.closeLightbox = closeLightbox;
 })();

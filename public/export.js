@@ -256,13 +256,14 @@ async function renderExport() {
     else img.addEventListener('load', mark);
   });
 
-  // 照片点击:有 #lightbox 走 lightbox(由 map-common 的 openEntryCard 在弹层里处理),无则回退新窗口
-  const hasLb = !!document.getElementById('lightbox');
-  if (!hasLb) {
-    box.querySelectorAll('.photo-grid img').forEach((img) => {
-      img.addEventListener('click', () => window.open(img.dataset.full || img.src, '_blank'));
+  // 照片点击:统一走 map-common 的 lightbox(点任意处/Esc 关;页面没有 #lightbox 的旧分享页它会自己退回新窗口)
+  box.querySelectorAll('.photo-grid img').forEach((img) => {
+    img.addEventListener('click', () => {
+      const src = img.dataset.full || img.src;
+      if (window.MapCommon && MapCommon.openLightbox) MapCommon.openLightbox(src);
+      else window.open(src, '_blank');
     });
-  }
+  });
 
   // 地图:打卡点点击 → 紧凑详情面板(文字+部分图片,复用 map-common)
   await MapCommon.renderCheckinMap(mapBox, exportEntries, {

@@ -851,7 +851,9 @@ body {
   right: 0;
   bottom: 0;
   left: 0;
-  z-index: 100;
+  /* 高于所有弹层:预览弹层 1001、地图详情面板 10000、地图全屏 9999/10001。
+   * 以前是 100 —— 从弹层/面板里点开的照片会被压在底下,关掉弹层就剩一张「点哪都不关」的全屏大图 */
+  z-index: 10002;
   display: none;
   align-items: center;
   justify-content: center;
@@ -860,6 +862,21 @@ body {
 }
 
 .lightbox.open { display: flex; }
+
+/* 关闭提示(触屏没有 hover,给个明确出口;点任意处也能关) */
+.lightbox::after {
+  content: '✕  点任意处关闭';
+  position: fixed;
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  right: 16px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+
+/* 大图铺满时锁住底下页面,避免边看边滚 */
+body.lb-open { overflow: hidden; }
 
 .lightbox img {
   max-width: 92vw;
