@@ -276,21 +276,8 @@ function locateToField() {
   const st = $('#form-status');
   const input = $('#f-location');
   st.textContent = '定位中...';
-  // 微信内置浏览器:禁用 H5 定位,自动降级 IP 城市级定位
-  if (/MicroMessenger/i.test(navigator.userAgent)) {
-    st.textContent = '微信内无法精确定位,改用 IP 定位(城市级)…';
-    LocPicker.lpIpLocate().then((ip) => {
-      if (ip) {
-        done(ip.lat, ip.lng);
-        st.textContent = 'IP 定位(城市级,可能偏差几个街区),建议直接点地图选精确位置';
-      } else {
-        st.textContent = '微信内无法定位:点右上角 ⋯ 选「在浏览器打开」后重试,或用「🗺️ 地图」选点';
-      }
-    });
-    return;
-  }
   let settled = false;
-  const done = (lat, lng) => {
+  const done = (lat, lng, msg) => {
     if (settled) return;
     settled = true;
     input.value = `${lat.toFixed(5)},${lng.toFixed(5)}`;
@@ -306,7 +293,7 @@ function locateToField() {
         const res = r.results && r.results[0];
         if (res && res.name) input.value = res.name.slice(0, 80);
       } catch { /* 保留坐标 */ }
-      st.textContent = '';
+      st.textContent = msg || '';
     })();
   };
   const fail = (err) => {
@@ -326,56 +313,12 @@ function locateToField() {
       setTimeout(() => openPicker(), 600);
     });
   };
-  // ① 浏览器原生定位:同步启动,手势激活期内 Chrome 才会弹权限框
-  if (!navigator.geolocation) {
-    fail();
-  } else {
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        // ⚠️ accuracy>300m 视为低精度(国产浏览器常返回网络估位)→ 走高德
-        if (pos.coords.accuracy != null && pos.coords.accuracy > 300) {
-          st.textContent = '浏览器定位精度低,改用高德精确定位…';
-          tryAmap();
-          return;
-        }
-        // 坐标系自检:夸克等国产浏览器可能已返回 GCJ-02,再 wgs2gcj 会双重偏移(东南几百米)
-        st.textContent = '定位中,校正坐标…';
-        LocPicker.lpCalibrate(pos.coords.latitude, pos.coords.longitude).then((g) => done(g.lat, g.lng));
-      },
-      (err) => tryAmap(),
-      // enableHighAccuracy:true = GPS 精确定位;false 网络定位飘几个街区
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
-    );
-  }
-
-  // ② 高德定位(国内更准);低精度才降级 IP
-  function tryAmap() {
-    st.textContent = '改用高德定位…';
-    LocPicker.lpAmapLocate().then((g) => {
-      if (g) {
-        if (g.accuracy != null && g.accuracy > 300) {
-          st.textContent = '高德定位精度低,改用 IP 定位…';
-          tryIp();
-          return;
-        }
-        done(g.lat, g.lng);
-        return;
-      }
-      tryIp();
-    });
-  }
-
-  // ③ IP 定位(城市级兜底)
-  function tryIp() {
-    st.textContent = '改用 IP 定位(城市级)…';
-    LocPicker.lpIpLocate().then((ip) => {
-      if (ip) {
-        done(ip.lat, ip.lng);
-      } else {
-        fail();
-      }
-    });
-  }
+  // 统一链(浏览器原生 → 高德 → IP;微信内自动走 IP):见 loc-picker.lpLocateSmart
+  LocPicker.lpLocateSmart((t) => { st.textContent = t; }).then((g) => {
+    if (!g || g.fail) { fail(g && g.err); return; }
+    // 城市级兜底(IP/微信)只能给大致位置 → 明确提示去地图选精确点
+    done(g.lat, g.lng, g.src === 'ip' ? 'IP 定位(城市级,可能偏差几个街区),建议直接点地图选精确位置' : '');
+  });
 }
 
 $('#btn-loc').addEventListener('click', locateToField);

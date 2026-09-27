@@ -245,6 +245,62 @@ async function lpDeniedCheck() {
   return 'unknown';
 }
 
+/* ---------- 统一定位链(所有页面的「📍 定位」都走这里)----------
+ * 浏览器原生 → 高德 → IP 城市级,串行不并发(避免并发抢手势被 Chrome 拒)。
+ * onStatus(text) 用于逐步反馈;resolve { lat, lng, src:'gps'|'amap'|'ip' }(坐标为 GCJ-02),
+ * 全失败 resolve { fail:true, err }(err 是 GeolocationPositionError,可能为 null)。
+ * ⚠️ 坐标系统一在这里处理:只有浏览器原生那层需要 lpCalibrate(夸克等已 GCJ、标准浏览器 WGS→转);
+ * 高德/IP 返回的本就是 GCJ-02,调用方**不要再转**(再 wgs2gcj 会双重偏移几百米)。
+ * 为什么必须有兜底:国内安卓(Chrome/夸克)原生 geolocation 常因 Google 服务不可达超时(code 3),
+ * 高德基站/WiFi 定位才是国内主力;「编辑日记」弹窗曾只调原生这一层,失败即报错(2026-09-25 用户报)。 */
+function lpLocateSmart(onStatus) {
+  const say = (t) => { try { onStatus && onStatus(t); } catch { /* 忽略 */ } };
+  return new Promise((resolve) => {
+    let settled = false;
+    const ok = (lat, lng, src) => { if (!settled) { settled = true; resolve({ lat, lng, src }); } };
+    const bad = (err) => { if (!settled) { settled = true; resolve({ fail: true, err: err || null }); } };
+    // ③ IP 定位(城市级兜底,服务端按访客 IP 反查,无权限限制)
+    const tryIp = () => {
+      say('改用 IP 定位(城市级)…');
+      lpIpLocate().then((ip) => (ip ? ok(ip.lat, ip.lng, 'ip') : bad()));
+    };
+    // ② 高德定位(基站/WiFi 三角,国内可靠);精度低(>300m)继续降级
+    const tryAmap = () => {
+      say('改用高德定位…');
+      lpAmapLocate().then((g) => {
+        if (!g) { tryIp(); return; }
+        if (g.accuracy != null && g.accuracy > 300) { say('高德定位精度低,改用 IP 定位…'); tryIp(); return; }
+        ok(g.lat, g.lng, 'amap');
+      });
+    };
+    // 微信内置浏览器:getCurrentPosition 被屏蔽,直接 IP 城市级
+    if (/MicroMessenger/i.test(navigator.userAgent)) {
+      say('微信内无法精确定位,改用 IP 定位(城市级)…');
+      lpIpLocate().then((ip) => (ip ? ok(ip.lat, ip.lng, 'ip') : bad()));
+      return;
+    }
+    if (!navigator.geolocation) { tryAmap(); return; }
+    // ① 浏览器原生定位:同步启动,手势激活期内 Chrome 才会弹权限框
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        // accuracy>300m 视为低精度(国产浏览器常返回网络估位)→ 走高德
+        if (pos.coords.accuracy != null && pos.coords.accuracy > 300) {
+          say('浏览器定位精度低,改用高德精确定位…');
+          tryAmap();
+          return;
+        }
+        say('定位中,校正坐标…');
+        lpCalibrate(pos.coords.latitude, pos.coords.longitude)
+          .then((g) => ok(g.lat, g.lng, 'gps'))
+          .catch(() => tryAmap());
+      },
+      (err) => tryAmap(), // 超时/服务不可用/权限被拒 → 全部继续降级(高德→IP)
+      // enableHighAccuracy:true = GPS 精确定位;false 网络定位飘几个街区
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+    );
+  });
+}
+
 /* 路线获取(海外→OSRM;国内→driving → walking → OSRM → 直线):
  * 高德 v3/direction(国内稳定,GCJ-02 直接匹配瓦片);海外高德无数据 → 直接 OSRM(免 key,沿真实道路)
  * entries: [{date, ts, location:{lat,lng}}](GCJ-02)按时间排序;
@@ -604,7 +660,7 @@ function renderLocResults(arr) {
 function locateCurrent() {
   const st = $('#loc-status');
   st.textContent = '定位中...';
-  const done = (lat, lng) => {
+  const done = (lat, lng, msg) => {
     setPoint(lat, lng, '当前位置');
     (async () => {
       const ok = await amapReverse(lat, lng);
@@ -623,7 +679,7 @@ function locateCurrent() {
         } catch { /* 保持当前位置 */ }
       }
     })();
-    st.textContent = '已定位,确认后点「确定选这个点」';
+    st.textContent = msg || '已定位,确认后点「确定选这个点」';
   };
   const fail = (err) => {
     if (/MicroMessenger/i.test(navigator.userAgent)) {
@@ -634,73 +690,11 @@ function locateCurrent() {
     st.textContent = '定位失败:' + (err ? { 1: '(权限被拒)', 2: '(定位服务不可用)', 3: '(定位超时)' }[err.code] || '' : '') + ',或直接搜索/点地图选';
   };
 
-  // 微信内置浏览器:禁用 H5 定位,自动降级 IP 城市级定位
-  if (/MicroMessenger/i.test(navigator.userAgent)) {
-    st.textContent = '微信内无法精确定位,改用 IP 定位(城市级)…';
-    lpIpLocate().then((ip) => {
-      if (ip) {
-        done(ip.lat, ip.lng);
-        st.textContent = 'IP 定位(城市级),点下方附近店铺可快速选精确位置';
-      } else {
-        st.textContent = '微信内无法定位:点右上角 ⋯ 选「在浏览器打开」后重试,或直接搜索/点地图选';
-      }
-    });
-    return;
-  }
-  // 串行降级(浏览器 → 高德 → IP):不并发,避免抢手势被拒
-  let settled = false;
-  const settle = (lat, lng) => { if (settled) return; settled = true; done(lat, lng); };
-  const failOnce = (err) => { if (settled) return; settled = true; fail(err); };
-  // ① 浏览器原生定位:同步启动,手势激活期内 Chrome 才会弹权限框
-  if (!navigator.geolocation) {
-    failOnce();
-  } else {
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        // ⚠️ accuracy>300m 视为低精度(国产浏览器常返回网络估位)→ 走高德
-        if (pos.coords.accuracy != null && pos.coords.accuracy > 300) {
-          st.textContent = '浏览器定位精度低,改用高德精确定位…';
-          tryAmap();
-          return;
-        }
-        // 坐标系自检:夸克等国产浏览器可能已返回 GCJ-02,再 wgs2gcj 会双重偏移(东南几百米)
-        st.textContent = '定位中,校正坐标…';
-        lpCalibrate(pos.coords.latitude, pos.coords.longitude).then((g) => settle(g.lat, g.lng));
-      },
-      (err) => tryAmap(),
-      // enableHighAccuracy:true = GPS 精确定位;false 网络定位飘几个街区
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
-    );
-  }
-
-  // ② 高德定位(国内更准);低精度才降级 IP
-  function tryAmap() {
-    st.textContent = '改用高德定位…';
-    lpAmapLocate().then((g) => {
-      if (g) {
-        if (g.accuracy != null && g.accuracy > 300) {
-          st.textContent = '高德定位精度低,改用 IP 定位…';
-          tryIp();
-          return;
-        }
-        settle(g.lat, g.lng);
-        return;
-      }
-      tryIp();
-    });
-  }
-
-  // ③ IP 定位(城市级兜底)
-  function tryIp() {
-    st.textContent = '改用 IP 定位(城市级)…';
-    lpIpLocate().then((ip) => {
-      if (ip) {
-        settle(ip.lat, ip.lng);
-      } else {
-        failOnce();
-      }
-    });
-  }
+  // 统一链(浏览器原生 → 高德 → IP;微信内自动走 IP):不再各自抄一份,细节见 lpLocateSmart
+  lpLocateSmart((t) => { st.textContent = t; }).then((g) => {
+    if (!g || g.fail) { fail(g && g.err); return; }
+    done(g.lat, g.lng, g.src === 'ip' ? 'IP 定位(城市级),点下方附近店铺可快速选精确位置' : '');
+  });
 }
 
 /* ---------- 打开 / 关闭 ---------- */
@@ -909,6 +903,7 @@ window.LocPicker = {
   lpAmapLocate, // 高德定位兜底(打卡/写日记定位失败时复用)
   lpIpLocate,   // IP 定位城市级兜底(精确定位失败后,选点器从城市中心开始)
   lpCalibrate,  // 坐标系自检(WGS-84 vs GCJ-02 双重偏移纠正)
+  lpLocateSmart, // 统一定位链(浏览器→高德→IP):打卡/写日记/编辑弹窗/选点器都走它
   lpDeniedCheck, // 定位权限被拒检测(打卡/写日记共用)
   lpMapFullscreen, // 地图全屏查看(专辑/导出/快照三处共用)
 };

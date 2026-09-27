@@ -127,32 +127,35 @@ function emOpen(opts) {
   modal.hidden = false;
 }
 
-/* 📍 定位:浏览器定位(手势同步栈内唯一请求)→ 校准 → 反查地名(与写日记页同链路) */
+/* 📍 定位:与打卡/写日记同一条链(浏览器原生 → 高德 → IP 城市级,统一在 loc-picker.lpLocateSmart)。
+ * 原实现只调浏览器原生这一层 —— 国内安卓(Chrome/夸克)常因 Google 服务不可达返回 code 3 超时,
+ * 高德/IP 兜底压根没接上,于是点「定位」直接「定位失败」(2026-09-25 用户报「国内定位又不行了」)。
+ * 坐标:lpLocateSmart 已按来源校准(原生 WGS→GCJ;高德/IP 本就是 GCJ-02),这里不要再转。 */
 function emLocate() {
   const st = $('#em-status');
   st.textContent = '定位中...';
-  if (!navigator.geolocation) {
-    st.textContent = '浏览器不支持定位,用 🗺️ 地图选点';
-    return;
-  }
-  navigator.geolocation.getCurrentPosition(async (pos) => {
+  LocPicker.lpLocateSmart((t) => { st.textContent = t; }).then(async (g) => {
+    if (!g || g.fail) {
+      const denied = await LocPicker.lpDeniedCheck();
+      if (denied === 'denied') {
+        st.textContent = '定位被拒绝:点地址栏左侧图标 → 网站设置 → 允许位置,或点「🗺️ 地图」选点';
+        return;
+      }
+      st.textContent = '定位失败' + (g && g.err ? { 1: '(权限被拒)', 2: '(定位服务不可用)', 3: '(定位超时)' }[g.err.code] || '' : '') + ',用 🗺️ 地图选点';
+      return;
+    }
+    emState.lat = g.lat;
+    emState.lng = g.lng;
+    const input = $('#em-loc');
+    input.value = `${g.lat.toFixed(5)},${g.lng.toFixed(5)}`;
+    // 城市级兜底(IP)只能给个大致位置,明确提示去地图微调,别让人以为这就是门口
+    st.textContent = g.src === 'ip' ? 'IP 定位(城市级,可能偏差几个街区),可点「🗺️ 地图」微调' : '';
     try {
-      const g = await LocPicker.lpCalibrate(pos.coords.latitude, pos.coords.longitude);
-      emState.lat = g.lat;
-      emState.lng = g.lng;
-      const input = $('#em-loc');
-      input.value = `${g.lat.toFixed(5)},${g.lng.toFixed(5)}`;
-      try {
-        const r = await (await fetch(`/api/geocode?lat=${g.lat}&lng=${g.lng}`)).json();
-        const res = r.results && r.results[0];
-        if (res && res.name) input.value = res.name.slice(0, 80);
-      } catch { /* 保留坐标串 */ }
-      st.textContent = '';
-    } catch { st.textContent = '定位失败,用 🗺️ 地图选点'; }
-  }, (err) => {
-    if (err.code === 1) st.textContent = '定位被拒绝:点地址栏左侧图标 → 网站设置 → 允许位置';
-    else st.textContent = '定位失败,用 🗺️ 地图选点';
-  }, { enableHighAccuracy: true, timeout: 12000 });
+      const r = await (await fetch(`/api/geocode?lat=${g.lat}&lng=${g.lng}`)).json();
+      const res = r.results && r.results[0];
+      if (res && res.name) input.value = res.name.slice(0, 80);
+    } catch { /* 保留坐标串 */ }
+  }).catch(() => { st.textContent = '定位失败,用 🗺️ 地图选点'; });
 }
 
 /* 🗺️ 地图选点(共享 loc-picker.js;有坐标时从该点开始) */
