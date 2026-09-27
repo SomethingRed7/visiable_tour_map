@@ -1,0 +1,919 @@
+/* ============================================================================
+ * admin.css —— 「咕咕嘎嘎」管理页(write.html)专属设计系统
+ *
+ * 全部规则限定在 .admin-page 之下,index / edit / export 三个页面完全不受影响。
+ * 设计参照主流移动端后台的成熟范式:
+ *   · Material 3 / iOS HIG:分段控制器(segmented tabs)、上下文操作栏(contextual
+ *     action bar)、底部动作表(action sheet)、FAB、列表溢出菜单
+ *   · 移动端筛选用「弹层 + 快捷区间」而不是常驻表单(屏幕窄、筛选低频)
+ *   · 列表行只留一个主操作(点按=预览)+ 一个溢出入口(⋯),不再每行堆 4 个按钮
+ *   · 信息层级:标题 → 元信息(时间/地点/专辑/可见性)→ 正文摘要 → 缩略图
+ * 版本:2026-09-27 首版
+ * ==========================================================================*/
+
+.admin-page {
+  /* ---- 设计令牌 ---- */
+  --adm-bg: #f4f5f7;
+  --adm-card: #ffffff;
+  --adm-ink: #111827;
+  --adm-ink-2: #4b5563;
+  --adm-ink-3: #9aa3af;
+  --adm-line: #edeff2;
+  --adm-line-2: #e3e6ea;
+  --adm-brand: #d97706;
+  --adm-brand-deep: #b45309;
+  --adm-brand-soft: #fff8f0;
+  --adm-brand-line: #fde3c0;
+  --adm-danger: #dc2626;
+  --adm-danger-soft: #fef2f2;
+  --adm-ok: #059669;
+  --adm-ok-soft: #ecfdf5;
+  --adm-r-lg: 16px;
+  --adm-r-md: 12px;
+  --adm-r-sm: 9px;
+  --adm-s1: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+  --adm-s2: 0 6px 20px rgba(16, 24, 40, 0.10);
+  --adm-s3: 0 -8px 28px rgba(16, 24, 40, 0.16);
+  --adm-safe: env(safe-area-inset-bottom, 0px);
+  --tabh: 53px;
+  background: var(--adm-bg);
+  /* style.css 的 body{overflow-x:hidden} 会把 body 变成滚动容器,
+   * 导致页面里所有 position:sticky 失效(头部/tab 栏/日期分组头都不吸顶)。
+   * clip 同样能挡住横向溢出,但不会创建滚动容器 —— sticky 恢复;
+   * 老浏览器不支持 clip 时该声明被忽略,行为退回现状,无副作用。 */
+  overflow-x: clip;
+}
+
+/* ---------- 1. 页面骨架 ---------- */
+/* 管理页头部不做吸顶:常驻高度留给吸顶的 tab 栏(手机屏宝贵) */
+.admin-page .site-header {
+  position: static;
+  padding: 10px 16px;
+  background: #fff;
+  backdrop-filter: none;
+}
+.admin-page .site-title { font-size: 1.25rem; letter-spacing: 0.02em; }
+.admin-page .site-subtitle { font-size: 0.78rem; margin-top: 0; }
+.admin-page .layout { padding: 12px 16px 120px; }
+.admin-page #editor-area { max-width: 720px; }
+.admin-page #login-panel { max-width: 460px; margin: 0 auto; }
+.admin-page .site-footer { padding-bottom: 40px; }
+
+/* 登录按钮/用户名弱化一档 */
+.admin-page .user-name {
+  font-size: 0.85rem;
+  background: var(--adm-brand-soft);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+.admin-page .btn-small {
+  border-radius: 999px;
+  border-color: var(--adm-line-2);
+  background: #fff;
+  padding: 7px 14px;
+  font-size: 0.84rem;
+  min-height: 34px;
+}
+
+/* ---------- 2. 分段 tab 栏(吸顶 · 可横滑) ---------- */
+.admin-page .adm-tabbar {
+  position: sticky;
+  top: 0;
+  z-index: 9;
+  display: flex;
+  flex-wrap: nowrap; /* .panel-tabs 默认 wrap,窄屏会把 5 个 tab 折成两排 —— 这里必须横滑 */
+  gap: 4px;
+  margin: 0 -16px 12px;
+  padding: 8px 16px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  background: rgba(244, 245, 247, 0.94);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--adm-line-2);
+  border-top: none;
+}
+.admin-page .adm-tabbar::-webkit-scrollbar { display: none; }
+.admin-page .adm-tabbar .tab-btn {
+  flex: 0 0 auto;
+  border: none;
+  background: transparent;
+  color: var(--adm-ink-2);
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 8px 15px;
+  border-radius: 999px;
+  white-space: nowrap;
+  min-height: 36px;
+}
+.admin-page .adm-tabbar .tab-btn.active {
+  background: var(--adm-brand);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(217, 119, 6, 0.28);
+}
+
+/* ---------- 3. 面板 ---------- */
+.admin-page .panel {
+  border-radius: var(--adm-r-lg);
+  box-shadow: var(--adm-s1);
+  padding: 14px;
+  border: 1px solid var(--adm-line);
+}
+.admin-page .tab-pane { padding-top: 0; }
+.admin-page .panel-heading {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0 0 4px;
+  letter-spacing: 0.01em;
+}
+.admin-page .manage-hint {
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--adm-ink-3);
+  margin: 0 0 12px;
+}
+
+/* ---------- 4. 工具条(筛选 / 计数 / 选择) ---------- */
+.admin-page .adm-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.admin-page .adm-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--adm-ink-2);
+  background: #fff;
+  border: 1px solid var(--adm-line-2);
+  border-radius: 999px;
+  padding: 7px 13px;
+  min-height: 36px;
+  cursor: pointer;
+}
+.admin-page .adm-toolbar-btn:active { background: #f9fafb; }
+.admin-page .adm-toolbar-btn.is-on {
+  color: var(--adm-brand-deep);
+  border-color: var(--adm-brand-line);
+  background: var(--adm-brand-soft);
+  font-weight: 600;
+}
+.admin-page .adm-count {
+  font-size: 0.78rem;
+  color: var(--adm-ink-3);
+  margin-right: auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.admin-page .adm-dot {
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--adm-brand);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 17px;
+  text-align: center;
+}
+
+/* 已生效筛选条件 chips(可点掉) */
+.admin-page .adm-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.admin-page .adm-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: inherit;
+  font-size: 0.76rem;
+  color: var(--adm-brand-deep);
+  background: var(--adm-brand-soft);
+  border: 1px solid var(--adm-brand-line);
+  border-radius: 999px;
+  padding: 4px 10px;
+  cursor: pointer;
+  max-width: 100%;
+}
+.admin-page .adm-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-page .adm-chip i { font-style: normal; opacity: 0.65; }
+
+/* ---------- 5. 条目列表 ---------- */
+.admin-page .adm-list { display: flex; flex-direction: column; }
+/* 日期分组:每组一个容器,组头上的 sticky 才会被下一组「顶出去」而不是叠起来 */
+.admin-page .adm-group { display: flex; flex-direction: column; }
+
+/* 日期分组头:吸顶,滚动时始终知道自己在哪天 */
+.admin-page .adm-date-head {
+  position: sticky;
+  top: var(--tabh, 53px);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px -14px 8px;
+  padding: 6px 14px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--adm-ink-2);
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--adm-line);
+}
+.admin-page .adm-date-head:first-child { margin-top: 0; }
+.admin-page .adm-date-head em {
+  font-style: normal;
+  font-weight: 500;
+  color: var(--adm-ink-3);
+  margin-left: auto;
+}
+
+/* 条目卡 */
+.admin-page .adm-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 11px 10px 11px 12px;
+  border-radius: var(--adm-r-md);
+  border: 1px solid var(--adm-line);
+  background: #fff;
+  margin-bottom: 8px;
+  transition: background 0.12s, border-color 0.12s;
+}
+.admin-page .adm-item:last-child { margin-bottom: 0; }
+.admin-page .adm-item.is-sel { border-color: var(--adm-brand); background: var(--adm-brand-soft); }
+.admin-page .adm-item-body { flex: 1; min-width: 0; }
+
+.admin-page .adm-item-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.admin-page .adm-item-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--adm-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-page .adm-item-title.muted { font-weight: 400; color: var(--adm-ink-3); }
+/* 没标题的条目:正文首行上位当主行 —— 用常规字重,和真标题区分开 */
+.admin-page .adm-item-title.plain { font-weight: 500; color: var(--adm-ink-2); }
+.admin-page .adm-item-time {
+  flex: 0 0 auto;
+  font-size: 0.74rem;
+  color: var(--adm-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-page .adm-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 3px;
+  font-size: 0.75rem;
+  color: var(--adm-ink-3);
+}
+.admin-page .adm-meta-sep { color: #d1d5db; }
+.admin-page .adm-tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: #f3f4f6;
+  color: var(--adm-ink-2);
+  max-width: 9em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-page .adm-tag.album { background: #ecfeff; color: #0e7490; }
+.admin-page .adm-tag.priv { background: #eef2ff; color: #4338ca; }
+.admin-page .adm-tag.author { background: var(--adm-brand-soft); color: var(--adm-brand-deep); }
+.admin-page .adm-tag.author.rose { background: #fdf2f8; color: #9d174d; }
+
+.admin-page .adm-item-text {
+  margin: 5px 0 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--adm-ink-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.admin-page .adm-thumbs {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 7px;
+}
+.admin-page .adm-thumbs img {
+  width: 52px;
+  height: 52px;
+  object-fit: cover;
+  border-radius: 9px;
+  border: 1px solid var(--adm-line);
+  background: #f3f4f6;
+}
+
+/* 溢出菜单按钮(⋯) */
+.admin-page .adm-more-btn {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--adm-ink-3);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.admin-page .adm-more-btn:active { background: #f3f4f6; color: var(--adm-ink); }
+
+/* 选择模式:勾选框只在选择模式出现(iOS/Material 上下文操作栏范式) */
+.admin-page .adm-check {
+  flex: 0 0 auto;
+  display: none;
+  align-items: center;
+  padding-top: 2px;
+  cursor: pointer;
+}
+.admin-page .adm-list.sel-mode .adm-check { display: flex; }
+.admin-page .adm-check input {
+  width: 19px;
+  height: 19px;
+  accent-color: var(--adm-brand);
+  margin: 0;
+  cursor: pointer;
+}
+/* 非选择模式下 ⋯ 常显;选择模式下隐藏(此时主操作是勾选) */
+.admin-page .adm-list.sel-mode .adm-more-btn { display: none; }
+
+/* ---------- 6. 分页 ---------- */
+.admin-page .adm-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--adm-line);
+}
+.admin-page .adm-pager[hidden] { display: none !important; }
+.admin-page .adm-pager span {
+  font-size: 0.8rem;
+  color: var(--adm-ink-2);
+  font-variant-numeric: tabular-nums;
+  min-width: 62px;
+  text-align: center;
+}
+.admin-page .adm-pager button:disabled { opacity: 0.38; }
+
+/* ---------- 7. 底部选择操作栏(选中后从下方浮出) ---------- */
+.admin-page .adm-selbar {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(12px + var(--adm-safe));
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(680px, calc(100vw - 32px));
+  padding: 9px 12px;
+  border-radius: 14px;
+  background: rgba(17, 24, 39, 0.95);
+  color: #fff;
+  box-shadow: var(--adm-s2);
+  backdrop-filter: blur(8px);
+  font-size: 0.85rem;
+}
+.admin-page .adm-selbar[hidden] { display: none !important; }
+.admin-page .adm-sel-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #fff;
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+.admin-page .adm-sel-all input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--adm-brand);
+  margin: 0;
+}
+.admin-page #mgr-sel-count {
+  flex: 1;
+  min-width: 0;
+  color: rgba(255, 255, 255, 0.72);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.admin-page .adm-selbar .btn-small {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: transparent;
+  color: #fff;
+  font-weight: 500;
+}
+.admin-page #btn-batch-album {
+  background: var(--adm-brand);
+  border-color: var(--adm-brand);
+  color: #fff;
+  font-weight: 600;
+}
+.admin-page #btn-batch-clear {
+  min-width: 34px;
+  padding: 7px 10px;
+  line-height: 1;
+}
+
+/* ---------- 8. FAB(写日记:全页唯一主操作) ---------- */
+.admin-page .adm-fab {
+  position: fixed;
+  right: max(16px, calc(50vw - 344px + 16px));
+  bottom: calc(20px + var(--adm-safe));
+  z-index: 890;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 13px 20px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 8px 22px rgba(217, 119, 6, 0.38);
+  transition: transform 0.14s;
+}
+.admin-page .adm-fab:active { transform: scale(0.96); }
+.admin-page .adm-fab[hidden] { display: none !important; }
+/* 底部选择栏浮出时,FAB 让位 */
+.admin-page body.has-selbar .adm-fab,
+.admin-page.has-selbar .adm-fab { display: none; }
+
+/* ---------- 9. 底部弹层(bottom sheet:筛选 / 条目动作 / 批量专辑 / 预览) ---------- */
+.admin-page .adm-sheet-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(17, 24, 39, 0.42);
+  animation: admFade 0.16s ease-out;
+}
+.admin-page .adm-sheet-mask[hidden] { display: none !important; }
+@keyframes admFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes admUp { from { transform: translateY(14px); opacity: 0.6; } to { transform: none; opacity: 1; } }
+
+.admin-page .adm-sheet {
+  width: 100%;
+  max-width: 560px;
+  max-height: 88dvh;
+  overflow: auto;
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  padding: 6px 16px calc(16px + var(--adm-safe));
+  box-shadow: var(--adm-s3);
+  animation: admUp 0.2s ease-out;
+}
+/* 拖拽把手(暗示可下滑关闭) */
+.admin-page .adm-sheet::before {
+  content: '';
+  display: block;
+  width: 38px;
+  height: 4px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  margin: 6px auto 10px;
+}
+.admin-page .adm-sheet-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+.admin-page .adm-sheet-sub {
+  font-size: 0.78rem;
+  color: var(--adm-ink-3);
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+.admin-page .adm-sheet-x {
+  border: none;
+  background: #f3f4f6;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  color: var(--adm-ink-2);
+  font-size: 0.85rem;
+  cursor: pointer;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+/* 动作表:一行一个动作,左侧图标 + 文案 */
+.admin-page .adm-sheet-actions { display: flex; flex-direction: column; }
+.admin-page .adm-sheet-actions button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font: inherit;
+  font-size: 0.95rem;
+  text-align: left;
+  color: var(--adm-ink);
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--adm-line);
+  padding: 14px 4px;
+  cursor: pointer;
+  width: 100%;
+}
+.admin-page .adm-sheet-actions button:last-child { border-bottom: none; }
+.admin-page .adm-sheet-actions button:active { background: #f9fafb; }
+.admin-page .adm-sheet-actions button i { font-style: normal; width: 20px; text-align: center; }
+.admin-page .adm-sheet-actions button.danger { color: var(--adm-danger); }
+
+/* 弹层内表单字段 */
+.admin-page .adm-field { display: block; margin-bottom: 12px; }
+.admin-page .adm-field > span {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--adm-ink-2);
+  margin-bottom: 5px;
+}
+.admin-page .adm-field input,
+.admin-page .adm-field select {
+  width: 100%;
+  font: inherit;
+  font-size: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--adm-line-2);
+  border-radius: var(--adm-r-sm);
+  background: #fff;
+  color: var(--adm-ink);
+}
+.admin-page .adm-field-row { display: flex; gap: 8px; }
+.admin-page .adm-field-row .adm-field { flex: 1; min-width: 0; }
+.admin-page .adm-sheet-foot {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--adm-line);
+}
+.admin-page .adm-sheet-foot .btn-submit { flex: 1; }
+.admin-page .adm-sheet-foot .adm-ghost {
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 12px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--adm-line-2);
+  background: #fff;
+  color: var(--adm-ink-2);
+  cursor: pointer;
+}
+/* 快捷区间 */
+.admin-page .adm-quick { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.admin-page .adm-quick button {
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--adm-line-2);
+  background: #fff;
+  color: var(--adm-ink-2);
+  cursor: pointer;
+}
+.admin-page .adm-quick button.on {
+  background: var(--adm-brand-soft);
+  border-color: var(--adm-brand-line);
+  color: var(--adm-brand-deep);
+  font-weight: 600;
+}
+/* 批量专辑:专辑名做成大按钮网格 */
+.admin-page .batch-album-list { display: flex; flex-wrap: wrap; gap: 8px; max-height: 34vh; overflow: auto; }
+.admin-page .batch-album-item {
+  flex: 0 0 auto;
+  font-size: 0.85rem;
+  padding: 9px 15px;
+  border-radius: 999px;
+}
+.admin-page .batch-album-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+.admin-page .batch-album-row input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--adm-line-2);
+  border-radius: var(--adm-r-sm);
+  background: #fff;
+  color: var(--adm-ink);
+}
+
+/* 统一把 write 页的弹层改成底部弹出(桌面端还原居中) */
+.admin-page .modal,
+.admin-page .ckin-modal { align-items: flex-end; padding: 0; }
+.admin-page .modal-card,
+.admin-page .ckin-box {
+  width: 100%;
+  max-width: 560px;
+  border-radius: 20px 20px 0 0;
+  max-height: 92dvh;
+  padding: 18px 16px calc(18px + var(--adm-safe));
+  animation: admUp 0.2s ease-out;
+  gap: 10px;
+}
+.admin-page .modal-card::before,
+.admin-page .ckin-box::before {
+  content: '';
+  display: block;
+  width: 38px;
+  height: 4px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  margin: -6px auto 0;
+  flex: 0 0 auto;
+}
+/* 预览内容可能很长:「关闭」吸在弹层底部,任何时候都够得着(以前要滑到底才能关) */
+.admin-page #btn-preview-close {
+  position: sticky;
+  bottom: calc(-18px - var(--adm-safe));
+  margin-top: 2px;
+  background: #fff;
+  border-top: 1px solid var(--adm-line);
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  border-bottom: none;
+  padding: 12px 0;
+  min-height: 46px;
+  font-weight: 600;
+  color: var(--adm-ink-2);
+}
+.admin-page .ckin-box { width: 100%; }
+.admin-page .ckin-box textarea,
+.admin-page .ckin-box input,
+.admin-page .ckin-box select { border-color: var(--adm-line-2); }
+.admin-page .ckin-head { font-size: 0.95rem; font-weight: 700; }
+.admin-page .ckin-actions {
+  position: sticky;
+  bottom: calc(-18px - var(--adm-safe));
+  background: #fff;
+  padding: 10px 0 2px;
+  border-top: 1px solid var(--adm-line);
+  margin-top: 4px;
+}
+.admin-page .ckin-actions .btn-small {
+  flex: 1;
+  min-height: 44px;
+  background: var(--adm-brand);
+  border-color: var(--adm-brand);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* ---------- 10. Toast(替代 alert 的成功提示) ---------- */
+.admin-page .adm-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(96px + var(--adm-safe));
+  transform: translateX(-50%) translateY(8px);
+  z-index: 10050;
+  max-width: min(420px, calc(100vw - 40px));
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: rgba(17, 24, 39, 0.92);
+  color: #fff;
+  font-size: 0.85rem;
+  box-shadow: var(--adm-s2);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s, transform 0.18s;
+}
+.admin-page .adm-toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+.admin-page .adm-toast.err { background: rgba(153, 27, 27, 0.95); }
+
+/* ---------- 11. 空状态 / 骨架屏 ---------- */
+.admin-page .adm-empty {
+  text-align: center;
+  padding: 34px 12px 30px;
+  color: var(--adm-ink-3);
+}
+.admin-page .adm-empty i { font-size: 1.9rem; font-style: normal; display: block; margin-bottom: 8px; opacity: 0.85; }
+.admin-page .adm-empty p { margin: 0 0 14px; font-size: 0.85rem; }
+.admin-page .adm-empty a,
+.admin-page .adm-empty button {
+  display: inline-block;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--adm-brand);
+  border: none;
+  border-radius: 999px;
+  padding: 10px 22px;
+  text-decoration: none;
+  cursor: pointer;
+}
+.admin-page .adm-skel { padding: 12px; border: 1px solid var(--adm-line); border-radius: var(--adm-r-md); margin-bottom: 8px; }
+.admin-page .adm-skel b,
+.admin-page .adm-skel span {
+  display: block;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #f1f2f4 25%, #e7e9ec 37%, #f1f2f4 63%);
+  background-size: 400% 100%;
+  animation: admShimmer 1.2s ease-in-out infinite;
+}
+.admin-page .adm-skel b { height: 13px; width: 52%; margin-bottom: 9px; }
+.admin-page .adm-skel span { height: 10px; width: 78%; }
+@keyframes admShimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+
+/* ---------- 12. 其他 tab:专辑 / 快照 / 导出 / 推送 ---------- */
+/* 专辑卡片:两行(标题行在上、元信息在下),长专辑名有整行可用 */
+.admin-page .album-mgr-list { gap: 8px; }
+.admin-page .album-mgr-item {
+  padding: 9px 10px 9px 12px;
+  border-radius: var(--adm-r-md);
+  border-color: var(--adm-line);
+  gap: 8px;
+  align-items: center;
+}
+.admin-page .album-mgr-name {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  padding: 3px 0;
+  background: none;
+  border: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.admin-page .album-mgr-row1 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.admin-page .album-mgr-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.admin-page .album-mgr-chev {
+  flex: 0 0 auto;
+  font-style: normal;
+  color: #cbd0d6;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+.admin-page .album-mgr-meta {
+  font-size: 0.73rem;
+  font-weight: 500;
+  color: var(--adm-ink-3);
+}
+.admin-page .album-mgr-actions { gap: 4px; }
+.admin-page .btn-album-rename {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  align-items: center;
+  justify-content: center;
+}
+.admin-page .btn-album-rename:active { background: #f3f4f6; }
+.admin-page .btn-album-vis { flex: 0 0 auto; }
+
+/* 专辑查看区 */
+.admin-page #album-view-box {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--adm-line);
+}
+.admin-page #album-view-box .day-head { gap: 8px; margin-bottom: 10px; }
+.admin-page #album-view-box #stream-title { margin-right: auto; }
+.admin-page .album-map,
+.admin-page .day-map { border-radius: var(--adm-r-md); height: 190px; }
+.admin-page #album-chips { margin-bottom: 10px; }
+.admin-page #album-chips .chip { border-color: var(--adm-line-2); font-size: 0.78rem; padding: 5px 12px; }
+.admin-page #album-chips .chip.active { background: var(--adm-brand); border-color: var(--adm-brand); }
+
+/* 快照行:标题 + 更新时间上下两行 */
+.admin-page .adm-share-item .recent-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  white-space: normal;
+  min-width: 0;
+}
+.admin-page .adm-share-item .recent-info b { font-size: 0.88rem; font-weight: 600; }
+.admin-page .adm-share-item .recent-info em {
+  font-style: normal;
+  font-size: 0.74rem;
+  color: var(--adm-ink-3);
+}
+.admin-page .adm-share-item .btn-share-del { color: var(--adm-danger); border-color: #fecaca; background: var(--adm-danger-soft); }
+
+/* 快照 / 专辑内条目:统一行卡片 */
+.admin-page .recent-list { gap: 8px; }
+.admin-page .recent-item {
+  padding: 10px 12px;
+  border-radius: var(--adm-r-md);
+  border-color: var(--adm-line);
+  gap: 10px;
+  font-size: 0.86rem;
+}
+.admin-page .recent-item .recent-info { line-height: 1.5; }
+.admin-page .recent-actions { flex-wrap: wrap; justify-content: flex-end; }
+
+/* 表单(导出 / 推送) */
+.admin-page .export-form { flex-direction: column; align-items: stretch; gap: 12px; }
+.admin-page .export-form label { font-size: 0.78rem; gap: 5px; }
+.admin-page .export-form input[type='date'],
+.admin-page .export-form select {
+  border-color: var(--adm-line-2);
+  border-radius: var(--adm-r-sm);
+  padding: 10px 12px;
+  min-height: 42px;
+}
+.admin-page .export-form .btn-submit { min-height: 46px; }
+
+/* 登录面板 */
+.admin-page #login-panel {
+  border-radius: var(--adm-r-lg);
+  padding: 20px 18px;
+}
+.admin-page .upload-form { gap: 14px; }
+.admin-page .upload-form input[type='text'],
+.admin-page .upload-form input[type='password'] {
+  border-color: var(--adm-line-2);
+  border-radius: var(--adm-r-sm);
+  padding: 11px 13px;
+}
+.admin-page .btn-submit {
+  border-radius: 999px;
+  min-height: 46px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/* ---------- 13. 桌面端 ≥900px:弹层居中、tab 不吸顶 ---------- */
+@media (min-width: 900px) {
+  .admin-page .adm-tabbar {
+    position: static;
+    margin: 0 0 14px;
+    padding: 0 0 12px;
+    background: none;
+    backdrop-filter: none;
+    border-bottom: 1px solid var(--adm-line-2);
+  }
+  .admin-page .adm-date-head { top: 0; }
+  .admin-page .modal,
+  .admin-page .ckin-modal { align-items: center; padding: 16px; }
+  .admin-page .modal-card,
+  .admin-page .ckin-box { border-radius: var(--adm-r-lg); }
+  .admin-page .ckin-actions { position: static; bottom: auto; }
+  .admin-page .ckin-actions .btn-small { flex: 0 0 auto; min-height: 34px; }
+  .admin-page .adm-fab { right: 24px; }
+  .admin-page .layout { padding-bottom: 60px; }
+}

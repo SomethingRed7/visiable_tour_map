@@ -20,6 +20,7 @@ function setAuthed(user) {
   $('#user-area').hidden = !loggedIn;
   if (user) {
     $('#current-user').textContent = user;
+    syncTabH();   // 管理区刚显示出来,这时才量得到 tab 栏真实高度
     renderShares(); // 已分享快照列表(仅登录)
     renderAlbums(); // 专辑管理列表(仅登录)
     refreshAllEntries(); // 专辑查看数据(仅登录);地图等点专辑名展开时再渲染
@@ -245,16 +246,106 @@ function bindPhotoGridFallback(container) {
     else img.addEventListener('load', mark);
   });
 }
+/* ============================================================================
+ * 管理页 UI 基建:Toast / 底部弹层 / 吸顶偏移 / 骨架屏
+ * (2026-09-27 管理界面整体改版:分段 tab + 上下文操作栏 + 底部动作表)
+ * ==========================================================================*/
+
+/* 轻量提示,替代成功类 alert():不打断操作,2.2s 自动消失 */
+let admToastTimer = null;
+function toast(msg, isErr) {
+  const el = $('#adm-toast');
+  if (!el) { if (isErr) alert(msg); return; }
+  el.textContent = msg;
+  el.className = 'adm-toast on' + (isErr ? ' err' : '');
+  clearTimeout(admToastTimer);
+  admToastTimer = setTimeout(() => { el.className = 'adm-toast' + (isErr ? ' err' : ''); }, 2200);
+}
+function openSheet(sel) { const e = $(sel); if (e) e.hidden = false; }
+function closeSheet(sel) { const e = $(sel); if (e) e.hidden = true; }
+
+/* 吸顶的 tab 栏高度由 JS 实测:日期分组头贴它下沿(字体/安全区变化时也准)
+ * 未登录时 #editor-area 是 hidden,量到的是 0 —— 所以登录后要再量一次(setAuthed) */
+function syncTabH() {
+  const t = document.querySelector('.adm-tabbar');
+  if (!t) return;
+  const h = t.offsetHeight;
+  if (h > 0) document.body.style.setProperty('--tabh', h + 'px');
+}
+
 /* 管理条目状态:分页 */
 let mgrState = { page: 1, size: '20' };
-/* 批量操作:勾选集合(date|ts,跨页记忆) */
+/* 批量操作:勾选集合(date|ts,跨页记忆)+ 是否处于「选择」模式 */
 let mgrSel = new Set();
+let mgrSelMode = false;
 function mgrSelKey(date, ts) { return `${date}|${ts}`; }
 
-/* 管理条目列表:合并打卡/日记,支持起止日期过滤 + 每页条数 + 翻页 + 按日期分组(首页同款 .stream-date-head) */
+/* 已渲染条目的索引(键 date|ts):动作表按条目键取数据,不依赖 DOM 位置 */
+const entryIndex = new Map();
+function indexEntries(list) { for (const e of list) entryIndex.set(mgrSelKey(e.date, entryTs(e)), e); }
+
+function skeletonHtml(n) {
+  let s = '';
+  for (let i = 0; i < n; i++) s += '<div class="adm-skel"><b></b><span></span></div>';
+  return s;
+}
+
+function emptyHtml(icon, text, ctaText, ctaHref) {
+  return `<div class="adm-empty"><i>${icon}</i><p>${esc(text)}</p>` +
+    (ctaText ? `<a href="${ctaHref}">${esc(ctaText)}</a>` : '') + '</div>';
+}
+
+/* 日期分组头:显示周几 + 当天条数(卡片里不再重复日期) */
+function dateHeadHtml(date, n) {
+  const d = new Date(date + 'T00:00:00');
+  const wd = Number.isNaN(d.getTime()) ? '' : '周' + '日一二三四五六'[d.getDay()];
+  return `<div class="adm-date-head">${esc(date)}<em>${wd} · ${n} 条</em></div>`;
+}
+
+/* 一天一组:分组头吸顶靠「每组一个容器」实现 —— 所有头共享一个容器时它们会一起堆在顶部 */
+function dateGroupHtml(date, items) {
+  return `<section class="adm-group">${dateHeadHtml(date, items.length)}${items.map(mgrItemHtml).join('')}</section>`;
+}
+
+/* 条目卡:标题 / 时间 → 元信息(地点·专辑·可见性·作者)→ 正文摘要 → 缩略图
+ * 主操作 = 点卡片(预览),次要操作收进右侧 ⋯ 动作表(不再每行堆四个按钮) */
+function mgrItemHtml(e) {
+  const ts = entryTs(e);
+  const key = mgrSelKey(e.date, ts);
+  const photos = e.photos || [];
+  const thumbs = photos.slice(0, 3).map((p) => `<img src="${thumbUrl(p)}" data-full="${p}" alt="" loading="lazy">`).join('');
+  const rest = photos.length - 3;
+  const meta = [];
+  if (e.location && e.location.name) meta.push(`📍 ${esc(shortLoc(e.location.name))}`);
+  if (e.album) meta.push(`<span class="adm-tag album">${esc(e.album)}</span>`);
+  if (e.visibility === 'private') meta.push('<span class="adm-tag priv">私有</span>');
+  if (e.author) meta.push(`<span class="adm-tag author${e.author === '小红' ? ' rose' : ''}">${esc(e.author)}</span>`);
+  // 没标题的条目(打卡/随手记很常见):拿正文首行当标题,信息量比「(无标题)」大得多
+  const text = String(e.text || '');
+  const nl = text.indexOf('\n');
+  const hasTitle = !!e.title;
+  const headText = hasTitle ? e.title : (nl > -1 ? text.slice(0, nl) : text);
+  const restText = hasTitle ? text : (nl > -1 ? text.slice(nl + 1) : '');
+  const headCls = hasTitle ? 'adm-item-title' : 'adm-item-title plain';
+  return `<article class="adm-item${mgrSel.has(key) ? ' is-sel' : ''}" data-date="${esc(e.date)}" data-ts="${esc(ts)}">
+    <label class="adm-check" title="选择"><input type="checkbox" data-date="${esc(e.date)}" data-ts="${esc(ts)}"${mgrSel.has(key) ? ' checked' : ''}></label>
+    <div class="adm-item-body">
+      <div class="adm-item-head">${headText ? `<span class="${headCls}">${esc(headText)}</span>` : '<span class="adm-item-title plain">(无内容)</span>'}<span class="adm-item-time">${fmtTime(ts)}</span></div>
+      ${meta.length ? `<div class="adm-item-meta">${meta.join('<span class="adm-meta-sep">·</span>')}</div>` : ''}
+      ${restText ? `<p class="adm-item-text">${esc(restText)}</p>` : ''}
+      ${thumbs ? `<div class="adm-thumbs">${thumbs}${rest > 0 ? `<span class="adm-tag">+${rest}</span>` : ''}</div>` : ''}
+    </div>
+    <button type="button" class="adm-more-btn" data-more="1" aria-label="更多操作" title="更多操作">⋯</button>
+  </article>`;
+}
+
+
+/* 管理条目列表:合并打卡/日记,支持起止日期过滤 + 每页条数 + 翻页 + 按日期分组
+ * 卡片式行(标题/元信息/缩略图)+ 点行=预览 + ⋯=动作表,见 mgrItemHtml */
 async function renderRecent() {
   const box = $('#mgr-list');
   if (!box) return;
+  if (!box.dataset.ready) box.innerHTML = skeletonHtml(3); // 首屏骨架,避免白屏
   try {
     const data = await (await fetch('/api/entries')).json();
     // 填充导出专辑下拉(保留已选值;专辑列表来自全部条目去重)
@@ -267,101 +358,266 @@ async function renderRecent() {
     }
     let all = (data.entries || [])
       .sort((a, b) => (a.date === b.date ? (a.created_at || '') > (b.created_at || '') ? -1 : 1 : a.date > b.date ? -1 : 1));
+    indexEntries(all);
     // 起止日期过滤
     const from = $('#mgr-from').value;
     const to = $('#mgr-to').value;
-    if (from) all = all.filter((e) => e.date >= from);
-    if (to) all = all.filter((e) => e.date <= to);
+    let filtered = all;
+    if (from) filtered = filtered.filter((e) => e.date >= from);
+    if (to) filtered = filtered.filter((e) => e.date <= to);
+    // 计数(工具条右侧):总量 + 筛选后
+    const countEl = $('#mgr-count');
+    if (countEl) {
+      countEl.textContent = from || to
+        ? `筛选出 ${filtered.length} / ${all.length} 条`
+        : `共 ${all.length} 条`;
+    }
     // 分页
-    const total = all.length;
+    const total = filtered.length;
     const sizeRaw = mgrState.size;
     const size = sizeRaw === 'all' ? Math.max(total, 1) : Number(sizeRaw);
     const pages = size > 0 ? Math.max(1, Math.ceil(total / size)) : 1;
     if (mgrState.page > pages) mgrState.page = pages;
     if (mgrState.page < 1) mgrState.page = 1;
-    const pageItems = sizeRaw === 'all' ? all : all.slice((mgrState.page - 1) * size, mgrState.page * size);
+    const pageItems = sizeRaw === 'all' ? filtered : filtered.slice((mgrState.page - 1) * size, mgrState.page * size);
     // 按日期分组(倒序)
     const byDate = {};
     for (const e of pageItems) (byDate[e.date] = byDate[e.date] || []).push(e);
     const grouped = Object.keys(byDate).sort().reverse().map((date) => ({ date, items: byDate[date] }));
-    const itemHtml = (e) => {
-      const key = mgrSelKey(e.date, entryTs(e));
-      return `<div class="recent-item mgr-item">
-        <label class="recent-check" title="选择"><input type="checkbox" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}"${mgrSel.has(key) ? ' checked' : ''}></label>
-        <span class="recent-info">${esc(e.date)} <span class="time-tag">${fmtTime(entryTs(e))}</span> ${e.visibility === 'private' ? '<span class="vis-tag">私有</span>' : ''} ${e.album ? `<span class="album-tag">${esc(e.album)}</span>` : ''} <b>${esc(e.title || '')}</b>${e.author ? ` · ${esc(e.author)}` : ''}</span>
-        <span class="recent-actions">
-          <button type="button" class="btn-small btn-vis" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}" data-vis="${e.visibility === 'private' ? 'private' : 'public'}">${e.visibility === 'private' ? '改公开' : '改私有'}</button>
-          <button type="button" class="btn-small btn-prev" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}">预览</button>
-          <button type="button" class="btn-small btn-edit" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}">编辑</button>
-          <button type="button" class="btn-small btn-del" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}">删除</button>
-        </span>
-      </div>`;
-    };
     box.innerHTML = grouped.length
-      ? grouped.map((g) => `<div class="stream-date-head">${esc(g.date)}</div>${g.items.map(itemHtml).join('')}`).join('')
-      : '<p class="empty">没有符合条件的条目</p>';
+      ? grouped.map((g) => dateGroupHtml(g.date, g.items)).join('')
+      : (all.length
+        ? emptyHtml('🔍', '没有符合筛选条件的条目', '清除筛选', '#')
+        : emptyHtml('🗺️', '还没有日记,写第一篇吧', '✏️ 写日记', 'edit.html'));
+    box.dataset.ready = '1';
+    // 空态里的「清除筛选」:一键还原时间区间
+    const clearCta = box.querySelector('.adm-empty a[href="#"]');
+    if (clearCta) clearCta.addEventListener('click', (ev) => { ev.preventDefault(); resetFilters(); });
     // 批量勾选(跨页记忆)与「全选」状态同步
-    bindMgrCheckboxes(box);
     updateSelAllState();
     updateBatchBar();
+    // 分页:只有一页时整条隐藏,少一行噪音
+    const pager = $('#mgr-pager');
+    if (pager) pager.hidden = pages <= 1;
     const pageEl = $('#mgr-page');
     if (pageEl) pageEl.textContent = `${mgrState.page} / ${pages}`;
     const prevBtn = $('#mgr-prev');
     const nextBtn = $('#mgr-next');
     if (prevBtn) prevBtn.disabled = mgrState.page <= 1;
     if (nextBtn) nextBtn.disabled = mgrState.page >= pages;
-    // 条目操作:预览 / 编辑(统一弹窗,打卡条目同样走 EntryModal)/ 删除 / 可见性
-    [...box.querySelectorAll('.btn-prev')].forEach((btn) => btn.addEventListener('click', () => openPreview(btn.dataset.date, btn.dataset.ts)));
-    [...box.querySelectorAll('.btn-edit')].forEach((btn) => btn.addEventListener('click', async () => {
-      const date = btn.dataset.date;
-      const ts = btn.dataset.ts;
-      const data = await (await fetch(`/api/entries?date=${date}`)).json();
-      const e = (data.entries || []).find((x) => String(x.ts) === String(ts));
-      if (!e) return alert('条目不存在');
-      EntryModal.open({ date, entry: e, onSaved: () => renderRecent() });
-    }));
-    [...box.querySelectorAll('.btn-del')].forEach((btn) => btn.addEventListener('click', () => askDelete(btn)));
-    [...box.querySelectorAll('.btn-vis')].forEach((btn) => btn.addEventListener('click', () => toggleVisibility(btn)));
-  } catch { /* 忽略 */ }
+  } catch {
+    box.innerHTML = emptyHtml('⚠️', '加载失败,下拉刷新试试');
+  }
+}
+
+/* ---------- 筛选:快捷区间 / chips / 弹层 ---------- */
+function dateStr(d) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+function setRange(from, to) {
+  const f = $('#mgr-from');
+  const t = $('#mgr-to');
+  if (f) f.value = from;
+  if (t) t.value = to;
+  mgrState.page = 1;
+  renderRecent();
+  renderFilterChips();
+}
+function resetFilters() {
+  setRange('', '');
+  applyQuickState();
+}
+function activeRangeKey() {
+  const from = $('#mgr-from').value;
+  const to = $('#mgr-to').value;
+  const today = localToday();
+  if (!from && !to) return 'all';
+  if (from === today && to === today) return 'today';
+  const now = new Date();
+  const d7 = new Date(now.getTime() - 6 * 86400000);
+  if (from === dateStr(d7) && to === today) return '7d';
+  const first = new Date(now.getFullYear(), now.getMonth(), 1);
+  if (from === dateStr(first) && to === today) return 'month';
+  return '';
+}
+function applyQuickState() {
+  const key = activeRangeKey();
+  document.querySelectorAll('#fs-quick button').forEach((b) => b.classList.toggle('on', b.dataset.range === key));
+}
+/* 生效中的筛选条件:工具条角标 + 可点掉的 chips(不用打开弹层就知道现在筛了什么) */
+function renderFilterChips() {
+  const from = $('#mgr-from').value;
+  const to = $('#mgr-to').value;
+  const n = (from ? 1 : 0) + (to ? 1 : 0);
+  const badge = $('#mgr-filter-badge');
+  if (badge) { badge.hidden = n === 0; badge.textContent = n; }
+  const btn = $('#mgr-filter-btn');
+  if (btn) btn.classList.toggle('is-on', n > 0);
+  const box = $('#mgr-active-filters');
+  if (box) {
+    box.hidden = n === 0;
+    const parts = [];
+    if (from) parts.push(`<button type="button" class="adm-chip" data-clear="from"><span>从 ${esc(from)}</span><i>✕</i></button>`);
+    if (to) parts.push(`<button type="button" class="adm-chip" data-clear="to"><span>到 ${esc(to)}</span><i>✕</i></button>`);
+    box.innerHTML = parts.join('');
+  }
+  applyQuickState();
+}
+
+/* ---------- 选择模式(上下文操作栏)---------- */
+function setSelMode(on) {
+  mgrSelMode = !!on;
+  const btn = $('#mgr-selmode-btn');
+  if (btn) {
+    btn.classList.toggle('is-on', mgrSelMode);
+    btn.textContent = mgrSelMode ? '完成' : '选择';
+  }
+  const list = $('#mgr-list');
+  if (list) list.classList.toggle('sel-mode', mgrSelMode);
+  if (!mgrSelMode) {
+    // 退出选择模式即清空选择:避免「看不见但已选中」导致误操作
+    mgrSel.clear();
+    const sa = $('#mgr-select-all');
+    if (sa) { sa.checked = false; sa.indeterminate = false; }
+    applySelToDom();
+  }
+  updateBatchBar();
+}
+/* 把 mgrSel 状态回写到列表 DOM(不重渲整列表) */
+function applySelToDom() {
+  document.querySelectorAll('#mgr-list .adm-check input, #stream .adm-check input').forEach((cb) => {
+    const k = mgrSelKey(cb.dataset.date, cb.dataset.ts);
+    cb.checked = mgrSel.has(k);
+    const item = cb.closest('.adm-item');
+    if (item) item.classList.toggle('is-sel', mgrSel.has(k));
+  });
+}
+
+/* ---------- 条目动作表(点卡片上的 ⋯)---------- */
+let esKey = '';
+let esBulk = false; // 从批量选择栏打开动作表(改可见性作用于整批)时为 true,这里始终单条
+function openEntrySheet(date, ts) {
+  const e = entryIndex.get(mgrSelKey(date, ts));
+  esKey = mgrSelKey(date, ts);
+  const title = $('#es-title');
+  const sub = $('#es-sub');
+  const visLabel = $('#es-vis-label');
+  if (title) title.textContent = (e && e.title) ? e.title : `${date} ${fmtTime(ts) || ''}`.trim();
+  if (sub) {
+    const bits = [];
+    if (e && e.album) bits.push(`专辑 ${e.album}`);
+    if (e && e.author) bits.push(e.author);
+    bits.push(e && e.visibility === 'private' ? '当前私有' : '当前公开');
+    sub.textContent = bits.join(' · ');
+  }
+  if (visLabel) visLabel.textContent = e && e.visibility === 'private' ? '设为公开' : '设为私有';
+  openSheet('#entry-sheet');
+}
+function closeEntrySheet() { closeSheet('#entry-sheet'); esKey = ''; }
+
+/* ---------- 条目基本操作(动作表 / 列表共用同一套实现)---------- */
+async function fetchEntry(date, ts) {
+  try {
+    const data = await (await fetch(`/api/entries?date=${date}`)).json();
+    return (data.entries || []).find((x) => String(x.ts) === String(ts)) || null;
+  } catch { return null; }
+}
+async function editEntry(date, ts) {
+  const e = entryIndex.get(mgrSelKey(date, ts)) || await fetchEntry(date, ts);
+  if (!e) return toast('条目不存在', true);
+  EntryModal.open({ date, entry: e, onSaved: () => { renderRecent(); syncAlbumView(); } });
+}
+async function setEntryVisibility(date, ts, vis) {
+  const fd = new FormData();
+  fd.append('date', date);
+  fd.append('ts', ts);
+  fd.append('visibility', vis);
+  try {
+    const res = await (await fetch('/api/update', { method: 'POST', body: fd })).json();
+    if (res.ok) {
+      toast(vis === 'private' ? '已设为私有 🔒' : '已设为公开 🌐');
+      renderRecent();
+      syncAlbumView();
+    } else toast(res.error || '切换失败', true);
+  } catch { toast('网络异常,请重试', true); }
+}
+
+/* 列表点击委托(列表会整块重渲,委托避免绑定丢失)
+ * 非选择模式:点卡片 = 预览,点 ⋯ = 动作表
+ * 选择模式:点卡片 = 勾选/取消 */
+function onItemClick(e) {
+  const item = e.target.closest('.adm-item');
+  if (!item) return;
+  const { date, ts } = item.dataset;
+  if (e.target.closest('.adm-more-btn')) { openEntrySheet(date, ts); return; }
+  if (e.target.closest('.adm-check')) return; // 勾选框交给 change 事件
+  if (mgrSelMode) {
+    const k = mgrSelKey(date, ts);
+    if (mgrSel.has(k)) mgrSel.delete(k); else mgrSel.add(k);
+    applySelToDom();
+    updateSelAllState();
+    updateBatchBar();
+    return;
+  }
+  openPreview(date, ts);
+}
+function onItemChange(e) {
+  const cb = e.target.closest('.adm-check input');
+  if (!cb) return;
+  const k = mgrSelKey(cb.dataset.date, cb.dataset.ts);
+  if (cb.checked) mgrSel.add(k); else mgrSel.delete(k);
+  applySelToDom();
+  updateSelAllState();
+  updateBatchBar();
 }
 
 /* 管理条目工具行绑定(一次性) */
 function initMgrTools() {
+  syncTabH();
+  window.addEventListener('resize', syncTabH);
+  window.addEventListener('load', syncTabH);
+
+  // 列表事件委托
+  const list = $('#mgr-list');
+  if (list) {
+    list.addEventListener('click', onItemClick);
+    list.addEventListener('change', onItemChange);
+  }
+  const stream = $('#stream');
+  if (stream) {
+    stream.addEventListener('click', onItemClick);
+    stream.addEventListener('change', onItemChange);
+  }
+
+  // 日期/每页变化:立即生效(轻量筛选,自动应用)
   const from = $('#mgr-from');
   const to = $('#mgr-to');
   const size = $('#mgr-size');
-  if (from) from.addEventListener('change', () => { mgrState.page = 1; renderRecent(); });
-  if (to) to.addEventListener('change', () => { mgrState.page = 1; renderRecent(); });
+  if (from) from.addEventListener('change', () => { mgrState.page = 1; renderRecent(); renderFilterChips(); });
+  if (to) to.addEventListener('change', () => { mgrState.page = 1; renderRecent(); renderFilterChips(); });
   if (size) size.addEventListener('change', () => { mgrState.size = size.value; mgrState.page = 1; renderRecent(); });
+
+  // 翻页(带回到列表顶部,手机上不用手滑回去)
   const prev = $('#mgr-prev');
   const next = $('#mgr-next');
-  if (prev) prev.addEventListener('click', () => { if (mgrState.page > 1) { mgrState.page--; renderRecent(); } });
-  if (next) next.addEventListener('click', () => { mgrState.page++; renderRecent(); });
+  const gotoPage = (p) => {
+    mgrState.page = p;
+    renderRecent().then(() => {
+      const box = $('#mgr-list');
+      if (box) window.scrollTo({ top: Math.max(0, box.getBoundingClientRect().top + window.scrollY - 110), behavior: 'smooth' });
+    });
+  };
+  if (prev) prev.addEventListener('click', () => { if (mgrState.page > 1) gotoPage(mgrState.page - 1); });
+  if (next) next.addEventListener('click', () => gotoPage(mgrState.page + 1));
+
+  initFilterSheet();
+  initEntrySheet();
+  initSelBar();
 
   const wxDate = $('#wx-date');
   if (wxDate) wxDate.value = localToday(); // 微信推送默认今天
 
-  // 批量操作栏(静态元素,页面加载即绑)
-  const selAll = $('#mgr-select-all');
-  if (selAll) selAll.addEventListener('change', () => {
-    const checked = selAll.checked;
-    $('#mgr-list').querySelectorAll('.recent-check input').forEach((cb) => {
-      cb.checked = checked;
-      const k = mgrSelKey(cb.dataset.date, cb.dataset.ts);
-      if (checked) mgrSel.add(k); else mgrSel.delete(k);
-    });
-    updateBatchBar();
-  });
-  const batchBtn = $('#btn-batch-album');
-  if (batchBtn) batchBtn.addEventListener('click', openBatchAlbumModal);
-  const batchClear = $('#btn-batch-clear');
-  if (batchClear) batchClear.addEventListener('click', () => {
-    mgrSel.clear();
-    const sa = $('#mgr-select-all');
-    if (sa) { sa.checked = false; sa.indeterminate = false; }
-    renderRecent();
-    updateBatchBar();
-  });
   // 批量选专辑弹层
   const bam = $('#batch-album-modal');
   if (bam) bam.addEventListener('click', (e) => { if (e.target === bam) closeBatchAlbumModal(); });
@@ -375,47 +631,137 @@ function initMgrTools() {
   if (bamNewInput) bamNewInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); applyBatchAlbum(bamNewInput.value.trim()); }
   });
+  renderFilterChips();
+}
+
+/* 筛选弹层:快捷区间 + 起止日期 + 每页条数 */
+function initFilterSheet() {
+  const open = $('#mgr-filter-btn');
+  if (open) open.addEventListener('click', () => { renderFilterChips(); openSheet('#filter-sheet'); });
+  const close = $('#fs-close');
+  if (close) close.addEventListener('click', () => closeSheet('#filter-sheet'));
+  const sheet = $('#filter-sheet');
+  if (sheet) sheet.addEventListener('click', (e) => { if (e.target === sheet) closeSheet('#filter-sheet'); });
+  const quick = $('#fs-quick');
+  if (quick) quick.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-range]');
+    if (!b) return;
+    const today = localToday();
+    const now = new Date();
+    if (b.dataset.range === 'all') resetFilters();
+    else if (b.dataset.range === 'today') setRange(today, today);
+    else if (b.dataset.range === '7d') setRange(dateStr(new Date(now.getTime() - 6 * 86400000)), today);
+    else if (b.dataset.range === 'month') setRange(dateStr(new Date(now.getFullYear(), now.getMonth(), 1)), today);
+    closeSheet('#filter-sheet');
+  });
+  const apply = $('#fs-apply');
+  if (apply) apply.addEventListener('click', () => { renderRecent(); renderFilterChips(); closeSheet('#filter-sheet'); });
+  const reset = $('#fs-reset');
+  if (reset) reset.addEventListener('click', () => resetFilters());
+  // 已生效条件的 chips:点掉即取消该条
+  const chips = $('#mgr-active-filters');
+  if (chips) chips.addEventListener('click', (e) => {
+    const b = e.target.closest('.adm-chip');
+    if (!b) return;
+    const el = $(b.dataset.clear === 'from' ? '#mgr-from' : '#mgr-to');
+    if (el) el.value = '';
+    mgrState.page = 1;
+    renderRecent();
+    renderFilterChips();
+  });
+}
+
+/* 条目动作表 */
+function initEntrySheet() {
+  const sheet = $('#entry-sheet');
+  if (!sheet) return;
+  const close = $('#es-close');
+  if (close) close.addEventListener('click', closeEntrySheet);
+  sheet.addEventListener('click', (e) => { if (e.target === sheet) closeEntrySheet(); });
+  sheet.addEventListener('click', async (e) => {
+    const b = e.target.closest('.adm-sheet-actions button');
+    if (!b) return;
+    const key = esKey;
+    if (!key) return;
+    const i = key.indexOf('|');
+    const date = key.slice(0, i);
+    const ts = key.slice(i + 1);
+    const e0 = entryIndex.get(key) || {};
+    closeEntrySheet();
+    if (b.dataset.act === 'preview') openPreview(date, ts);
+    else if (b.dataset.act === 'edit') editEntry(date, ts);
+    else if (b.dataset.act === 'vis') setEntryVisibility(date, ts, e0.visibility === 'private' ? 'public' : 'private');
+    else if (b.dataset.act === 'album') {
+      bamFromSheet = true;
+      mgrSel.clear();
+      mgrSel.add(key);
+      openBatchAlbumModal();
+    } else if (b.dataset.act === 'del') askDelete({ dataset: { date, ts } });
+  });
+}
+
+/* 底部上下文操作栏 */
+function initSelBar() {
+  const selAll = $('#mgr-select-all');
+  if (selAll) selAll.addEventListener('change', () => {
+    const checked = selAll.checked;
+    document.querySelectorAll('#mgr-list .adm-check input').forEach((cb) => {
+      const k = mgrSelKey(cb.dataset.date, cb.dataset.ts);
+      if (checked) mgrSel.add(k); else mgrSel.delete(k);
+    });
+    applySelToDom();
+    updateBatchBar();
+  });
+  const modeBtn = $('#mgr-selmode-btn');
+  if (modeBtn) modeBtn.addEventListener('click', () => setSelMode(!mgrSelMode));
+  const batchBtn = $('#btn-batch-album');
+  if (batchBtn) batchBtn.addEventListener('click', openBatchAlbumModal);
+  const batchClear = $('#btn-batch-clear');
+  if (batchClear) batchClear.addEventListener('click', () => {
+    mgrSel.clear();
+    const sa = $('#mgr-select-all');
+    if (sa) { sa.checked = false; sa.indeterminate = false; }
+    applySelToDom();
+    updateBatchBar();
+  });
 }
 
 /* ---- 管理条目批量操作:勾选 → 一键选专辑(或新建) ---- */
 function updateBatchBar() {
   const bar = $('#mgr-batch-bar');
   const count = $('#mgr-sel-count');
-  if (bar) bar.hidden = mgrSel.size === 0;
+  const has = mgrSel.size > 0;
+  if (bar) bar.hidden = !has;
   if (count) count.textContent = `已选 ${mgrSel.size} 条`;
+  // 底部操作栏浮出时让 FAB 暂时隐藏,避免两个浮动元素叠在一起
+  document.body.classList.toggle('has-selbar', has);
 }
 
 function updateSelAllState() {
   const selAll = $('#mgr-select-all');
   const box = $('#mgr-list');
   if (!selAll || !box) return;
-  const cbs = box.querySelectorAll('.recent-check input');
+  const cbs = box.querySelectorAll('.adm-check input');
   const anyChecked = [...cbs].some((cb) => cb.checked);
   const allChecked = cbs.length > 0 && [...cbs].every((cb) => cb.checked);
   selAll.checked = allChecked;
   selAll.indeterminate = anyChecked && !allChecked;
 }
 
-function bindMgrCheckboxes(box) {
-  box.querySelectorAll('.recent-check input').forEach((cb) => {
-    cb.addEventListener('change', () => {
-      const k = mgrSelKey(cb.dataset.date, cb.dataset.ts);
-      if (cb.checked) mgrSel.add(k); else mgrSel.delete(k);
-      updateSelAllState();
-      updateBatchBar();
-    });
-  });
-}
+/* 标记本次批量专辑弹层是从单条动作表打开的(与「选择」模式的多选区分) */
+let bamFromSheet = false;
 
 function closeBatchAlbumModal() {
   const m = $('#batch-album-modal');
   if (m) m.hidden = true;
   const st = $('#batch-album-status');
   if (st) st.className = 'form-status';
+  // 从条目动作表(⋯ → 归入专辑)进来的:关闭即清掉这次临时勾选,否则底部会留一条「已选 1 条」
+  if (bamFromSheet) { bamFromSheet = false; mgrSel.clear(); applySelToDom(); updateBatchBar(); }
 }
 
 async function openBatchAlbumModal() {
-  if (mgrSel.size === 0) return alert('请先勾选要归入专辑的条目');
+  if (mgrSel.size === 0) return toast('请先勾选要归入专辑的条目', true);
   const box = $('#batch-album-list');
   const hint = $('#batch-album-hint');
   if (hint) hint.textContent = `已选 ${mgrSel.size} 条,点一个专辑一键归入;也可以新建`;
@@ -463,11 +809,11 @@ async function applyBatchAlbum(album) {
     const sa = $('#mgr-select-all');
     if (sa) { sa.checked = false; sa.indeterminate = false; }
     closeBatchAlbumModal();
-    updateBatchBar();
-    renderRecent();
+    setSelMode(false); // 操作完成 → 退出选择模式
     syncAlbumView();
     renderAlbums();
-    alert(`已把 ${n} 条条目设为${album ? `专辑「${album}」` : '不设专辑(未分类)'} ✅`);
+    renderRecent();
+    toast(`已把 ${n} 条设为${album ? `专辑「${album}」` : '不设专辑'}`);
   } catch {
     if (st) { st.className = 'form-status error'; st.textContent = '网络异常,请重试'; }
   }
@@ -480,42 +826,40 @@ async function renderAlbums() {
   try {
     const data = await (await fetch('/api/albums')).json();
     const list = data.albums || [];
-    if (!list.length) { box.innerHTML = '<p class="empty">还没有专辑</p>'; return; }
-    box.innerHTML = list.map((a) => {
-      // 可见性按钮:参考条目「改公开/改私密」切换;全私密 → 全部改公开,否则 → 全部改私密
-      const allPriv = a.privateCount === a.count;
+    if (!list.length && !(data.uncategorized && data.uncategorized.count > 0)) {
+      box.innerHTML = emptyHtml('📁', '还没有专辑,在「写日记」里给条目设个专辑就会出现在这里', '✏️ 写日记', 'edit.html');
+      return;
+    }
+    // 可见性按钮:全私密 → 全部改公开,否则 → 全部改私密
+    // 布局:标题行(标题 + ›)在上,元信息(条数 · 可见性)在下 → 长专辑名不再被挤成省略号
+    const rowHtml = (name, count, priv, display) => {
+      const allPriv = priv === count && count > 0;
       const visTarget = allPriv ? 'public' : 'private';
       const visLabel = allPriv ? '全部改公开' : '全部改私密';
+      const visText = count === 0 ? '空' : allPriv ? '含私密' : priv > 0 ? `含私密 ${priv}` : '全公开';
       return `
       <div class="album-mgr-item">
-        <button type="button" class="album-mgr-name" data-album="${esc(a.album)}" title="查看该专辑的条目与地图">${esc(a.album)}</button>
-        <span class="album-mgr-count">${a.count} 条</span>
+        <button type="button" class="album-mgr-name" data-album="${esc(name)}" title="查看该专辑的条目与地图">
+          <span class="album-mgr-row1"><span class="album-mgr-title">${esc(display)}</span><i class="album-mgr-chev" aria-hidden="true">›</i></span>
+          <span class="album-mgr-meta">${count} 条 · ${visText}</span>
+        </button>
         <span class="album-mgr-actions">
-          <button type="button" class="btn-album-rename" data-album="${esc(a.album)}" title="改名" aria-label="改名"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
-          <button type="button" class="btn-small btn-album-vis" data-album="${esc(a.album)}" data-vis="${visTarget}">${visLabel}</button>
+          ${display === '未分类' ? '' : `<button type="button" class="btn-album-rename" data-album="${esc(name)}" title="改名" aria-label="改名"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>`}
+          <button type="button" class="btn-small btn-album-vis" data-album="${esc(name)}" data-vis="${visTarget}" title="把该专辑下全部条目设为${visTarget === 'private' ? '私密' : '公开'}">${visLabel}</button>
         </span>
       </div>`;
-    }).join('');
+    };
+    let html = list.map((a) => rowHtml(a.album, a.count, a.privateCount || 0, a.album)).join('');
     // 未分类(无专辑条目):只支持一键可见性,无改名(没有 album 字段可改)
     if (data.uncategorized && data.uncategorized.count > 0) {
-      const u = data.uncategorized;
-      const allPriv = u.privateCount === u.count;
-      const visTarget = allPriv ? 'public' : 'private';
-      const visLabel = allPriv ? '全部改公开' : '全部改私密';
-      box.insertAdjacentHTML('beforeend', `
-      <div class="album-mgr-item">
-        <button type="button" class="album-mgr-name" data-album="" title="查看未分类条目与地图">未分类</button>
-        <span class="album-mgr-count">${u.count} 条</span>
-        <span class="album-mgr-actions">
-          <button type="button" class="btn-small btn-album-vis" data-album="" data-vis="${visTarget}">${visLabel}</button>
-        </span>
-      </div>`);
+      html += rowHtml('', data.uncategorized.count, data.uncategorized.privateCount || 0, '未分类');
     }
-    box.querySelectorAll('.btn-album-rename').forEach((b) => b.addEventListener('click', () => renameAlbum(b.dataset.album)));
-    box.querySelectorAll('.btn-album-vis').forEach((b) => b.addEventListener('click', () => setAlbumVisibility(b.dataset.album, b.dataset.vis)));
+    box.innerHTML = html;
+    box.querySelectorAll('.btn-album-rename').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); renameAlbum(b.dataset.album); }));
+    box.querySelectorAll('.btn-album-vis').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); setAlbumVisibility(b.dataset.album, b.dataset.vis); }));
     // 点专辑名 → 展开该专辑的条目流 + 打卡地图(专辑查看合入专辑管理)
     box.querySelectorAll('.album-mgr-name').forEach((b) => b.addEventListener('click', () => showAlbumView(b.dataset.album)));
-  } catch { box.innerHTML = '<p class="empty">加载失败</p>'; }
+  } catch { box.innerHTML = emptyHtml('⚠️', '专辑加载失败,下拉刷新试试'); }
 }
 
 /* 点专辑名 → 展开专辑查看(条目流 + 地图,复用 renderAlbumView) */
@@ -525,6 +869,15 @@ function showAlbumView(album) {
   if (vbox) vbox.hidden = false;
   renderAlbumChips();
   renderAlbumView();
+  if (vbox) window.scrollTo({ top: Math.max(0, vbox.getBoundingClientRect().top + window.scrollY - 110), behavior: 'smooth' });
+}
+
+/* 专辑查看「返回」:收起详情回到专辑列表 */
+function closeAlbumView() {
+  mgrActiveAlbum = null;
+  const vbox = $('#album-view-box');
+  if (vbox) vbox.hidden = true;
+  renderAlbumChips();
 }
 
 async function renameAlbum(oldName) {
@@ -532,16 +885,16 @@ async function renameAlbum(oldName) {
   if (newName == null) return;
   const n = newName.trim();
   if (!n || n === oldName) return;
-  if (n.length > 50) return alert('专辑名最多 50 字');
+  if (n.length > 50) return toast('专辑名最多 50 字', true);
   try {
     const res = await (await fetch('/api/albums', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'rename', old: oldName, new: n }) })).json();
     if (res.ok) {
       renderAlbums();
       renderRecent();
       syncAlbumView();
-      alert(`已改名,${res.count} 条条目同步更新 ✅`);
-    } else alert(res.error || '改名失败');
-  } catch { alert('网络异常,请重试'); }
+      toast(`已改名,${res.count} 条条目同步更新`);
+    } else toast(res.error || '改名失败', true);
+  } catch { toast('网络异常,请重试', true); }
 }
 
 async function setAlbumVisibility(album, vis) {
@@ -554,29 +907,16 @@ async function setAlbumVisibility(album, vis) {
       renderAlbums();
       renderRecent();
       syncAlbumView();
-      alert(`已设置,${res.count} 条条目更新为${label} ✅`);
-    } else alert(res.error || '设置失败');
-  } catch { alert('网络异常,请重试'); }
-}
-
-/* 管理列表:公开/私有切换(轻量 update,仅改可见性) */
-async function toggleVisibility(b) {
-  const fd = new FormData();
-  fd.append('date', b.dataset.date);
-  fd.append('ts', b.dataset.ts);
-  fd.append('visibility', b.dataset.vis === 'private' ? 'public' : 'private');
-  try {
-    const res = await (await fetch('/api/update', { method: 'POST', body: fd })).json();
-    if (res.ok) { renderRecent(); syncAlbumView(); }
-    else alert(res.error || '切换失败');
-  } catch { alert('网络异常,请重试'); }
+      toast(`已设置,${res.count} 条条目更新为${label}`);
+    } else toast(res.error || '设置失败', true);
+  } catch { toast('网络异常,请重试', true); }
 }
 
 /* ---- 预览(只读弹层,portal 同款卡片) ---- */
 async function openPreview(date, ts) {
   const data = await (await fetch(`/api/entries?date=${date}`)).json();
   const e = (data.entries || []).find((x) => String(x.ts) === String(ts));
-  if (!e) return alert('条目不存在');
+  if (!e) return toast('条目不存在', true);
   $('#preview-body').innerHTML = `<div class="preview-date">${esc(e.date)}</div>` + entryCardHtml(e);
   $('#preview-modal').hidden = false;
   bindPhotoGridFallback($('#preview-body'));
@@ -606,9 +946,9 @@ async function doDelete(date, ts) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     bounceOn401(res);
-    return alert(data.error || `删除失败(HTTP ${res.status})`);
+    return toast(data.error || `删除失败(HTTP ${res.status})`, true);
   }
-  alert('已删除 ✅');
+  toast('已删除 🗑');
   renderRecent();
   syncAlbumView();
 }
@@ -689,39 +1029,20 @@ async function renderAlbumView() {
     mapBox.style.display = 'none';
     return;
   }
-  if (title) title.textContent = mgrActiveAlbum === '' ? '专辑 · 未分类' : `专辑 · ${mgrActiveAlbum}`;
+  if (title) title.textContent = mgrActiveAlbum === '' ? '未分类' : mgrActiveAlbum;
   // 条目从服务端按专辑现取(SQL 过滤,完整),不再从本地缓存筛 —— 见 fetchAlbumEntries 注释
   const album = mgrActiveAlbum;
   let list = await fetchAlbumEntries(album);
   if (mgrActiveAlbum !== album) return; // 取数期间又切了别的专辑 → 让新的那次渲染说了算
+  indexEntries(list);
   list = [...list].sort((a, b) => (a.date === b.date ? 0 : a.date < b.date ? -1 : 1)); // 专辑内正序
   const byDate = {};
   for (const e of list.slice(0, 60)) (byDate[e.date] = byDate[e.date] || []).push(e);
   const grouped = Object.keys(byDate).sort().reverse().map((d) => ({ date: d, items: byDate[d] }));
-  const itemHtml = (e) => `<div class="recent-item">
-    <span class="recent-info">${esc(e.date)} <span class="time-tag">${fmtTime(entryTs(e))}</span> ${e.visibility === 'private' ? '<span class="vis-tag">私有</span>' : ''} ${e.album ? `<span class="album-tag">${esc(e.album)}</span>` : ''} <b>${esc(e.title || '')}</b>${e.author ? ` · ${esc(e.author)}` : ''}</span>
-    <span class="recent-actions">
-      <button type="button" class="btn-small btn-vis" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}" data-vis="${e.visibility === 'private' ? 'private' : 'public'}">${e.visibility === 'private' ? '改公开' : '改私有'}</button>
-      <button type="button" class="btn-small btn-prev" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}">预览</button>
-      <button type="button" class="btn-small btn-edit" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}">编辑</button>
-      <button type="button" class="btn-small btn-del" data-date="${esc(e.date)}" data-ts="${esc(entryTs(e))}">删除</button>
-    </span>
-  </div>`;
   stream.innerHTML = grouped.length
-    ? grouped.map((g) => `<div class="stream-date-head">${esc(g.date)}</div>${g.items.map(itemHtml).join('')}`).join('')
-    : '<p class="empty">这个专辑还没有条目</p>';
-  // 复用管理条目同款按钮绑定
-  [...stream.querySelectorAll('.btn-prev')].forEach((btn) => btn.addEventListener('click', () => openPreview(btn.dataset.date, btn.dataset.ts)));
-  [...stream.querySelectorAll('.btn-edit')].forEach((btn) => btn.addEventListener('click', async () => {
-    const date = btn.dataset.date;
-    const ts = btn.dataset.ts;
-    const data = await (await fetch(`/api/entries?date=${date}`)).json();
-    const e = (data.entries || []).find((x) => String(x.ts) === String(ts));
-    if (!e) return alert('条目不存在');
-    EntryModal.open({ date, entry: e, onSaved: syncAlbumView });
-  }));
-  [...stream.querySelectorAll('.btn-del')].forEach((btn) => btn.addEventListener('click', () => askDelete(btn)));
-  [...stream.querySelectorAll('.btn-vis')].forEach((btn) => btn.addEventListener('click', () => toggleVisibility(btn)));
+    ? grouped.map((g) => dateGroupHtml(g.date, g.items)).join('')
+    : emptyHtml('📭', '这个专辑还没有条目');
+  // 条目操作(预览/编辑/删除/可见性)统一走 #stream 上的事件委托,见 initMgrTools
   // 打卡地图(复用 map-common)
   await MapCommon.renderCheckinMap(mapBox, list, { containerId: 'album-map' });
 }
@@ -750,11 +1071,16 @@ async function renderShares() {
     const data = await res.json().catch(() => ({}));
     const list = data.shares || [];
     if (!list.length) {
-      box.innerHTML = '<p class="empty">还没有分享过快照,去上方「导出行程」生成</p>';
+      box.innerHTML = emptyHtml('🔗', '还没有分享过快照,去「导出」生成一个', '去导出', '#');
+      const cta = box.querySelector('.adm-empty a');
+      if (cta) cta.addEventListener('click', (ev) => { ev.preventDefault(); switchManageTab('export'); });
       return;
     }
-    box.innerHTML = list.map((s) => `<div class="recent-item">
-        <span class="recent-info">${esc(shareCond(s) || '全部内容')} · 更新于 ${esc(fmtDateTime(s.updated_at))}</span>
+    box.innerHTML = list.map((s) => `<div class="recent-item adm-share-item">
+        <span class="recent-info">
+          <b>${esc(shareCond(s) || '全部内容')}</b>
+          <em>更新于 ${esc(fmtDateTime(s.updated_at))}</em>
+        </span>
         <span class="recent-actions">
           <button type="button" class="btn-small btn-share-show" data-url="${esc(s.url)}">分享</button>
           <button type="button" class="btn-small btn-share-update" data-token="${esc(s.token)}" data-album="${esc(s.album || '')}" data-from="${esc(s.from || '')}" data-to="${esc(s.to || '')}">更新</button>
@@ -783,10 +1109,10 @@ async function deleteShare(token) {
   try {
     const res = await fetch(`/api/share?token=${encodeURIComponent(token)}`, { method: 'DELETE' });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) { bounceOn401(res); return alert(data.error || `删除失败(HTTP ${res.status})`); }
-    alert('已删除 ✅');
+    if (!res.ok) { bounceOn401(res); return toast(data.error || `删除失败(HTTP ${res.status})`, true); }
+    toast('快照已删除,链接立即失效');
     renderShares();
-  } catch { alert('网络异常,请重试'); }
+  } catch { toast('网络异常,请重试', true); }
 }
 
 /* ---- 分享二维码弹层(重新显示某条快照的二维码) ---- */
@@ -906,7 +1232,7 @@ $('#btn-wx-push').addEventListener('click', async () => {
     btn.disabled = false;
   }
 });
-/* 管理页 Tab(与首页当日待办/当日动态/专辑查看同款) */
+/* 管理页 Tab(分段式;吸顶,窄屏可横滑) */
 function switchManageTab(tab) {
   document.querySelectorAll('#manage-tabs .tab-btn').forEach((b) => {
     b.classList.toggle('active', b.dataset.tab === tab);
@@ -914,6 +1240,16 @@ function switchManageTab(tab) {
   document.querySelectorAll('#editor-area .tab-pane').forEach((p) => {
     p.hidden = p.id !== 'tab-' + tab;
   });
+  // 每个 tab 都是独立任务:切换后回到顶部,不让用户自己找位置
+  window.scrollTo({ top: 0, behavior: 'auto' });
+  // 写日记 FAB 只在「条目 / 专辑」两个内容区出现(导出/快照/推送用不上,免得挡住按钮)
+  const fab = $('#btn-write');
+  if (fab) fab.hidden = tab !== 'manage' && tab !== 'album-mgr';
+  const bar = $('#manage-tabs');
+  if (bar) {
+    const active = bar.querySelector('.tab-btn.active');
+    if (active) active.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+  }
 }
 function initManageTabs() {
   const bar = $('#manage-tabs');
@@ -922,6 +1258,8 @@ function initManageTabs() {
     const b = e.target.closest('.tab-btn');
     if (b && !b.hidden) switchManageTab(b.dataset.tab);
   });
+  const back = $('#btn-album-back');
+  if (back) back.addEventListener('click', closeAlbumView);
 }
 function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

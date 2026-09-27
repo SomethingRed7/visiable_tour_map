@@ -3,16 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f4f5f7">
   <title>管理 · 咕咕嘎嘎</title>
   <link rel="stylesheet" href="style.css?v=20260925a">
-  <style>
-    /* 管理界面正文总体不加粗;标题与主页保持一致(site-title=800、panel-heading=700 用全局样式) */
-    .write-page .login-hint a,
-    .write-page .user-name,
-    .write-page .manage-hint { font-weight: 400; }
-  </style>
+  <link rel="stylesheet" href="admin.css?v=20260927a">
 </head>
-<body class="write-page">
+<body class="write-page admin-page">
   <header class="site-header">
     <div class="header-main">
       <h1 class="site-title"><a href="./">咕咕嘎嘎</a></h1>
@@ -20,7 +16,7 @@
     </div>
     <div id="user-area" class="user-area" hidden>
       <span id="current-user" class="user-name"></span>
-      <button type="button" id="btn-logout" class="btn-small">退出登录</button>
+      <button type="button" id="btn-logout" class="btn-small">退出</button>
     </div>
   </header>
 
@@ -28,6 +24,7 @@
     <!-- 登录(未登录时显示;两步:你是谁 → 密码) -->
     <section id="login-panel" class="panel">
       <h2 class="panel-heading">登录</h2>
+      <p class="manage-hint">咕咕嘎嘎 · 记录每一段在路上</p>
       <form id="who-form" class="upload-form">
         <label>
           你是?
@@ -72,15 +69,53 @@
 
     <!-- 管理区(登录后可见) -->
     <div id="editor-area" hidden>
-      <!-- 与首页「当日动态/当日待办」同款 Tab -->
-      <div class="panel-tabs" id="manage-tabs">
-        <button type="button" class="tab-btn active" data-tab="manage">管理条目</button>
-        <button type="button" class="tab-btn" data-tab="export">导出行程</button>
-        <button type="button" class="tab-btn" data-tab="share">已分享的快照</button>
-        <button type="button" class="tab-btn" data-tab="album-mgr">专辑管理</button>
-        <button type="button" class="tab-btn" data-tab="wechat">微信推送</button>
-      </div>
+      <!-- 分段式 tab 栏(吸顶、窄屏可横滑;不再换行成两排) -->
+      <nav class="adm-tabbar panel-tabs" id="manage-tabs" aria-label="管理分区">
+        <button type="button" class="tab-btn active" data-tab="manage">条目</button>
+        <button type="button" class="tab-btn" data-tab="album-mgr">专辑</button>
+        <button type="button" class="tab-btn" data-tab="export">导出</button>
+        <button type="button" class="tab-btn" data-tab="share">快照</button>
+        <button type="button" class="tab-btn" data-tab="wechat">推送</button>
+      </nav>
 
+      <!-- ============ 条目 ============ -->
+      <section id="tab-manage" class="panel tab-pane">
+        <!-- 工具条:筛选(带生效数量角标) / 计数 / 选择模式 -->
+        <div class="adm-toolbar">
+          <button type="button" id="mgr-filter-btn" class="adm-toolbar-btn" aria-haspopup="dialog">
+            <span>筛选</span><span id="mgr-filter-badge" class="adm-dot" hidden></span>
+          </button>
+          <span class="adm-count" id="mgr-count"></span>
+          <button type="button" id="mgr-selmode-btn" class="adm-toolbar-btn">选择</button>
+        </div>
+        <div id="mgr-active-filters" class="adm-chips" hidden></div>
+        <div id="mgr-list" class="adm-list"></div>
+        <div id="mgr-pager" class="adm-pager" hidden>
+          <button type="button" id="mgr-prev" class="btn-small">‹ 上一页</button>
+          <span id="mgr-page">1 / 1</span>
+          <button type="button" id="mgr-next" class="btn-small">下一页 ›</button>
+        </div>
+      </section>
+
+      <!-- ============ 专辑 ============ -->
+      <section id="tab-album-mgr" class="panel album-manage-panel tab-pane" hidden>
+        <h2 class="panel-heading">专辑</h2>
+        <p class="manage-hint">点专辑名查看条目与地图;可改名、一键设置整组公开/私密</p>
+        <div id="album-mgr-list" class="album-mgr-list"></div>
+        <!-- 专辑查看(点专辑名展开):条目流 + 打卡地图 -->
+        <div id="album-view-box" hidden>
+          <div class="todo-head day-head">
+            <button type="button" id="btn-album-back" class="btn-small">‹ 返回</button>
+            <span id="stream-title">专辑</span>
+            <a id="btn-album-share" class="btn-add-entry" href="export.html" hidden>生成分享页</a>
+          </div>
+          <div id="album-map" class="album-map"></div>
+          <div id="album-chips" class="album-chips"></div>
+          <div id="stream" class="entries"></div>
+        </div>
+      </section>
+
+      <!-- ============ 导出 ============ -->
       <section id="tab-export" class="panel export-panel tab-pane" hidden>
         <h2 class="panel-heading">导出行程</h2>
         <p class="manage-hint">按专辑或日期区间导出,可叠加;留空 = 全部</p>
@@ -104,12 +139,14 @@
         <p id="export-status" class="form-status"></p>
       </section>
 
+      <!-- ============ 已分享的快照 ============ -->
       <section id="tab-share" class="panel share-panel tab-pane" hidden>
         <h2 class="panel-heading">已分享的快照</h2>
-        <p class="manage-hint">快照是生成那一刻冻结的内容;「更新」会重新进入生成页,重新选择导出内容后保存,链接不变;「删除」后链接立即失效</p>
+        <p class="manage-hint">快照是生成那一刻冻结的内容。「更新」重新选择导出内容,链接不变;「删除」后链接立即失效</p>
         <div id="share-list" class="recent-list"></div>
       </section>
 
+      <!-- ============ 微信推送 ============ -->
       <section id="tab-wechat" class="panel wechat-push-panel tab-pane" hidden>
         <h2 class="panel-heading">微信推送</h2>
         <p class="manage-hint">把当天公开动态推到微信(家人关注后可收到)。可选日期,默认今天</p>
@@ -123,53 +160,64 @@
         <p id="wx-status" class="form-status"></p>
       </section>
 
-      <section id="tab-album-mgr" class="panel album-manage-panel tab-pane" hidden>
-        <h2 class="panel-heading">专辑管理</h2>
-        <p class="manage-hint">点专辑名查看该专辑的条目与地图;改名会同步该专辑下全部条目;可一键设置整组公开/私密</p>
-        <div id="album-mgr-list" class="album-mgr-list"></div>
-        <!-- 专辑查看(点专辑名展开):条目流 + 打卡地图 -->
-        <div id="album-view-box" hidden>
-          <div class="todo-head day-head"><span id="stream-title">专辑</span>
-            <a id="btn-album-share" class="btn-add-entry" href="export.html" hidden>生成分享页</a>
-          </div>
-          <div id="album-map" class="album-map"></div>
-          <div id="album-chips" class="album-chips"></div>
-          <div id="stream" class="entries"></div>
-        </div>
-      </section>
+      <!-- 写日记:全页唯一主操作,浮动在右下角 -->
+      <a id="btn-write" class="adm-fab" href="edit.html"><span aria-hidden="true">✏️</span>写日记</a>
 
-      <section id="tab-manage" class="panel manage-panel tab-pane">
-        <h2 class="panel-heading">管理条目</h2>
-        <p class="manage-hint">预览 / 编辑 / 删除;支持日期过滤、翻页、按日期分组;勾选多条后可一键归入专辑</p>
-        <a id="btn-write" class="btn-submit write-btn" href="edit.html">✏️ 写日记</a>
-        <div class="mgr-tools">
-          <label class="mgr-date">从 <input type="date" id="mgr-from"></label>
-          <label class="mgr-date">到 <input type="date" id="mgr-to"></label>
-          <label class="mgr-size">每页
-            <select id="mgr-size">
-              <option value="10">10 条</option>
-              <option value="20" selected>20 条</option>
-              <option value="50">50 条</option>
-              <option value="100">100 条</option>
-              <option value="all">所有</option>
-            </select>
-          </label>
-          <div class="mgr-pager">
-            <button type="button" id="mgr-prev" class="btn-small">‹ 上一页</button>
-            <span id="mgr-page">1 / 1</span>
-            <button type="button" id="mgr-next" class="btn-small">下一页 ›</button>
-          </div>
-        </div>
-        <div id="mgr-batch-bar" class="mgr-batch-bar" hidden>
-          <label class="mgr-sel-all"><input type="checkbox" id="mgr-select-all"> 全选</label>
-          <span id="mgr-sel-count">已选 0 条</span>
-          <button type="button" id="btn-batch-album" class="btn-small">一键选专辑</button>
-          <button type="button" id="btn-batch-clear" class="btn-small" aria-label="取消选择" title="取消选择">✕</button>
-        </div>
-        <div id="mgr-list" class="recent-list"></div>
-      </section>
+      <!-- 选中条目后的上下文操作栏(从底部浮出) -->
+      <div id="mgr-batch-bar" class="adm-selbar" hidden>
+        <label class="mgr-sel-all adm-sel-all"><input type="checkbox" id="mgr-select-all">全选</label>
+        <span id="mgr-sel-count">已选 0 条</span>
+        <button type="button" id="btn-batch-album" class="btn-small">归入专辑</button>
+        <button type="button" id="btn-batch-clear" class="btn-small" aria-label="取消选择" title="取消选择">✕</button>
+      </div>
     </div>
   </main>
+
+  <!-- 筛选底部弹层 -->
+  <div id="filter-sheet" class="adm-sheet-mask" hidden>
+    <div class="adm-sheet" role="dialog" aria-label="筛选">
+      <div class="adm-sheet-title"><span>筛选</span><button type="button" id="fs-close" class="adm-sheet-x">✕</button></div>
+      <p class="adm-sheet-sub">按日期区间筛选条目,也可以设置每页条数</p>
+      <div class="adm-quick" id="fs-quick">
+        <button type="button" data-range="all">全部时间</button>
+        <button type="button" data-range="today">今天</button>
+        <button type="button" data-range="7d">近 7 天</button>
+        <button type="button" data-range="month">本月</button>
+      </div>
+      <div class="adm-field-row">
+        <label class="adm-field"><span>从</span><input type="date" id="mgr-from"></label>
+        <label class="adm-field"><span>到</span><input type="date" id="mgr-to"></label>
+      </div>
+      <label class="adm-field"><span>每页条数</span>
+        <select id="mgr-size">
+          <option value="10">10 条</option>
+          <option value="20" selected>20 条</option>
+          <option value="50">50 条</option>
+          <option value="100">100 条</option>
+          <option value="all">所有</option>
+        </select>
+      </label>
+      <div class="adm-sheet-foot">
+        <button type="button" id="fs-reset" class="adm-ghost">重置</button>
+        <button type="button" id="fs-apply" class="btn-submit">应用</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 单条条目的操作表(点卡片上的 ⋯ 弹出) -->
+  <div id="entry-sheet" class="adm-sheet-mask" hidden>
+    <div class="adm-sheet" role="dialog" aria-label="条目操作">
+      <div class="adm-sheet-title"><span id="es-title">条目</span><button type="button" id="es-close" class="adm-sheet-x">✕</button></div>
+      <p class="adm-sheet-sub" id="es-sub"></p>
+      <div class="adm-sheet-actions">
+        <button type="button" data-act="preview"><i>👁</i>预览</button>
+        <button type="button" data-act="edit"><i>✏️</i>编辑</button>
+        <button type="button" data-act="vis"><i>🔒</i><span id="es-vis-label">设为私有</span></button>
+        <button type="button" data-act="album"><i>📁</i>归入专辑</button>
+        <button type="button" data-act="del" class="danger"><i>🗑</i>删除</button>
+      </div>
+    </div>
+  </div>
 
   <!-- 日记弹窗(编辑普通条目;打卡弹窗同款) -->
   <div id="entry-modal" class="ckin-modal" hidden>
@@ -237,7 +285,7 @@
     </div>
   </div>
 
-  <!-- 分享弹层(重新显示某条快照:链接 + 二维码,类似「分享快照已生成」) -->
+  <!-- 分享弹层(重新显示某条快照:链接 + 二维码) -->
   <div id="share-qr-modal" class="modal" hidden>
     <div class="modal-card">
       <h3 class="sub-panel-heading">分享链接</h3>
@@ -259,12 +307,13 @@
   <footer class="site-footer">咕咕嘎嘎 · 记录每一段在路上</footer>
 
   <div id="lightbox" class="lightbox" aria-hidden="true"><img alt="查看大图"></div>
+  <div id="adm-toast" class="adm-toast" role="status" aria-live="polite"></div>
 
     <script src="api.js?v=20260825"></script>
     <script src="photo.js?v=20260917a"></script>
   <script src="map-common.js?v=20260925a"></script>
   <script src="loc-picker.js?v=20260927a"></script>
   <script src="entry-modal.js?v=20260925a"></script>
-  <script src="upload.js?v=20260925a"></script>
+  <script src="upload.js?v=20260927b"></script>
 </body>
 </html>
