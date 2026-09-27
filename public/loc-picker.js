@@ -153,12 +153,24 @@ function loadAmap(key, securityCode) {
   });
 }
 
-async function fetchConfig() {
-  try {
-    const res = await (await fetch('/api/config')).json();
-    amapKey = res.amap_key || '';
-    amapSecurity = res.amap_security_js_code || '';
-  } catch { amapKey = ''; amapSecurity = ''; }
+/* 配置只拉一次并缓存;⚠️ 必须带超时 —— 弱网时 fetch 能挂几十秒,而它在 lpAmapLocate 第一句,
+ * 挂住 = 定位永久停在「改用高德定位…」(2026-09-27 实测复现)。abort 之外再 race 一个硬超时兜底。 */
+let lpConfigPromise = null;
+function fetchConfig() {
+  if (lpConfigPromise) return lpConfigPromise;
+  const load = (async () => {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 3000);
+    try {
+      const res = await fetch('/api/config', { signal: ctrl.signal });
+      const j = await res.json();
+      amapKey = j.amap_key || '';
+      amapSecurity = j.amap_security_js_code || '';
+    } catch { amapKey = ''; amapSecurity = ''; } finally { clearTimeout(timer); }
+  })();
+  lpConfigPromise = Promise.race([load, new Promise((r) => setTimeout(r, 3500))])
+    .then(() => { if (!amapKey) lpConfigPromise = null; }); // 没拿到 key(离线/超时)不缓存,下次定位再试
+  return lpConfigPromise;
 }
 
 let amapReadyPromise = null;
@@ -183,18 +195,23 @@ function ensureAmap() {
 async function lpAmapLocate() {
   try {
     await fetchConfig();
-    const ready = await Promise.race([ensureAmap(), new Promise((r) => setTimeout(() => r(false), 8000))]);
+    const ready = await Promise.race([ensureAmap(), new Promise((r) => setTimeout(() => r(false), 6000))]);
     if (!ready || !window.AMap || !window.AMap.Geolocation) return null;
-    return await new Promise((resolve) => {
-      try {
-        const gl = new AMap.Geolocation({ enableHighAccuracy: true, timeout: 10000, zoomToAccuracy: false });
-        gl.getCurrentPosition((status, result) => {
-          if (status === 'complete' && result && result.position) {
-            resolve({ lat: result.position.getLat(), lng: result.position.getLng(), accuracy: result.accuracy || null });
-          } else resolve(null);
-        });
-      } catch { resolve(null); }
-    });
+    // ⚠️ 插件回调同样可能永不触发(它内部也会先试浏览器 geolocation)→ 外面再套一层 race,
+    // 到点当失败处理、继续降级 IP,别让整条链悬着
+    return await Promise.race([
+      new Promise((resolve) => {
+        try {
+          const gl = new AMap.Geolocation({ enableHighAccuracy: true, timeout: 6000, zoomToAccuracy: false });
+          gl.getCurrentPosition((status, result) => {
+            if (status === 'complete' && result && result.position) {
+              resolve({ lat: result.position.getLat(), lng: result.position.getLng(), accuracy: result.accuracy || null });
+            } else resolve(null);
+          });
+        } catch { resolve(null); }
+      }),
+      new Promise((r) => setTimeout(() => r(null), 8000)),
+    ]);
   } catch { return null; }
 }
 
@@ -252,22 +269,46 @@ async function lpDeniedCheck() {
  * ⚠️ 坐标系统一在这里处理:只有浏览器原生那层需要 lpCalibrate(夸克等已 GCJ、标准浏览器 WGS→转);
  * 高德/IP 返回的本就是 GCJ-02,调用方**不要再转**(再 wgs2gcj 会双重偏移几百米)。
  * 为什么必须有兜底:国内安卓(Chrome/夸克)原生 geolocation 常因 Google 服务不可达超时(code 3),
- * 高德基站/WiFi 定位才是国内主力;「编辑日记」弹窗曾只调原生这一层,失败即报错(2026-09-25 用户报)。 */
+ * 高德基站/WiFi 定位才是国内主力;「编辑日记」弹窗曾只调原生这一层,失败即报错(2026-09-25 用户报)。
+ * ⚠️ 每一层都必须有**自己的看门狗**(2026-09-27 用户报「写日记点定位,一直停在定位中…」):
+ *   ① 浏览器原生定位的 callback 在真机上可能**永不触发**(权限框未决、系统定位服务卡住),
+ *      此时选项里的 timeout 不生效 → 没有看门狗就永远停在「定位中...」;
+ *   ② /api/config 弱网挂死会让高德那层无限等(已给 config 加 3s 超时 + 插件回调 8s 封顶)。
+ *   看门狗到点即视为该层失败、继续降级 —— 全链路最坏 ~20s 一定给结果。
+ * 另外 IP 兜底在进入时就**预发起**(纯服务端调用,不吃权限、不抢手势):
+ * 前两层都挂时立刻能落 IP,不用再等一轮网络。
+ * 连点「📍 定位」复用同一次进行中的定位(并发调 getCurrentPosition 会互相抢,状态文案也会打架)。 */
+let lpLocateInFlight = null;
 function lpLocateSmart(onStatus) {
-  const say = (t) => { try { onStatus && onStatus(t); } catch { /* 忽略 */ } };
-  return new Promise((resolve) => {
+  const NATIVE_MS = 9000;  // 浏览器原生定位预算(选项 timeout 8s + 1s 余量)
+  const AMAP_MS = 11000;   // 高德预算(加载 ≤6s + 插件 ≤8s)
+  if (lpLocateInFlight) {
+    if (onStatus) lpLocateInFlight.followers.push(onStatus);
+    return lpLocateInFlight.promise;
+  }
+  const rec = { followers: [] };
+  if (onStatus) rec.followers.push(onStatus);
+  const say = (t) => { for (const f of rec.followers) { try { f(t); } catch { /* 忽略 */ } } };
+  const promise = new Promise((resolve) => {
     let settled = false;
-    const ok = (lat, lng, src) => { if (!settled) { settled = true; resolve({ lat, lng, src }); } };
-    const bad = (err) => { if (!settled) { settled = true; resolve({ fail: true, err: err || null }); } };
+    let watchdog = null;
+    const disarm = () => { if (watchdog) { clearTimeout(watchdog); watchdog = null; } };
+    const arm = (ms, fn) => { disarm(); watchdog = setTimeout(() => { watchdog = null; if (!settled) fn(); }, ms); };
+    const ok = (lat, lng, src) => { if (!settled) { settled = true; disarm(); resolve({ lat, lng, src }); } };
+    const bad = (err) => { if (!settled) { settled = true; disarm(); resolve({ fail: true, err: err || null }); } };
+    const ipPromise = lpIpLocate(); // 预发起(它有 8s abort,不会挂)
     // ③ IP 定位(城市级兜底,服务端按访客 IP 反查,无权限限制)
     const tryIp = () => {
+      disarm();
       say('改用 IP 定位(城市级)…');
-      lpIpLocate().then((ip) => (ip ? ok(ip.lat, ip.lng, 'ip') : bad()));
+      ipPromise.then((ip) => (ip ? ok(ip.lat, ip.lng, 'ip') : bad()));
     };
     // ② 高德定位(基站/WiFi 三角,国内可靠);精度低(>300m)继续降级
     const tryAmap = () => {
       say('改用高德定位…');
+      arm(AMAP_MS, () => { say('高德定位超时,改用 IP 定位…'); tryIp(); });
       lpAmapLocate().then((g) => {
+        if (settled) return;
         if (!g) { tryIp(); return; }
         if (g.accuracy != null && g.accuracy > 300) { say('高德定位精度低,改用 IP 定位…'); tryIp(); return; }
         ok(g.lat, g.lng, 'amap');
@@ -276,13 +317,16 @@ function lpLocateSmart(onStatus) {
     // 微信内置浏览器:getCurrentPosition 被屏蔽,直接 IP 城市级
     if (/MicroMessenger/i.test(navigator.userAgent)) {
       say('微信内无法精确定位,改用 IP 定位(城市级)…');
-      lpIpLocate().then((ip) => (ip ? ok(ip.lat, ip.lng, 'ip') : bad()));
+      ipPromise.then((ip) => (ip ? ok(ip.lat, ip.lng, 'ip') : bad()));
       return;
     }
     if (!navigator.geolocation) { tryAmap(); return; }
     // ① 浏览器原生定位:同步启动,手势激活期内 Chrome 才会弹权限框
+    say('正在获取浏览器定位(首次会弹出位置权限,请点允许)…');
+    arm(NATIVE_MS, () => { say('浏览器定位超时,改用高德精确…'); tryAmap(); });
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        if (settled) return;
         // accuracy>300m 视为低精度(国产浏览器常返回网络估位)→ 走高德
         if (pos.coords.accuracy != null && pos.coords.accuracy > 300) {
           say('浏览器定位精度低,改用高德精确定位…');
@@ -294,11 +338,15 @@ function lpLocateSmart(onStatus) {
           .then((g) => ok(g.lat, g.lng, 'gps'))
           .catch(() => tryAmap());
       },
-      (err) => tryAmap(), // 超时/服务不可用/权限被拒 → 全部继续降级(高德→IP)
+      (err) => { if (!settled) tryAmap(); }, // 超时/服务不可用/权限被拒 → 全部继续降级(高德→IP)
       // enableHighAccuracy:true = GPS 精确定位;false 网络定位飘几个街区
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
     );
   });
+  rec.promise = promise;
+  promise.then(() => { if (lpLocateInFlight === rec) lpLocateInFlight = null; });
+  lpLocateInFlight = rec;
+  return promise;
 }
 
 /* 路线获取(海外→OSRM;国内→driving → walking → OSRM → 直线):
