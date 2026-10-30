@@ -1,0 +1,3 @@
+[submodule "android-app"]
+	path = android-app
+	url = https://github.com/SomethingRed7/gugugaga-android.git

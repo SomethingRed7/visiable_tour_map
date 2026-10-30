@@ -24,21 +24,36 @@
       + '<path d="M12 1.8C7.4 1.8 3.7 5.5 3.7 10.1c0 5.6 6.8 12.6 7.4 13.3.5.5 1.3.5 1.8 0 .6-.7 7.4-7.7 7.4-13.3C20.3 5.5 16.6 1.8 12 1.8z" fill="#e11d48"/>'
       + '<circle cx="12" cy="10" r="3.1" fill="#fff"/></svg>';
   }
+  /* Leaflet 加载:本地 vendor + CSS/JS 并行
+   * 原来走 jsdelivr,而且是「JS onload 里才插 CSS」的串行写法:实测 JS 1.6s、CSS 0.7s,
+   * 地图出现要 2s 以上,国内网络一动就更久。现在改成同源 vendor/ 且两件事同时发起。
+   * ⚠️ 路径必须是绝对 /vendor/,分享页(/s/token)是另一层路径,相对路径会 404。
+   * ⚠️ 改这里要同步 loc-picker.js 里的兜底实现。 */
   function loadLeaflet() {
-    return new Promise((resolve, reject) => {
-      if (window.L) return resolve();
-      const s = document.createElement('script');
-      s.src = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js';
-      s.onload = () => {
-        const l = document.createElement('link');
-        l.rel = 'stylesheet';
-        l.href = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';
-        document.head.appendChild(l);
-        resolve();
-      };
-      s.onerror = reject;
-      document.head.appendChild(s);
-    });
+    if (window.L) return Promise.resolve();
+    if (!window.__ggLeafletP) {
+      window.__ggLeafletP = new Promise((resolve, reject) => {
+        const cssDone = new Promise((res) => {
+          const l = document.createElement('link');
+          l.rel = 'stylesheet';
+          l.href = '/vendor/leaflet.css?v=20261030a';
+          l.onload = res;
+          l.onerror = res; // 样式拿不到也别卡住地图,只是丑一点
+          document.head.appendChild(l);
+        });
+        const jsDone = new Promise((res, rej) => {
+          const s = document.createElement('script');
+          s.src = '/vendor/leaflet.min.js?v=20261030a';
+          s.onload = res;
+          s.onerror = rej;
+          document.head.appendChild(s);
+        });
+        Promise.all([cssDone, jsDone]).then(resolve).catch(reject);
+      });
+      // 失败不缓存,下次调用可重试
+      window.__ggLeafletP.catch(() => { window.__ggLeafletP = null; });
+    }
+    return window.__ggLeafletP;
   }
   /* 条目时间戳:优先 ts,退化从照片路径提取(与原 app.js entryTs 一致) */
   function entryTs(e) {

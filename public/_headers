@@ -1,5 +1,6 @@
 # Cloudflare Pages 安全响应头(全站)
-# CSP 覆盖:同源脚本/样式 + Leaflet(jsdelivr)+ 高德 JS API(webapi.amap.com)
+# CSP 覆盖:同源脚本/样式 + 高德 JS API(webapi.amap.com)
+# Leaflet 已本地化到 /vendor/;仍保留 cdn.jsdelivr.net 是因为「导出独立 HTML」和二维码库(qrious)还在用它
 # 高德瓦片(webrd0{1-4}.is.autonavi.com)、OSM 瓦片(tile.openstreetmap.org)、照片预览(blob:)、AMap 服务(restapi.amap.com)
 # Nominatim / Photon / BigDataCloud 反查(浏览器直连兜底)、Overpass 附近 POI 查
 /*
@@ -8,3 +9,29 @@
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   Referrer-Policy: strict-origin-when-cross-origin
   X-Content-Type-Options: nosniff
+
+# ---------- 缓存 ----------
+# HTML 不缓存:改完 deploy 要立刻生效(Cloudflare 默认就是 no-cache,这里显式写死防误改)
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+/
+  Cache-Control: public, max-age=0, must-revalidate
+
+# JS/CSS 一律带 ?v=YYYYMMDDx 版本号,可长缓存。
+# ⚠️ 改完 public/ 下的 js/css 必须 bump 引用处的版本号,否则手机拿的是旧文件(现约定见 CLAUDE.md)
+/*.js
+  Cache-Control: public, max-age=2592000, immutable
+/*.css
+  Cache-Control: public, max-age=2592000, immutable
+
+# Service Worker 不在这里配:/sw.js 由 functions/sw.js/index.js 接管并强制 no-store。
+# 原因:Pages 的 _headers 多条规则命中同一路径时是「拼接」而非「覆盖」,
+# /*.js 的 30 天缓存会跟 no-cache 拼在一起且排在前,SW 一旦长缓存就再也更新不了。
+
+# Leaflet 的 marker 图片(不匹配上面的 *.js/*.css,单独给长缓存)
+/vendor/images/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# 安装包:文件名固定(gugugaga.apk),内容随版本替换 —— 缓存住就会装到旧版,必须每次回源
+/download/*
+  Cache-Control: no-store

@@ -19,6 +19,28 @@ function todayStr() {
 }
 let allTodos = [];         // 私有待办(仅登录后拉取)
 
+/* 条目本地缓存:让「打开就有内容」不再干等跨境往返
+ * 实测 pages.dev 每个请求 TTFB 0.8s+,首屏死等 /api/entries 就是 1s 起步。
+ * 先用上次的结果点亮界面,最新数据到了再静默覆盖 —— 数据以服务端为准,缓存只负责首屏占位。
+ * v1:字段结构变动时改版本号,老缓存自动作废。 */
+const ENTRIES_CACHE_KEY = '_ggEntriesCacheV1';
+const ENTRIES_CACHE_TTL = 7 * 864e5; // 超过一周的缓存不用(先显示陈旧内容再被覆盖,不如直接等)
+function readEntriesCache() {
+  try {
+    const raw = localStorage.getItem(ENTRIES_CACHE_KEY);
+    if (!raw) return null;
+    const o = JSON.parse(raw);
+    if (!o || o.v !== 1 || !Array.isArray(o.entries)) return null;
+    if (Date.now() - (o.ts || 0) > ENTRIES_CACHE_TTL) return null;
+    return o.entries;
+  } catch { return null; }
+}
+function writeEntriesCache(entries) {
+  try {
+    localStorage.setItem(ENTRIES_CACHE_KEY, JSON.stringify({ v: 1, ts: Date.now(), entries }));
+  } catch { /* 隐私模式/配额满:缓存不到就算了,不影响主流程 */ }
+}
+
 function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
@@ -197,6 +219,7 @@ async function refreshAll(savedEntry) {
   try {
     const data = await (await fetch('/api/entries')).json();
     allEntries = data.entries || [];
+    writeEntriesCache(allEntries);
   } catch { /* 保留旧数据 */ }
   const ds = savedEntry && savedEntry.date;
   if (ds) {
@@ -337,11 +360,12 @@ function renderDayMap(dayEntries) {
 }
 
 /* ---------- 私有待办(规划打卡;仅登录用户可见) ---------- */
-async function initPortalUser() {
+/* authP:init() 里已经并行发出的 /api/auth 请求(传进来复用,避免同一份数据再跑一趟跨境) */
+async function initPortalUser(authP) {
   const box = $('#portal-user');
   if (!box) return;
   try {
-    const res = await (await fetch('/api/auth')).json();
+    const res = await (authP || fetch('/api/auth').then((r) => r.json()));
     currentUser = res.user || null;
   } catch { currentUser = null; }
   if (currentUser) {
@@ -1153,25 +1177,11 @@ function setupLightbox() {
 async function loadEntries() {
   const data = await (await fetch('/api/entries')).json();
   allEntries = data.entries || [];
+  writeEntriesCache(allEntries);
 }
 
-/* ---------- 启动 ---------- */
-async function init() {
-  await loadEntries();
-  setupLightbox();
-  // 打卡弹窗按钮(静态元素,只绑一次)
-  $('#ckin-save').addEventListener('click', () => submitCheckin());
-  $('#ckin-locate').addEventListener('click', locateCheckin);
-  $('#ckin-map').addEventListener('click', openCkinMap);
-  // 点击阴影区关闭(e.target 是遮罩本身,弹窗内部点击不触发)
-  $('#ckin-modal').addEventListener('click', (e) => {
-    if (e.target === $('#ckin-modal')) closeCheckinModal();
-  });
-  initCalendar();
-  initTabs();
-  initDayNav(); // 当日面板底部「前一天/后一天」
-  initPortalUser(); // 探测登录态 + 拉私有待办(待办橙点/待办区仅登录可见)
-
+/* 首屏定位:决定停在哪个月、选中哪一天(?date= 由上传成功跳转带来) */
+function paintFirstScreen() {
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const urlDate = new URLSearchParams(location.search).get('date');
@@ -1189,7 +1199,72 @@ async function init() {
   }
 }
 
+/* ---------- 启动 ---------- */
+async function init() {
+  // 1) 事件绑定先做完:缓存渲染出来的界面也要能点日历、翻页、开弹窗
+  setupLightbox();
+  // 首页刷新按钮:重拉条目 + 重绘(未登录也能用,和「记一把」保存后的刷新是同一个函数)
+  const refreshBtn = $('#btn-refresh');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', async () => {
+      if (refreshBtn.classList.contains('is-loading')) return; // 防连点
+      refreshBtn.classList.add('is-loading');
+      try {
+        await refreshAll();
+      } catch { /* 网络失败就保持原样,不清空已有内容 */ }
+      refreshBtn.classList.remove('is-loading');
+    });
+  }
+  // 打卡弹窗按钮(静态元素,只绑一次)
+  $('#ckin-save').addEventListener('click', () => submitCheckin());
+  $('#ckin-locate').addEventListener('click', locateCheckin);
+  $('#ckin-map').addEventListener('click', openCkinMap);
+  // 点击阴影区关闭(e.target 是遮罩本身,弹窗内部点击不触发)
+  $('#ckin-modal').addEventListener('click', (e) => {
+    if (e.target === $('#ckin-modal')) closeCheckinModal();
+  });
+  initCalendar();
+  initTabs();
+  initDayNav(); // 当日面板底部「前一天/后一天」
+
+  // 2) 登录态探测与条目拉取并行,别串成两个跨境往返(探到登录还要再拉待办,那是第三步)
+  const authP = fetch('/api/auth').then((r) => r.json()).catch(() => ({ user: null }));
+  initPortalUser(authP); // 探测登录态 + 拉私有待办(待办橙点/待办区仅登录可见)
+
+  // 3) 有缓存就先点亮界面:这一步不碰网络,打开即见内容
+  const cached = readEntriesCache();
+  if (cached) {
+    allEntries = cached;
+    paintFirstScreen();
+  }
+
+  // 4) 再拉最新数据;到了静默覆盖,失败了就继续用缓存顶着
+  try {
+    await loadEntries();
+  } catch (err) {
+    if (!cached) throw err; // 没有缓存可顶才报错
+    return;
+  }
+  if (cached) {
+    renderCalendar(); // 日历蓝点可能新增
+    if (selectedDate) renderDayEntries(selectedDate);
+  } else {
+    paintFirstScreen(); // 无缓存:等数据到齐再一次性渲染
+  }
+}
+
 init().catch((err) => {
   console.error(err);
   $('#day-entries').innerHTML = `<p class="empty">加载失败:${esc(err.message)}</p>`;
 });
+
+/* Service Worker:把 HTML/JS/CSS 缓到本地,二次打开不再等跨境往返
+ * (pages.dev 国内无边缘节点,每次请求都要跨境,实测 0.8~6.5s)
+ * 只在安全上下文注册:线上 https、app 的 WebView、本机 localhost 都满足。
+ * 注册失败或浏览器不支持都只是「回到原来的速度」,不影响功能。 */
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname))) {
+  window.addEventListener('load', () => {
+    // 注意是 /swjs 不是 /sw.js:静态 sw.js 会被 _headers 的 30 天长缓存焊死,交给 Functions 下发
+    navigator.serviceWorker.register('/swjs').catch(() => { /* 忽略:不影响使用 */ });
+  });
+}

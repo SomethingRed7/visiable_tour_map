@@ -48,7 +48,7 @@
 /* 管理页头部不做吸顶:常驻高度留给吸顶的 tab 栏(手机屏宝贵) */
 .admin-page .site-header {
   position: static;
-  padding: 10px 16px;
+  padding: 8px 16px;
   background: #fff;
   backdrop-filter: none;
 }
@@ -70,9 +70,9 @@
   border-radius: 999px;
   border-color: var(--adm-line-2);
   background: #fff;
-  padding: 7px 14px;
+  padding: 6px 13px;
   font-size: 0.84rem;
-  min-height: 34px;
+  min-height: 32px;
 }
 
 /* ---------- 2. 分段 tab 栏(吸顶 · 可横滑) ---------- */
@@ -83,14 +83,15 @@
   display: flex;
   flex-wrap: nowrap; /* .panel-tabs 默认 wrap,窄屏会把 5 个 tab 折成两排 —— 这里必须横滑 */
   gap: 4px;
-  margin: 0 -16px 12px;
-  padding: 8px 16px;
+  margin: 0 -16px 8px;
+  padding: 7px 16px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   background: rgba(244, 245, 247, 0.94);
   backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--adm-line-2);
+  /* 不再画分隔线:栏底色和页面同色,靠留白分区就够,多一条线只会更挤 */
+  border-bottom: none;
   border-top: none;
 }
 .admin-page .adm-tabbar::-webkit-scrollbar { display: none; }
@@ -120,6 +121,15 @@
   padding: 14px;
   border: 1px solid var(--adm-line);
 }
+/* 条目列表不再套一层白卡:页面上只保留条目自身那层白,层次立刻清爽。
+ * 原来是「灰底 → 白 panel → 白条目卡」三层,全靠 1px 线区分,看着就憋。 */
+.admin-page #tab-manage {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 0;
+}
 .admin-page .tab-pane { padding-top: 0; }
 .admin-page .panel-heading {
   font-size: 1rem;
@@ -139,21 +149,21 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 .admin-page .adm-toolbar-btn {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   font: inherit;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   font-weight: 500;
   color: var(--adm-ink-2);
   background: #fff;
   border: 1px solid var(--adm-line-2);
   border-radius: 999px;
-  padding: 7px 13px;
-  min-height: 36px;
+  padding: 5px 12px;
+  min-height: 32px;
   cursor: pointer;
 }
 .admin-page .adm-toolbar-btn:active { background: #f9fafb; }
@@ -213,7 +223,9 @@
 /* 日期分组:每组一个容器,组头上的 sticky 才会被下一组「顶出去」而不是叠起来 */
 .admin-page .adm-group { display: flex; flex-direction: column; }
 
-/* 日期分组头:吸顶,滚动时始终知道自己在哪天 */
+/* 日期分组头:吸顶,滚动时始终知道自己在哪天。
+ * 底色用页面背景色(不是白):它更像一个「分组标题」而不是又一块卡片,
+ * 吸顶时照样能盖住下面的白卡。 */
 .admin-page .adm-date-head {
   position: sticky;
   top: var(--tabh, 53px);
@@ -221,16 +233,18 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 12px -14px 8px;
-  padding: 6px 14px;
-  font-size: 0.78rem;
+  margin: 20px 0 9px;
+  padding: 6px 0;
+  font-size: 0.76rem;
   font-weight: 700;
   color: var(--adm-ink-2);
-  background: rgba(255, 255, 255, 0.96);
+  background: rgba(244, 245, 247, 0.97);
   backdrop-filter: blur(6px);
-  border-bottom: 1px solid var(--adm-line);
+  border-bottom: none;
 }
-.admin-page .adm-date-head:first-child { margin-top: 0; }
+/* 只有整个列表的第一个组头才贴齐顶部;其余组之间留出 20px 分组呼吸
+ * (原来用的是 :first-child,而每个 group 里组头都是第一个子元素,等于所有组头都没有上间距) */
+.admin-page .adm-list > .adm-group:first-child .adm-date-head { margin-top: 0; }
 .admin-page .adm-date-head em {
   font-style: normal;
   font-weight: 500;
@@ -243,11 +257,11 @@
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  padding: 11px 10px 11px 12px;
+  padding: 13px 14px;
   border-radius: var(--adm-r-md);
   border: 1px solid var(--adm-line);
   background: #fff;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
   transition: background 0.12s, border-color 0.12s;
 }
 .admin-page .adm-item:last-child { margin-bottom: 0; }
@@ -285,7 +299,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 8px;
-  margin-top: 3px;
+  margin-top: 6px;
   font-size: 0.75rem;
   color: var(--adm-ink-3);
 }
@@ -325,7 +339,7 @@
   display: flex;
   align-items: center;
   gap: 5px;
-  margin-top: 7px;
+  margin-top: 9px;
 }
 .admin-page .adm-thumbs img {
   width: 52px;
@@ -917,3 +931,19 @@
   .admin-page .adm-fab { right: 24px; }
   .admin-page .layout { padding-bottom: 60px; }
 }
+
+/* ---------- 应用内更新入口(仅 Android app 内可见) ----------
+ * 默认带 hidden,由 upload.js 检测到原生插件后才显示。
+ * 注意 display:flex 会盖掉 [hidden] 的默认样式,必须显式再声明一次。 */
+.app-update {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 20px auto 6px;
+  font-size: 12px;
+  color: var(--adm-ink-3, #9a8f83);
+}
+.app-update[hidden] { display: none; }
+.app-update-ver { letter-spacing: .02em; }
+.app-update .btn-small { min-height: 30px; padding: 0 12px; font-size: 12px; }

@@ -150,6 +150,14 @@ function emLocate() {
     input.value = `${g.lat.toFixed(5)},${g.lng.toFixed(5)}`;
     // 城市级兜底(IP)只能给个大致位置,明确提示去地图微调,别让人以为这就是门口
     st.textContent = g.src === 'ip' ? 'IP 定位(城市级,可能偏差几个街区),可点「🗺️ 地图」微调' : '';
+
+    // app 内原生定位自带 POI/地址:直接用,省掉一次跨境反查(而且比反查更准)
+    const nativeName = (g.poi || g.address || '').trim();
+    if (nativeName) {
+      input.value = nativeName.slice(0, 80);
+      return;
+    }
+
     try {
       const r = await (await fetch(`/api/geocode?lat=${g.lat}&lng=${g.lng}`)).json();
       const res = r.results && r.results[0];

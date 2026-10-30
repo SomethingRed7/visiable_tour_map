@@ -75,21 +75,36 @@ let pickerMarker = null;
 let amapKey = '';      // 高德 JS key(经 /api/config 下发;空=纯浏览器定位)
 let amapSecurity = ''; // 高德安全密钥 securityJsCode(2021 后服务必需)
 
+/* Leaflet 加载:index/write/export 页已引 map-common.js(唯一真源),优先委托给它;
+ * edit.html 没有 map-common,这里留一份等价兜底。两处加载逻辑必须同步
+ * (本地 vendor + CSS/JS 并行,绝对路径 —— 分享页在 /s/token 下,相对路径会 404)。 */
 function loadLeaflet() {
-  return new Promise((resolve, reject) => {
-    if (window.L) return resolve();
-    const s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js';
-    s.onload = () => {
-      const l = document.createElement('link');
-      l.rel = 'stylesheet';
-      l.href = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';
-      document.head.appendChild(l);
-      resolve();
-    };
-    s.onerror = reject;
-    document.head.appendChild(s);
-  });
+  if (typeof window.loadLeaflet === 'function' && window.loadLeaflet !== loadLeaflet) {
+    return window.loadLeaflet();
+  }
+  if (window.L) return Promise.resolve();
+  if (!window.__ggLeafletP) {
+    window.__ggLeafletP = new Promise((resolve, reject) => {
+      const cssDone = new Promise((res) => {
+        const l = document.createElement('link');
+        l.rel = 'stylesheet';
+        l.href = '/vendor/leaflet.css?v=20261030a';
+        l.onload = res;
+        l.onerror = res;
+        document.head.appendChild(l);
+      });
+      const jsDone = new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = '/vendor/leaflet.min.js?v=20261030a';
+        s.onload = res;
+        s.onerror = rej;
+        document.head.appendChild(s);
+      });
+      Promise.all([cssDone, jsDone]).then(resolve).catch(reject);
+    });
+    window.__ggLeafletP.catch(() => { window.__ggLeafletP = null; });
+  }
+  return window.__ggLeafletP;
 }
 /* 坐标系:应用存 GCJ-02,OSM 瓦片是 WGS-84;仅中国境内换算(海外点位本就是 WGS-84) */
 function inChina(lat, lng) { return lng > 73 && lng < 136 && lat > 3 && lat < 55; }
@@ -215,6 +230,28 @@ async function lpAmapLocate() {
   } catch { return null; }
 }
 
+/* app 内原生定位(高德 Android SDK,见 AmapLocatorPlugin.java)。
+ * 返回 GCJ-02 {lat,lng,accuracy,address,poi,city};非 app 环境或插件不存在返回 null。
+ * 地址是 SDK 直接给的,比之后再用 /api/geocode 反查更快也更准。 */
+async function lpNativeLocate() {
+  try {
+    const cap = window.Capacitor;
+    if (!cap || typeof cap.isNativePlatform !== 'function' || !cap.isNativePlatform()) return null;
+    const p = cap.Plugins && cap.Plugins.AmapLocator;
+    if (!p) return null;                       // 老版本 app 还没装这个插件
+    const r = await p.getLocation();
+    if (!r || !Number.isFinite(r.lat) || !Number.isFinite(r.lng)) return null;
+    return {
+      lat: r.lat,
+      lng: r.lng,
+      accuracy: (typeof r.accuracy === 'number') ? r.accuracy : null,
+      address: r.address || '',
+      poi: r.poi || '',
+      city: r.city || '',
+    };
+  } catch { return null; }
+}
+
 /* IP 定位(城市级兜底):服务端按访客 IP 反查(高德 v3/ip),无权限限制必成功。
  * 返回 GCJ-02 {lat,lng,city};失败 resolve(null)。精确定位失败后用它兜底,
  * 让选点器/附近推荐从城市中心开始,而不是每次从全国 [35,105] 开始。 */
@@ -227,7 +264,9 @@ async function lpIpLocate() {
     const d = await r.json();
     if (d && d.ok && Number.isFinite(d.lat) && Number.isFinite(d.lng)) {
       lpCityCache = d.city || '';
-      return { lat: d.lat, lng: d.lng, city: d.city || '' };
+      // 高德给的是 GCJ-02 直接用;Cloudflare 兜底给 WGS-84,要转一次(海外点位 fromWgs 内部会跳过)
+      const p = d.crs === 'wgs' ? fromWgs(d.lat, d.lng) : { lat: d.lat, lng: d.lng };
+      return { lat: p.lat, lng: p.lng, city: d.city || '' };
     }
     return null;
   } catch { return null; }
@@ -294,14 +333,15 @@ function lpLocateSmart(onStatus) {
     let watchdog = null;
     const disarm = () => { if (watchdog) { clearTimeout(watchdog); watchdog = null; } };
     const arm = (ms, fn) => { disarm(); watchdog = setTimeout(() => { watchdog = null; if (!settled) fn(); }, ms); };
-    const ok = (lat, lng, src) => { if (!settled) { settled = true; disarm(); resolve({ lat, lng, src }); } };
+    const ok = (lat, lng, src, extra) => { if (!settled) { settled = true; disarm(); resolve({ lat, lng, src, ...(extra || {}) }); } };
     const bad = (err) => { if (!settled) { settled = true; disarm(); resolve({ fail: true, err: err || null }); } };
-    const ipPromise = lpIpLocate(); // 预发起(它有 8s abort,不会挂)
-    // ③ IP 定位(城市级兜底,服务端按访客 IP 反查,无权限限制)
+    // ③ IP 定位(城市级兜底,服务端按访客 IP 反查,无权限限制)。
+    // ⚠️ 不能像以前那样提前发起:最坏链路是 原生 9s + 高德 11s,而 lpIpLocate 内部 8s 就 abort,
+    //    预发起等于轮到它时早就作废 → 三层全挂、只显示「定位失败」。必须到点再发。
     const tryIp = () => {
       disarm();
       say('改用 IP 定位(城市级)…');
-      ipPromise.then((ip) => (ip ? ok(ip.lat, ip.lng, 'ip') : bad()));
+      lpIpLocate().then((ip) => (ip ? ok(ip.lat, ip.lng, 'ip') : bad()));
     };
     // ② 高德定位(基站/WiFi 三角,国内可靠);精度低(>300m)继续降级
     const tryAmap = () => {
@@ -317,7 +357,24 @@ function lpLocateSmart(onStatus) {
     // 微信内置浏览器:getCurrentPosition 被屏蔽,直接 IP 城市级
     if (/MicroMessenger/i.test(navigator.userAgent)) {
       say('微信内无法精确定位,改用 IP 定位(城市级)…');
-      ipPromise.then((ip) => (ip ? ok(ip.lat, ip.lng, 'ip') : bad()));
+      tryIp();
+      return;
+    }
+    // Capacitor 套壳 app:WebView 的 geolocation 底层依赖 Google 服务,国内机型基本必然失败。
+    // 优先调原生高德定位插件(系统定位+基站/WiFi,不依赖 Google);插件不可用(老版本 app)
+    // 或失败时,退回高德 JS → IP 城市级。
+    const inApp = !!(window.Capacitor
+      && typeof window.Capacitor.isNativePlatform === 'function'
+      && window.Capacitor.isNativePlatform());
+    if (inApp) {
+      say('app 内使用原生定位…');
+      arm(NATIVE_MS, () => { say('原生定位超时,改用高德…'); tryAmap(); });
+      lpNativeLocate().then((g) => {
+        if (settled) return;
+        if (!g) { say('原生定位不可用,改用高德…'); tryAmap(); return; }
+        // 高德 SDK 返回的就是 GCJ-02,不需要再校准
+        ok(g.lat, g.lng, 'native', { accuracy: g.accuracy, address: g.address, poi: g.poi, city: g.city });
+      });
       return;
     }
     if (!navigator.geolocation) { tryAmap(); return; }

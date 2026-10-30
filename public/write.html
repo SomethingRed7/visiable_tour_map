@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#f4f5f7">
   <title>管理 · 咕咕嘎嘎</title>
-  <link rel="stylesheet" href="style.css?v=20260925a">
-  <link rel="stylesheet" href="admin.css?v=20260927a">
+  <link rel="stylesheet" href="style.css?v=20261030c">
+  <link rel="stylesheet" href="admin.css?v=20261030b">
 </head>
 <body class="write-page admin-page">
   <header class="site-header">
@@ -304,6 +304,12 @@
     </div>
   </div>
 
+  <!-- 应用内更新入口:只在 Android app 里显示(浏览器没有原生插件,整块保持隐藏) -->
+  <div class="app-update" id="app-update" hidden>
+    <span class="app-update-ver" id="app-version"></span>
+    <button type="button" id="btn-app-update" class="btn-small">检查更新</button>
+  </div>
+
   <footer class="site-footer">咕咕嘎嘎 · 记录每一段在路上</footer>
 
   <div id="lightbox" class="lightbox" aria-hidden="true"><img alt="查看大图"></div>
@@ -311,9 +317,9 @@
 
     <script src="api.js?v=20260825"></script>
     <script src="photo.js?v=20260917a"></script>
-  <script src="map-common.js?v=20260925a"></script>
-  <script src="loc-picker.js?v=20260927a"></script>
-  <script src="entry-modal.js?v=20260925a"></script>
-  <script src="upload.js?v=20260927b"></script>
+  <script src="map-common.js?v=20261030a"></script>
+  <script src="loc-picker.js?v=20261030c"></script>
+  <script src="entry-modal.js?v=20261030a"></script>
+  <script src="upload.js?v=20261030a"></script>
 </body>
 </html>

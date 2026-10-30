@@ -19,3 +19,15 @@ node_modules/
 
 # macOS
 .DS_Store
+
+# app 自更新用的安装包(每次发版由 publish-app.sh 生成并部署,不进仓库)
+public/download/
+
+# ---------- Android 壳工程 ----------
+# android-app/ 已独立为 git submodule(私有仓库 SomethingRed7/gugugaga-android),
+# 它自己的 .gitignore 负责 node_modules / 构建产物 / 签名材料 / local.properties。
+# 这里不需要也不应该再管它。
+
+# 兜底:公开仓库里绝不出现签名材料(即使以后不小心在根目录生成)
+*.jks
+*.keystore

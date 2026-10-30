@@ -1274,3 +1274,40 @@ initMgrTools(); // 管理条目工具行(日期过滤/每页条数/翻页),静�
 initManageTabs(); // 管理区 Tab(默认管理条目)
 initAuth();
 renderRecent();
+
+/* ---------- 应用内更新入口(仅 Android app 内出现) ----------
+ * 原生插件:GuguUpdaterPlugin.java(暴露 getVersion / checkUpdate)。
+ * 为什么不让网页自己查接口再下载:WebView 里下载 apk 走不了系统下载器(没进度通知),
+ * 也没法拉起安装界面 —— 判断可以给网页,执行必须留在原生。
+ * 老版本 app(1.2 及以前)没注册这个插件,拿不到就整块不显示,浏览器里同样不显示。 */
+(function initAppUpdater() {
+  const cap = window.Capacitor;
+  if (!cap || typeof cap.isNativePlatform !== 'function' || !cap.isNativePlatform()) return;
+
+  let plugin = null;
+  try { plugin = cap.Plugins && cap.Plugins.GuguUpdater; } catch { plugin = null; }
+  if (!plugin) return;
+
+  const box = document.getElementById('app-update');
+  const verEl = document.getElementById('app-version');
+  const btn = document.getElementById('btn-app-update');
+  if (!box || !btn) return;
+
+  box.hidden = false;
+
+  try {
+    plugin.getVersion()
+      .then((r) => { if (verEl && r && r.versionName) verEl.textContent = '当前 v' + r.versionName; })
+      .catch(() => { /* 拿不到就不显示版本号,不影响按钮 */ });
+  } catch { /* 忽略 */ }
+
+  btn.addEventListener('click', () => {
+    btn.disabled = true;
+    btn.textContent = '检查中…';
+    try {
+      // 结果由原生 Toast / 弹窗呈现,这里只负责把按钮恢复
+      plugin.checkUpdate().catch(() => {});
+    } catch { /* 忽略 */ }
+    setTimeout(() => { btn.disabled = false; btn.textContent = '检查更新'; }, 1500);
+  });
+})();
