@@ -1576,34 +1576,31 @@ body.lb-open { overflow: hidden; }
   }
 }
 
-/* ---------- 首页刷新按钮 ----------
- * 独立于登录态:未登录也能刷新。点一下重拉条目并重绘(走 app.js 的 refreshAll)。
- * 旋转动画只在请求期间转,结束后停 —— 不做无限转,免得看起来像卡住了。 */
-.header-right {
+/* ---------- 下拉刷新 ----------
+ * WebView 和浏览器都没有可用的原生下拉刷新(Chrome 那个是整页重载,会丢状态),
+ * 所以在 app.js 里自己实现,这里只管指示器长什么样。
+ * 指示器固定在顶部、默认上移自身高度藏起来,下拉时跟着手指滑下来。 */
+.pull-refresh {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-
-.refresh-btn {
-  display: inline-flex;
-  align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  border: 1px solid var(--line, #e6e1d8);
-  border-radius: 999px;
-  background: #fff;
-  color: var(--text-2, #6b6259);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: background 0.15s, color 0.15s;
+  gap: 6px;
+  transform: translateY(-56px);
+  background: var(--bg);
+  color: var(--text-soft);
+  font-size: 0.85rem;
+  pointer-events: none;
+  z-index: 20;
+  will-change: transform;
 }
-.refresh-btn:active { background: #f7f4ef; }
-.refresh-btn svg { width: 17px; height: 17px; display: block; }
-.refresh-btn.is-loading { color: var(--brand, #e8a33d); }
-.refresh-btn.is-loading svg { animation: gg-spin 0.8s linear infinite; }
+.pull-refresh-icon { font-size: 1rem; }
+.pull-refresh.is-ready { color: var(--brand-deep, #b45309); }
+.pull-refresh.is-busy .pull-refresh-icon { animation: gg-spin 0.8s linear infinite; }
 @keyframes gg-spin { to { transform: rotate(360deg); } }
 
 /* ---------- 写日记弹窗视觉优化（2026-10-30） ----------

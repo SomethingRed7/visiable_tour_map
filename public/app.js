@@ -1203,18 +1203,6 @@ function paintFirstScreen() {
 async function init() {
   // 1) 事件绑定先做完:缓存渲染出来的界面也要能点日历、翻页、开弹窗
   setupLightbox();
-  // 首页刷新按钮:重拉条目 + 重绘(未登录也能用,和「记一把」保存后的刷新是同一个函数)
-  const refreshBtn = $('#btn-refresh');
-  if (refreshBtn) {
-    refreshBtn.addEventListener('click', async () => {
-      if (refreshBtn.classList.contains('is-loading')) return; // 防连点
-      refreshBtn.classList.add('is-loading');
-      try {
-        await refreshAll();
-      } catch { /* 网络失败就保持原样,不清空已有内容 */ }
-      refreshBtn.classList.remove('is-loading');
-    });
-  }
   // 打卡弹窗按钮(静态元素,只绑一次)
   $('#ckin-save').addEventListener('click', () => submitCheckin());
   $('#ckin-locate').addEventListener('click', locateCheckin);
@@ -1268,3 +1256,108 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || ['localho
     navigator.serviceWorker.register('/swjs').catch(() => { /* 忽略:不影响使用 */ });
   });
 }
+
+/* ---------- 下拉刷新 ----------
+ * WebView 和浏览器都没有能用的原生下拉刷新(Chrome 那个是整页重载,会丢状态、要重新登录),
+ * 所以自己实现:页面在顶部时下拉,超过阈值松手就重拉数据 —— 走「记一把」保存后同一个 refreshAll()。
+ * 三种情况必须让路:页面已经滚下去了、起点在地图或输入框上、这次手势是横向的。 */
+(function initPullToRefresh() {
+  const THRESHOLD = 72;   // 松手时位移超过它才触发
+  const MAX_PULL = 110;   // 视觉上限,给手感一个"到底"的停顿
+  const DAMP = 0.52;      // 阻尼:手指走 1px,指示器只走 0.52px
+  const H = 56;           // 指示器高度,与 style.css 的 .pull-refresh 保持一致
+
+  const el = document.createElement('div');
+  el.className = 'pull-refresh';
+  el.innerHTML = '<span class="pull-refresh-icon" aria-hidden="true">↓</span><span class="pull-refresh-text">下拉刷新</span>';
+  document.body.appendChild(el);
+
+  const icon = el.querySelector('.pull-refresh-icon');
+  const textEl = el.querySelector('.pull-refresh-text');
+
+  let startY = 0;
+  let startX = 0;
+  let dist = 0;
+  let active = false;    // 这次触摸是否由我们接管
+  let decided = false;   // 是否已判定方向
+  let busy = false;      // 刷新进行中
+
+  function place(d, animate) {
+    dist = Math.max(0, Math.min(d, MAX_PULL));
+    el.style.transition = animate ? 'transform .26s cubic-bezier(.2,.8,.3,1)' : 'none';
+    el.style.transform = `translateY(${dist - H}px)`;
+  }
+
+  function idle(animate) {
+    el.classList.remove('is-ready');
+    textEl.textContent = '下拉刷新';
+    icon.textContent = '↓';
+    place(0, animate);
+  }
+
+  document.addEventListener('touchstart', (e) => {
+    if (busy || e.touches.length !== 1) return;
+    if (window.scrollY > 0) return;                                             // 已经滚下去了
+    if (e.target.closest('.leaflet-container, input, textarea, select')) return; // 地图拖动/输入控件
+    startY = e.touches[0].clientY;
+    startX = e.touches[0].clientX;
+    active = true;
+    decided = false;
+  }, { passive: true });
+
+  document.addEventListener('touchmove', (e) => {
+    if (!active || busy) return;
+    const dy = e.touches[0].clientY - startY;
+    const dx = e.touches[0].clientX - startX;
+
+    if (!decided) {
+      // 横滑(日历横滑、tab 横滑)或上滑(正常滚动)—— 都不是下拉,直接退出
+      if (Math.abs(dx) > Math.abs(dy) || dy <= 0) { active = false; return; }
+      decided = true;
+    }
+    if (dy <= 0) { idle(true); return; }
+
+    e.preventDefault();        // 接管手势,别让页面跟着做橡皮筋
+    place(dy * DAMP, false);
+
+    const ready = dist >= THRESHOLD;
+    if (ready !== el.classList.contains('is-ready')) {
+      el.classList.toggle('is-ready', ready);
+      textEl.textContent = ready ? '松手刷新' : '下拉刷新';
+      icon.textContent = ready ? '↻' : '↓';
+    }
+  }, { passive: false });
+
+  document.addEventListener('touchend', () => {
+    if (!active) return;
+    active = false;
+    if (el.classList.contains('is-ready')) refresh();
+    else idle(true);
+  }, { passive: true });
+
+  document.addEventListener('touchcancel', () => {
+    if (!active) return;
+    active = false;
+    idle(true);
+  }, { passive: true });
+
+  async function refresh() {
+    busy = true;
+    el.classList.add('is-busy');
+    el.classList.remove('is-ready');
+    textEl.textContent = '刷新中…';
+    icon.textContent = '↻';
+    place(H, true);            // 停在完全露出的位置
+
+    const t0 = Date.now();
+    try { await refreshAll(); } catch { /* 失败也收起,已有内容保持不动 */ }
+    // 收得太快会闪一下,兜一个最短展示时间
+    const wait = Math.max(0, 420 - (Date.now() - t0));
+    if (wait) await new Promise((r) => setTimeout(r, wait));
+
+    el.classList.remove('is-busy');
+    place(0, true);
+    setTimeout(() => idle(false), 280);
+    busy = false;
+  }
+})();
