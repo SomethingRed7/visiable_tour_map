@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f4f5f7">
   <title>管理 · 咕咕嘎嘎</title>
   <link rel="stylesheet" href="style.css?v=20261030d">
-  <link rel="stylesheet" href="admin.css?v=20261030b">
+  <link rel="stylesheet" href="admin.css?v=20261030c">
 </head>
 <body class="write-page admin-page">
   <header class="site-header">
@@ -100,7 +100,7 @@
       <!-- ============ 专辑 ============ -->
       <section id="tab-album-mgr" class="panel album-manage-panel tab-pane" hidden>
         <h2 class="panel-heading">专辑</h2>
-        <p class="manage-hint">点专辑名查看条目与地图;可改名、一键设置整组公开/私密</p>
+        <p class="manage-hint">点专辑名查看条目;右侧 ⋯ 可改名或调整整组可见性</p>
         <div id="album-mgr-list" class="album-mgr-list"></div>
         <!-- 专辑查看(点专辑名展开):条目流 + 打卡地图 -->
         <div id="album-view-box" hidden>
@@ -219,6 +219,21 @@
     </div>
   </div>
 
+  <!-- 专辑动作表:把「查看条目 / 改名 / 整组改可见性」从每个专辑行收进来。
+       整组改可见性一次影响几十上百条,不该做成行内随手可点的按钮。 -->
+  <div id="album-sheet" class="adm-sheet-mask" hidden>
+    <div class="adm-sheet" role="dialog" aria-label="专辑操作">
+      <div class="adm-sheet-title"><span id="as-title">专辑</span><button type="button" id="as-close" class="adm-sheet-x">✕</button></div>
+      <p class="adm-sheet-sub" id="as-sub"></p>
+      <div class="adm-sheet-actions">
+        <button type="button" id="as-open"><i>📖</i>查看条目</button>
+        <button type="button" id="as-rename"><i>✏️</i>改名</button>
+        <button type="button" id="as-priv"><i>🔒</i>整组设为私密</button>
+        <button type="button" id="as-pub"><i>🌐</i>整组设为公开</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 日记弹窗(编辑普通条目;打卡弹窗同款) -->
   <div id="entry-modal" class="ckin-modal" hidden>
     <div class="ckin-box">
@@ -322,6 +337,6 @@
   <script src="map-common.js?v=20261030a"></script>
   <script src="loc-picker.js?v=20261030c"></script>
   <script src="entry-modal.js?v=20261030a"></script>
-  <script src="upload.js?v=20261030a"></script>
+  <script src="upload.js?v=20261030b"></script>
 </body>
 </html>

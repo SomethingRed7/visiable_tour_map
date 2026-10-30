@@ -830,23 +830,21 @@ async function renderAlbums() {
       box.innerHTML = emptyHtml('📁', '还没有专辑,在「写日记」里给条目设个专辑就会出现在这里', '✏️ 写日记', 'edit.html');
       return;
     }
-    // 可见性按钮:全私密 → 全部改公开,否则 → 全部改私密
-    // 布局:标题行(标题 + ›)在上,元信息(条数 · 可见性)在下 → 长专辑名不再被挤成省略号
+    // 每行只留两个可点区域:「名字(含统计)」和「⋯」。
+    // 原来每行还挂一个「全部改私密」描边按钮 —— 一个低频高危操作(一键改整组,
+    // 「新西兰南岛」一下就是 127 条),却做成了整页最显眼的元素:六个专辑就是六块噪音,
+    // 还特别容易误触。现在收进动作表,行本身只负责浏览。
     const rowHtml = (name, count, priv, display) => {
       const allPriv = priv === count && count > 0;
-      const visTarget = allPriv ? 'public' : 'private';
-      const visLabel = allPriv ? '全部改公开' : '全部改私密';
-      const visText = count === 0 ? '空' : allPriv ? '含私密' : priv > 0 ? `含私密 ${priv}` : '全公开';
+      const visKind = count === 0 ? 'empty' : allPriv ? 'private' : priv > 0 ? 'mixed' : 'public';
+      const visText = count === 0 ? '空' : allPriv ? '全私密' : priv > 0 ? `${priv} 条私密` : '公开';
       return `
       <div class="album-mgr-item">
         <button type="button" class="album-mgr-name" data-album="${esc(name)}" title="查看该专辑的条目与地图">
           <span class="album-mgr-row1"><span class="album-mgr-title">${esc(display)}</span><i class="album-mgr-chev" aria-hidden="true">›</i></span>
-          <span class="album-mgr-meta">${count} 条 · ${visText}</span>
+          <span class="album-mgr-meta">${count} 条 · <span class="album-mgr-vis is-${visKind}">${visText}</span></span>
         </button>
-        <span class="album-mgr-actions">
-          ${display === '未分类' ? '' : `<button type="button" class="btn-album-rename" data-album="${esc(name)}" title="改名" aria-label="改名"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>`}
-          <button type="button" class="btn-small btn-album-vis" data-album="${esc(name)}" data-vis="${visTarget}" title="把该专辑下全部条目设为${visTarget === 'private' ? '私密' : '公开'}">${visLabel}</button>
-        </span>
+        <button type="button" class="album-mgr-more" data-album="${esc(name)}" data-count="${count}" data-priv="${priv}" aria-label="更多操作" title="更多操作">⋯</button>
       </div>`;
     };
     let html = list.map((a) => rowHtml(a.album, a.count, a.privateCount || 0, a.album)).join('');
@@ -855,12 +853,64 @@ async function renderAlbums() {
       html += rowHtml('', data.uncategorized.count, data.uncategorized.privateCount || 0, '未分类');
     }
     box.innerHTML = html;
-    box.querySelectorAll('.btn-album-rename').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); renameAlbum(b.dataset.album); }));
-    box.querySelectorAll('.btn-album-vis').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); setAlbumVisibility(b.dataset.album, b.dataset.vis); }));
+    box.querySelectorAll('.album-mgr-more').forEach((b) => b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openAlbumSheet(b.dataset.album, Number(b.dataset.count) || 0, Number(b.dataset.priv) || 0);
+    }));
     // 点专辑名 → 展开该专辑的条目流 + 打卡地图(专辑查看合入专辑管理)
     box.querySelectorAll('.album-mgr-name').forEach((b) => b.addEventListener('click', () => showAlbumView(b.dataset.album)));
   } catch { box.innerHTML = emptyHtml('⚠️', '专辑加载失败,下拉刷新试试'); }
 }
+
+/* ---- 专辑动作表 ----
+ * 把「改名 / 整组改可见性 / 查看条目」从每行挪进来。专辑行本身只留浏览,操作集中在一个入口,
+ * 顺带解决误触:整组改可见性一次影响几十上百条,不该是一个随手能碰到的按钮。 */
+let asAlbum = '';
+function openAlbumSheet(album, count, priv) {
+  asAlbum = album;
+  const mask = $('#album-sheet');
+  if (!mask) return;
+
+  const title = $('#as-title');
+  const sub = $('#as-sub');
+  if (title) title.textContent = album || '未分类';
+  if (sub) {
+    const vis = count === 0 ? '空' : priv === 0 ? '全部公开' : priv === count ? '全部私密' : `${priv} / ${count} 条私密`;
+    sub.textContent = `${count} 条 · ${vis}`;
+  }
+
+  // 未分类没有 album 字段可改,也没有可展开的专辑视图
+  const noAlbum = !album;
+  ['#as-open', '#as-rename'].forEach((sel) => { const el = $(sel); if (el) el.hidden = noAlbum; });
+  // 已经是全私密/全公开的那一侧就不必再提供
+  const privBtn = $('#as-priv');
+  const pubBtn = $('#as-pub');
+  if (privBtn) privBtn.hidden = count > 0 && priv === count;
+  if (pubBtn) pubBtn.hidden = priv === 0;
+
+  mask.hidden = false;
+}
+
+function closeAlbumSheet() {
+  const mask = $('#album-sheet');
+  if (mask) mask.hidden = true;
+}
+
+/* 动作表按钮只绑一次(静态元素) */
+(function bindAlbumSheet() {
+  const mask = $('#album-sheet');
+  if (!mask) return;
+  const on = (sel, fn) => { const el = $(sel); if (el) el.addEventListener('click', fn); };
+
+  on('#as-close', closeAlbumSheet);
+  // 点遮罩空白处关闭(点内容区不关)
+  mask.addEventListener('click', (e) => { if (e.target === mask) closeAlbumSheet(); });
+
+  on('#as-open', () => { const a = asAlbum; closeAlbumSheet(); if (a) showAlbumView(a); });
+  on('#as-rename', () => { const a = asAlbum; closeAlbumSheet(); if (a) renameAlbum(a); });
+  on('#as-priv', () => { const a = asAlbum; closeAlbumSheet(); setAlbumVisibility(a, 'private'); });
+  on('#as-pub', () => { const a = asAlbum; closeAlbumSheet(); setAlbumVisibility(a, 'public'); });
+})();
 
 /* 点专辑名 → 展开专辑查看(条目流 + 地图,复用 renderAlbumView) */
 function showAlbumView(album) {

@@ -947,3 +947,42 @@
 .app-update[hidden] { display: none; }
 .app-update-ver { letter-spacing: .02em; }
 .app-update .btn-small { min-height: 30px; padding: 0 12px; font-size: 12px; }
+
+/* ---------- 专辑行：⋯ 入口 + 可见性状态色（2026-10-30） ----------
+ * 行内不再挂「全部改私密」按钮，只留一个 ⋯；状态改用颜色区分：
+ * 全公开=灰、含私密=橙、全私密=紫 —— 扫一眼就知道哪些专辑不是全公开的。 */
+.album-mgr-more {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  margin-right: -6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--adm-ink-3);
+  font-size: 19px;
+  line-height: 1;
+  border-radius: 999px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.album-mgr-more:active { background: #f3f4f6; }
+
+.album-mgr-vis.is-public { color: var(--adm-ink-3); }
+.album-mgr-vis.is-mixed { color: var(--adm-brand-deep); font-weight: 600; }
+.album-mgr-vis.is-private { color: #7c3aed; font-weight: 600; }
+
+/* 专辑面板也去掉那层白卡:和「条目」tab 保持一致 —— 页面上只留专辑行自己是白的。
+ * #album-view-box(点开专辑后的条目流)不受影响,它自己没有边框背景。 */
+.admin-page #tab-album-mgr {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 0;
+}
+/* 去掉面板 padding 后,标题和说明贴到灰底上,单独补一点左缩进 */
+.admin-page #tab-album-mgr .panel-heading { padding: 0 2px; }
+.admin-page #tab-album-mgr .manage-hint { padding: 0 2px; margin-bottom: 10px; }
