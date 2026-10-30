@@ -422,7 +422,7 @@ body {
   overflow-y: auto;
   box-sizing: border-box;
 }
-.ckin-head { font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ckin-head { font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .btn-danger { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
 .ckin-existing { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .ckin-existing .ckin-old {
@@ -455,8 +455,7 @@ body {
   margin-bottom: 8px;
   font-family: inherit;
 }
-.ckin-photos { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-.ckin-photos .ckin-add {
+.ckin-photos { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }.ckin-photos .ckin-add {
   border: 1px dashed var(--line);
   border-radius: 8px;
   padding: 10px;
@@ -1606,3 +1605,84 @@ body.lb-open { overflow: hidden; }
 .refresh-btn.is-loading { color: var(--brand, #e8a33d); }
 .refresh-btn.is-loading svg { animation: gg-spin 0.8s linear infinite; }
 @keyframes gg-spin { to { transform: rotate(360deg); } }
+
+/* ---------- 写日记弹窗视觉优化（2026-10-30） ----------
+ * 原来每个字段都靠 margin-bottom 平铺堆叠：标题贴着日期、正文后面紧接属性、
+ * 地点行三个控件抢宽度、关闭按钮长得像主操作、发布沉在右下角一个灰胶囊里。
+ * 通篇读下来「一长串」，眼睛找不到落点。这里只调视觉，不动 DOM 结构。 */
+
+/* 标题 ×：原本是个带边框的小胶囊，视觉重量比「写日记」这个标题还重 */
+.ckin-x {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-soft, #8a8177);
+  font-size: 17px;
+  line-height: 1;
+  border-radius: 999px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.ckin-x:active { background: rgba(0, 0, 0, 0.06); }
+
+/* 正文：手机上没法拖拽改高度，右下角那个斜纹手柄纯属碍眼；
+   顺便多留 14px 底距，把「内容」和下面的「属性」自然分开 */
+.ckin-box textarea#em-text {
+  resize: none;
+  min-height: 110px;
+  line-height: 1.55;
+  margin-bottom: 14px;
+}
+.ckin-box input[type="date"] { min-height: 40px; }
+
+/* 地点行：原来「地点 + 📍定位 + 🗺️地图」三个抢宽度，输入框只剩一百来像素。
+   按钮缩成方形图标，输入框拿到两倍宽度；含义靠 title / aria-label。 */
+.ckin-loc-row { gap: 8px; margin-bottom: 10px; }
+.ckin-loc-row .ckin-icon-btn {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line, #e6e1d8);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.ckin-loc-row .ckin-icon-btn:active { background: #f7f4ef; }
+
+/* 发布：主操作不该比「选择」还弱 */
+#em-save {
+  width: 100%;
+  min-height: 44px;
+  border: none;
+  border-radius: 12px;
+  background: var(--brand, #c2410c);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+#em-save:disabled { opacity: 0.55; }
+
+/* 「日期」原来是标签在上、输入框占整行的竖排，而下面「可见性/专辑」
+   是标签在左的横排，同一张表单出现两种排法。统一成横排后也省下一行高度。
+   发布按钮上方多留 6px —— 它是整屏最重的一块，贴着照片会显得局促。 */
+.ckin-vis-row input[type="date"] {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+  min-height: 38px;
+}
+.ckin-actions { margin-top: 6px; }

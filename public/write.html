@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#f4f5f7">
   <title>管理 · 咕咕嘎嘎</title>
-  <link rel="stylesheet" href="style.css?v=20261030c">
+  <link rel="stylesheet" href="style.css?v=20261030d">
   <link rel="stylesheet" href="admin.css?v=20261030b">
 </head>
 <body class="write-page admin-page">
@@ -222,11 +222,13 @@
   <!-- 日记弹窗(编辑普通条目;打卡弹窗同款) -->
   <div id="entry-modal" class="ckin-modal" hidden>
     <div class="ckin-box">
-      <div class="ckin-head"><span id="em-title">编辑日记</span><button type="button" id="em-close" class="btn-small">✕</button></div>
-      <label class="ckin-vis-label" for="em-date">日期</label>
-      <input type="date" id="em-date">
+      <div class="ckin-head"><span id="em-title">编辑日记</span><button type="button" id="em-close" class="ckin-x" aria-label="关闭">✕</button></div>
+      <div class="ckin-vis-row">
+        <label class="ckin-vis-label" for="em-date">日期</label>
+        <input type="date" id="em-date">
+      </div>
       <input type="text" id="em-title-input" maxlength="200" placeholder="标题(可选)">
-      <textarea id="em-text" maxlength="5000" rows="4" placeholder="正文"></textarea>
+      <textarea id="em-text" maxlength="5000" rows="5" placeholder="正文"></textarea>
       <div class="ckin-vis-row">
         <label class="ckin-vis-label" for="em-vis">可见性</label>
         <select id="em-vis">
@@ -243,8 +245,8 @@
       </div>
       <div class="ckin-loc-row">
         <input id="em-loc" maxlength="80" placeholder="地点(可选)">
-        <button type="button" id="em-locate" class="btn-small" title="自动定位">📍 定位</button>
-        <button type="button" id="em-map" class="btn-small" title="地图选点">🗺️ 地图</button>
+        <button type="button" id="em-locate" class="ckin-icon-btn" title="用当前位置" aria-label="用当前位置">📍</button>
+        <button type="button" id="em-map" class="ckin-icon-btn" title="地图选点" aria-label="地图选点">🗺️</button>
       </div>
       <div class="ckin-photos" id="em-photos">
         <label class="ckin-add" for="em-files">+ 照片(可选,≤20 张)</label>

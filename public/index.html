@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>咕咕嘎嘎 · 旅行日记</title>
-  <link rel="stylesheet" href="style.css?v=20261030c">
+  <link rel="stylesheet" href="style.css?v=20261030d">
 </head>
 <body>
   <header class="site-header">
@@ -71,11 +71,13 @@
   <!-- 日记弹窗(新建/编辑普通条目,「记一把」与编辑入口共用;打卡弹窗同款) -->
   <div id="entry-modal" class="ckin-modal" hidden>
     <div class="ckin-box">
-      <div class="ckin-head"><span id="em-title">写日记</span><button type="button" id="em-close" class="btn-small">✕</button></div>
-      <label class="ckin-vis-label" for="em-date">日期</label>
-      <input type="date" id="em-date">
+      <div class="ckin-head"><span id="em-title">写日记</span><button type="button" id="em-close" class="ckin-x" aria-label="关闭">✕</button></div>
+      <div class="ckin-vis-row">
+        <label class="ckin-vis-label" for="em-date">日期</label>
+        <input type="date" id="em-date">
+      </div>
       <input type="text" id="em-title-input" maxlength="200" placeholder="标题(可选)">
-      <textarea id="em-text" maxlength="5000" rows="4" placeholder="正文"></textarea>
+      <textarea id="em-text" maxlength="5000" rows="5" placeholder="正文"></textarea>
       <div class="ckin-vis-row">
         <label class="ckin-vis-label" for="em-vis">可见性</label>
         <select id="em-vis">
@@ -92,8 +94,8 @@
       </div>
       <div class="ckin-loc-row">
         <input id="em-loc" maxlength="80" placeholder="地点(可选)">
-        <button type="button" id="em-locate" class="btn-small" title="自动定位">📍 定位</button>
-        <button type="button" id="em-map" class="btn-small" title="地图选点">🗺️ 地图</button>
+        <button type="button" id="em-locate" class="ckin-icon-btn" title="用当前位置" aria-label="用当前位置">📍</button>
+        <button type="button" id="em-map" class="ckin-icon-btn" title="地图选点" aria-label="地图选点">🗺️</button>
       </div>
       <div class="ckin-photos" id="em-photos">
         <label class="ckin-add" for="em-files">+ 照片(可选,≤20 张)</label>
