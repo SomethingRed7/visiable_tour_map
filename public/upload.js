@@ -348,14 +348,9 @@ async function renderRecent() {
   if (!box.dataset.ready) box.innerHTML = skeletonHtml(3); // 首屏骨架,避免白屏
   try {
     const data = await (await fetch('/api/entries')).json();
-    // 填充导出专辑下拉(保留已选值;专辑列表来自全部条目去重)
-    const exSel = $('#ex-album');
-    if (exSel) {
-      const prev = exSel.value;
-      const albums = [...new Set((data.entries || []).map((e) => e.album).filter(Boolean))].sort();
-      exSel.innerHTML = '<option value="">全部专辑</option>' + albums.map((a) => `<option value="${esc(a)}">${esc(a)}</option>`).join('');
-      if (prev) exSel.value = prev;
-    }
+    // 导出用的专辑列表:存成数组给自绘选择器用(原生 select 的展开是系统 UI,太长太丑)
+    exAlbums = [...new Set((data.entries || []).map((e) => e.album).filter(Boolean))].sort();
+    syncExAlbumLabel();
     let all = (data.entries || [])
       .sort((a, b) => (a.date === b.date ? (a.created_at || '') > (b.created_at || '') ? -1 : 1 : a.date > b.date ? -1 : 1));
     indexEntries(all);
@@ -820,6 +815,7 @@ async function applyBatchAlbum(album) {
 }
 
 /* ---- 专辑管理 ---- */
+let exAlbums = [];   // 导出选择器的数据源(renderRecent 里填充)
 async function renderAlbums() {
   const box = $('#album-mgr-list');
   if (!box) return;
@@ -910,6 +906,53 @@ function closeAlbumSheet() {
   on('#as-rename', () => { const a = asAlbum; closeAlbumSheet(); if (a) renameAlbum(a); });
   on('#as-priv', () => { const a = asAlbum; closeAlbumSheet(); setAlbumVisibility(a, 'private'); });
   on('#as-pub', () => { const a = asAlbum; closeAlbumSheet(); setAlbumVisibility(a, 'public'); });
+})();
+
+/* ---- 导出：专辑选择器 ----
+ * 原生 <select> 在手机上展开是系统弹层：十几个专辑一屏铺开、没有搜索、样式和页面毫无关系。
+ * 换成底部列表后，条目数和选中态都能自己控制。隐藏的 #ex-album 继续存值，
+ * 生成分享页那段代码(UPLOAD 里的 btn-export)不用动。 */
+function syncExAlbumLabel() {
+  const input = $('#ex-album');
+  const text = $('#ex-album-text');
+  if (text) text.textContent = (input && input.value) || '全部专辑';
+}
+
+function openAlbumPick() {
+  const mask = $('#album-pick-sheet');
+  const list = $('#ap-list');
+  if (!mask || !list) return;
+
+  const cur = $('#ex-album') ? $('#ex-album').value : '';
+  // 第一项固定是「全部专辑」(空值 = 不限)
+  list.innerHTML = ['', ...exAlbums].map((a) => `
+    <button type="button" class="ap-item${a === cur ? ' is-on' : ''}" data-album="${esc(a)}">
+      <span>${esc(a || '全部专辑')}</span>${a === cur ? '<i aria-hidden="true">✓</i>' : ''}
+    </button>`).join('');
+
+  list.querySelectorAll('.ap-item').forEach((b) => b.addEventListener('click', () => {
+    const input = $('#ex-album');
+    if (input) input.value = b.dataset.album;
+    syncExAlbumLabel();
+    closeAlbumPick();
+  }));
+
+  mask.hidden = false;
+}
+
+function closeAlbumPick() {
+  const mask = $('#album-pick-sheet');
+  if (mask) mask.hidden = true;
+}
+
+(function bindAlbumPick() {
+  const mask = $('#album-pick-sheet');
+  if (!mask) return;
+  const btn = $('#ex-album-btn');
+  if (btn) btn.addEventListener('click', openAlbumPick);
+  const close = $('#ap-close');
+  if (close) close.addEventListener('click', closeAlbumPick);
+  mask.addEventListener('click', (e) => { if (e.target === mask) closeAlbumPick(); });
 })();
 
 /* 点专辑名 → 展开专辑查看(条目流 + 地图,复用 renderAlbumView) */

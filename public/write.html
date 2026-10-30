@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f4f5f7">
   <title>管理 · 咕咕嘎嘎</title>
   <link rel="stylesheet" href="style.css?v=20261030d">
-  <link rel="stylesheet" href="admin.css?v=20261030c">
+  <link rel="stylesheet" href="admin.css?v=20261030d">
 </head>
 <body class="write-page admin-page">
   <header class="site-header">
@@ -120,20 +120,26 @@
         <h2 class="panel-heading">导出行程</h2>
         <p class="manage-hint">按专辑或日期区间导出,可叠加;留空 = 全部</p>
         <div class="export-form">
-          <label>
-            专辑
-            <select id="ex-album">
-              <option value="">全部专辑</option>
-            </select>
-          </label>
-          <label>
-            起始日期
-            <input type="date" id="ex-from">
-          </label>
-          <label>
-            结束日期
-            <input type="date" id="ex-to">
-          </label>
+          <!-- 专辑改用自绘选择器:原生 <select> 展开是系统 UI,十几个专辑一屏铺开,
+               又长又没法搜索,还跟页面风格完全不搭。这里保留 #ex-album 作为隐藏值,
+               读取处(upload.js 生成分享页)不用改。 -->
+          <div class="ex-row">
+            <span class="ex-label">专辑</span>
+            <button type="button" id="ex-album-btn" class="ex-picker">
+              <span id="ex-album-text">全部专辑</span>
+              <i aria-hidden="true">›</i>
+            </button>
+            <input type="hidden" id="ex-album" value="">
+          </div>
+          <!-- 起止日期并排:原来是上下两行,每行的输入框只占三分之一宽,右边大片留白 -->
+          <div class="ex-row">
+            <span class="ex-label">日期</span>
+            <div class="ex-dates">
+              <input type="date" id="ex-from" aria-label="起始日期">
+              <span class="ex-sep" aria-hidden="true">→</span>
+              <input type="date" id="ex-to" aria-label="结束日期">
+            </div>
+          </div>
           <button type="button" id="btn-export" class="btn-submit">生成分享页</button>
         </div>
         <p id="export-status" class="form-status"></p>
@@ -231,6 +237,14 @@
         <button type="button" id="as-priv"><i>🔒</i>整组设为私密</button>
         <button type="button" id="as-pub"><i>🌐</i>整组设为公开</button>
       </div>
+    </div>
+  </div>
+
+  <!-- 专辑选择器(替代原生 select) -->
+  <div id="album-pick-sheet" class="adm-sheet-mask" hidden>
+    <div class="adm-sheet" role="dialog" aria-label="选择专辑">
+      <div class="adm-sheet-title"><span>选择专辑</span><button type="button" id="ap-close" class="adm-sheet-x">✕</button></div>
+      <div id="ap-list" class="ap-list"></div>
     </div>
   </div>
 
@@ -337,6 +351,6 @@
   <script src="map-common.js?v=20261030a"></script>
   <script src="loc-picker.js?v=20261030c"></script>
   <script src="entry-modal.js?v=20261030a"></script>
-  <script src="upload.js?v=20261030b"></script>
+  <script src="upload.js?v=20261030c"></script>
 </body>
 </html>

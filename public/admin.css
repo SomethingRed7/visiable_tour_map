@@ -986,3 +986,95 @@
 /* 去掉面板 padding 后,标题和说明贴到灰底上,单独补一点左缩进 */
 .admin-page #tab-album-mgr .panel-heading { padding: 0 2px; }
 .admin-page #tab-album-mgr .manage-hint { padding: 0 2px; margin-bottom: 10px; }
+
+/* ---------- 导出表单：自绘专辑选择器 + 日期并排（2026-10-30） ----------
+ * 原来「专辑 / 起始日期 / 结束日期」各占一整行，日期框只占三分之一宽、右边大片留白；
+ * 专辑用的是原生 select，展开是系统弹层。 */
+
+.admin-page #tab-export {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 0;
+}
+.admin-page #tab-export .panel-heading { padding: 0 2px; }
+.admin-page #tab-export .manage-hint { padding: 0 2px; margin-bottom: 12px; }
+
+.export-form .ex-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.export-form .ex-label {
+  flex: 0 0 2.6em;
+  font-size: 0.88rem;
+  color: var(--adm-ink-2);
+}
+.export-form .ex-picker {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 11px 12px;
+  border: 1px solid var(--adm-line-2);
+  border-radius: 10px;
+  background: #fff;
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--adm-ink);
+  text-align: left;
+  cursor: pointer;
+}
+.export-form .ex-picker i { font-style: normal; color: var(--adm-ink-3); }
+.export-form .ex-picker:active { background: #f9fafb; }
+
+.export-form .ex-dates {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.export-form .ex-dates input[type="date"] {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  padding: 10px;
+  border: 1px solid var(--adm-line-2);
+  border-radius: 10px;
+  font-size: 0.9rem;
+  background: #fff;
+  color: var(--adm-ink);
+}
+.export-form .ex-sep { flex: 0 0 auto; color: var(--adm-ink-3); font-size: 0.9rem; }
+
+/* 专辑选择列表（底部动作表内） */
+.ap-list {
+  max-height: 62vh;
+  overflow-y: auto;
+  margin: -4px -6px 0;
+}
+.ap-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 8px;
+  border: none;
+  border-bottom: 1px solid var(--adm-line);
+  background: none;
+  font: inherit;
+  font-size: 0.98rem;
+  color: var(--adm-ink);
+  text-align: left;
+  cursor: pointer;
+}
+.ap-item:last-child { border-bottom: none; }
+.ap-item:active { background: #f9fafb; }
+.ap-item.is-on { color: var(--adm-brand-deep); font-weight: 600; }
+.ap-item i { font-style: normal; color: var(--adm-brand); font-weight: 700; }
