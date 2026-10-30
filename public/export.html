@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>行程总览 · 咕咕嘎嘎</title>
-  <link rel="stylesheet" href="style.css?v=20261030c">
+  <link rel="stylesheet" href="style.css?v=20261030e">
 </head>
 <body>
   <header class="site-header">
@@ -26,10 +26,13 @@
         <a class="btn-write" href="write.html">去登录</a>
       </div>
       <div id="ex-controls" class="ex-controls" hidden>
-        <span class="ex-hint">每个条目/待办可单独勾选「导出」,默认全部导出;取消勾选的内容不导出</span>
+        <span class="ex-hint">取消勾选的条目和待办不会出现在分享页里</span>
       </div>
-      <button type="button" id="btn-share" class="btn-submit share-btn" hidden>生成分享快照</button>
-      <button type="button" id="btn-export-html" class="btn-submit share-btn" hidden>导出 HTML</button>
+      <!-- 两个按钮并排:原来各占一整行,两个橙色实心块上下叠着,把内容推下去半屏 -->
+      <div class="ex-actions">
+        <button type="button" id="btn-share" class="btn-submit share-btn" hidden>生成分享快照</button>
+        <button type="button" id="btn-export-html" class="btn-submit share-btn is-ghost" hidden>导出 HTML</button>
+      </div>
       <p id="share-err" class="form-status"></p>
       <div id="ex-overview" class="entries"></div>
     </section>

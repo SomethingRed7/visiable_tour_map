@@ -1686,3 +1686,36 @@ body.lb-open { overflow: hidden; }
   min-height: 38px;
 }
 .ckin-actions { margin-top: 6px; }
+
+/* ---------- 导出页（export.html）分主次 ----------
+ * 原来一屏里三块橙色实心：「← 回首页」+「生成分享快照」+「导出 HTML」，
+ * 全都是主色、全都一样重，等于没有重点；两个大按钮还各占一整行，把内容推下去半屏。 */
+
+/* 「回首页」只是个返回，不该跟主操作抢颜色 */
+.site-header .header-side .btn-write {
+  background: transparent;
+  box-shadow: none;      /* 原样式带投影，透明底上会留一圈脏边 */
+  color: var(--brand-deep, #b45309);
+  padding: 6px 4px;
+  font-weight: 500;
+}
+.site-header .header-side .btn-write:active { opacity: 0.6; }
+
+/* 两个操作并排：主操作实心、次操作描边 */
+.ex-actions {
+  display: flex;
+  gap: 10px;
+  margin: 4px 0 6px;
+}
+.ex-actions .share-btn {
+  flex: 1;
+  width: auto;
+  max-width: none;
+  margin: 0;
+}
+/* 「导出 HTML」是技术向备选，一年用不上一次，压成描边 */
+.ex-actions .share-btn.is-ghost {
+  background: #fff;
+  color: var(--brand-deep, #b45309);
+  border: 1px solid var(--brand-line, #f2d3a8);
+}
