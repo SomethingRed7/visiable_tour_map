@@ -3,81 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>行程总览 · 咕咕嘎嘎</title>
-  <link rel="stylesheet" href="style.css?v=20261030f">
+  <title>导出 · 咕咕嘎嘎</title>
+  <link rel="canonical" href="/write.html?tab=export">
+  <!-- 导出页已合并进管理页「导出」tab(2026-10-30):行程总览和地图直接显示在管理页下方,
+       不用再跳来跳去。这里只做跳转,旧链接(/export?album=...&token=...)仍然能用:
+       原参数原样带到管理页,登录后自动恢复。
+       ⚠️ 跳转脚本必须外链(站点 CSP script-src 'self',内联脚本会被拦掉)。 -->
+  <script src="export-redirect.js?v=20261030a"></script>
 </head>
 <body>
-  <header class="site-header">
-    <div class="header-main">
-      <h1 class="site-title"><a href="./">咕咕嘎嘎</a></h1>
-      <p class="site-subtitle">行程总览</p>
-    </div>
-    <div class="header-side">
-      <a class="btn-write" href="./">← 回首页</a>
-    </div>
-  </header>
-
-  <main class="layout">
-    <section class="panel">
-      <h2 id="ex-title" class="panel-heading">行程总览</h2>
-      <p id="ex-subtitle" class="manage-hint"></p>
-      <div id="ex-login" class="ex-login" hidden>
-        <p>导出包含私有内容(私有条目/待办/打卡),需要登录后才能使用。</p>
-        <a class="btn-write" href="write.html">去登录</a>
-      </div>
-      <div id="ex-controls" class="ex-controls" hidden>
-        <span class="ex-hint">取消勾选的条目和待办不会出现在分享页里</span>
-      </div>
-      <!-- 两个按钮并排:原来各占一整行,两个橙色实心块上下叠着,把内容推下去半屏 -->
-      <div class="ex-actions">
-        <button type="button" id="btn-share" class="btn-submit share-btn" hidden>生成分享快照</button>
-        <button type="button" id="btn-export-html" class="btn-submit share-btn is-ghost" hidden>导出 HTML</button>
-      </div>
-      <p id="share-err" class="form-status"></p>
-      <div id="ex-overview" class="entries"></div>
-    </section>
-
-    <section class="panel">
-      <h2 class="panel-heading">地图路线</h2>
-      <div id="ex-map" class="album-map"></div>
-      <p id="ex-map-note" class="manage-hint"></p>
-    </section>
-  </main>
-
-  <footer class="site-footer">咕咕嘎嘎 · 记录每一段在路上</footer>
-
-  <!-- 生成分享快照结果弹层 -->
-  <div id="share-modal" class="modal" hidden>
-    <div class="modal-card">
-      <h3 id="share-modal-title" class="sub-panel-heading">分享快照已生成</h3>
-      <p id="share-modal-hint" class="manage-hint">链接永久有效,内容固定;想调整内容可在下方「已分享的快照」点「更新」重新选择。</p>
-      <div class="share-link-row">
-        <input type="text" id="share-url" readonly>
-        <button type="button" id="btn-share-copy" class="btn-small">复制</button>
-        <button type="button" id="btn-share-open" class="btn-small">打开</button>
-      </div>
-      <div id="share-qr" class="share-qr"></div>
-      <p class="manage-hint">长按二维码可保存到相册,或点「保存二维码」</p>
-      <p id="share-status" class="form-status"></p>
-      <div class="share-actions">
-        <button type="button" id="btn-qr-save" class="btn-small">保存二维码</button>
-        <button type="button" id="btn-share-close" class="btn-small">关闭</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- 详情弹层(地图打卡点点击预览,与主页/分享页同款 map-common.openEntryCard) -->
-  <div id="preview-modal" class="modal" hidden>
-    <div class="modal-card">
-      <div id="preview-body"></div>
-      <button type="button" id="btn-preview-close" class="btn-small">关闭</button>
-    </div>
-  </div>
-  <div id="lightbox" class="lightbox" aria-hidden="true"><img alt="查看大图"></div>
-
-  <script src="api.js?v=20260825"></script>
-  <script src="map-common.js?v=20261030a"></script>
-  <script src="loc-picker.js?v=20261030c"></script>
-  <script src="export.js?v=20260925a"></script>
+  <p>导出已合并到管理页「导出」,正在跳转…</p>
+  <p><a href="/write.html?tab=export">点此前往导出</a></p>
 </body>
 </html>

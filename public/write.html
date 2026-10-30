@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#f4f5f7">
   <title>管理 · 咕咕嘎嘎</title>
-  <link rel="stylesheet" href="style.css?v=20261030f">
+  <link rel="stylesheet" href="style.css?v=20261030g">
   <link rel="stylesheet" href="admin.css?v=20261030d">
 </head>
 <body class="write-page admin-page">
@@ -107,7 +107,7 @@
           <div class="todo-head day-head">
             <button type="button" id="btn-album-back" class="btn-small">‹ 返回</button>
             <span id="stream-title">专辑</span>
-            <a id="btn-album-share" class="btn-add-entry" href="export.html" hidden>生成分享页</a>
+            <button type="button" id="btn-album-share" class="btn-add-entry" hidden>生成分享页</button>
           </div>
           <div id="album-map" class="album-map"></div>
           <div id="album-chips" class="album-chips"></div>
@@ -140,9 +140,28 @@
               <input type="date" id="ex-to" aria-label="结束日期">
             </div>
           </div>
-          <button type="button" id="btn-export" class="btn-submit">生成分享页</button>
+          <button type="button" id="btn-export" class="btn-submit">查看行程总览</button>
         </div>
         <p id="export-status" class="form-status"></p>
+
+        <!-- 行程总览 + 地图:原来在独立页 export.html,2026-10-30 合并到本页,
+             选完条件点上面的按钮,总览/地图直接出现在下面,勾选和重新生成都在这一页完成 -->
+        <div id="export-panel" class="export-host" hidden>
+          <h3 id="ex-title" class="panel-heading ex-title">行程总览</h3>
+          <p id="ex-subtitle" class="manage-hint"></p>
+          <p class="ex-hint">取消勾选的条目和待办不会出现在分享页里</p>
+          <div class="ex-actions">
+            <button type="button" id="btn-share" class="btn-submit share-btn">生成分享快照</button>
+            <button type="button" id="btn-export-html" class="btn-submit share-btn is-ghost">导出 HTML</button>
+          </div>
+          <p id="share-err" class="form-status"></p>
+          <div id="ex-overview" class="entries"></div>
+          <div id="ex-map-wrap" hidden>
+            <h4 class="ex-map-title">地图路线</h4>
+            <div id="ex-map" class="album-map"></div>
+            <p id="ex-map-note" class="manage-hint"></p>
+          </div>
+        </div>
       </section>
 
       <!-- ============ 已分享的快照 ============ -->
@@ -316,10 +335,10 @@
     </div>
   </div>
 
-  <!-- 分享弹层(重新显示某条快照:链接 + 二维码) -->
+  <!-- 分享弹层(重新显示某条快照:链接 + 二维码;生成快照后也用它) -->
   <div id="share-qr-modal" class="modal" hidden>
     <div class="modal-card">
-      <h3 class="sub-panel-heading">分享链接</h3>
+      <h3 id="share-qr-title" class="sub-panel-heading">分享链接</h3>
       <div class="share-link-row">
         <input type="text" id="share-qr-link" readonly>
         <button type="button" id="btn-share-qr-copy" class="btn-small">复制</button>
@@ -327,6 +346,7 @@
       </div>
       <div id="share-qr-box" class="share-qr"></div>
       <p class="manage-hint">长按二维码可保存到相册,或点「保存二维码」</p>
+      <p id="share-qr-hint" class="manage-hint" hidden></p>
       <p id="share-qr-status" class="form-status"></p>
       <div class="share-actions">
         <button type="button" id="btn-share-qr-save" class="btn-small">保存二维码</button>
@@ -351,6 +371,7 @@
   <script src="map-common.js?v=20261030a"></script>
   <script src="loc-picker.js?v=20261030c"></script>
   <script src="entry-modal.js?v=20261030a"></script>
-  <script src="upload.js?v=20261030c"></script>
+  <script src="upload.js?v=20261030d"></script>
+  <script src="export-panel.js?v=20261030b"></script>
 </body>
 </html>

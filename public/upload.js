@@ -25,6 +25,12 @@ function setAuthed(user) {
     renderAlbums(); // 专辑管理列表(仅登录)
     refreshAllEntries(); // 专辑查看数据(仅登录);地图等点专辑名展开时再渲染
     renderAlbumChips();
+    // 旧 /export 链接带来的导出条件:登录后自动回到「导出」tab 并渲染总览
+    if (pendingExportParams) {
+      const pr = pendingExportParams;
+      pendingExportParams = null;
+      if (pr.tab === 'export' || pr.has) openExportPanel(pr);
+    }
   } else {
     showLoginPanel();
     const sl = $('#share-list');
@@ -34,6 +40,7 @@ function setAuthed(user) {
 
 /* ---------- 进入界面自动定位(后台,不打扰;失败静默,不覆盖已有值) ---------- */
 async function initAuth() {
+  pendingExportParams = readExportUrlParams(); // 旧 /export 链接的参数,登录后自动恢复
   try {
     const [auth, cfg] = await Promise.all([
       fetch('/api/auth').then((r) => r.json()),
@@ -1111,7 +1118,8 @@ async function renderAlbumView() {
   const shareBtn = $('#btn-album-share');
   if (shareBtn) {
     shareBtn.hidden = !mgrActiveAlbum;
-    if (mgrActiveAlbum) shareBtn.href = '/export?album=' + encodeURIComponent(mgrActiveAlbum);
+    // 不再跳 export.html:点一下切到「导出」tab,专辑条件带上,总览和地图就在本页下面
+    if (mgrActiveAlbum) shareBtn.dataset.album = mgrActiveAlbum;
   }
   const title = $('#stream-title');
   // 注意用 == null 而不是 !mgrActiveAlbum:未分类的专辑名就是空串 ''(falsy),
@@ -1186,15 +1194,10 @@ async function renderShares() {
   } catch { /* 忽略 */ }
 }
 
-/* 「更新」→ 重新进入「生成分享页」,预填该快照条件与已导出内容,重新选择后保存(链接不变) */
+/* 「更新」→ 回到「导出」tab 重新选择导出内容,预填该快照条件与已导出内容,保存后链接不变 */
 async function updateShare(d) {
-  if (!confirm('进入生成分享页重新选择导出内容?\n保存后链接和二维码不变。')) return;
-  const q = new URLSearchParams();
-  q.set('token', d.token);
-  if (d.album) q.set('album', d.album);
-  if (d.from) q.set('from', d.from);
-  if (d.to) q.set('to', d.to);
-  location.href = `/export?${q.toString()}`;
+  if (!confirm('在「导出」里重新选择导出内容?\n保存后链接和二维码不变。')) return;
+  openExportPanel({ album: d.album, from: d.from, to: d.to, token: d.token });
 }
 
 async function deleteShare(token) {
@@ -1225,7 +1228,7 @@ function loadQrLib() {
 }
 
 let shareQrFullUrl = '';
-function showShareQr(url) {
+function showShareQr(url, title, hint) {
   const box = $('#share-qr-modal');
   const link = $('#share-qr-link');
   const qrBox = $('#share-qr-box');
@@ -1234,6 +1237,10 @@ function showShareQr(url) {
   shareQrFullUrl = window.SITE_ORIGIN + url;
   link.value = shareQrFullUrl;
   st.textContent = '';
+  const t = $('#share-qr-title');
+  if (t) t.textContent = title || '分享链接';
+  const h = $('#share-qr-hint');
+  if (h) { h.textContent = hint || ''; h.hidden = !hint; }
   box.hidden = false;
   qrBox.innerHTML = '';
   loadQrLib().then(() => {
@@ -1246,6 +1253,20 @@ function showShareQr(url) {
     qrBox.innerHTML = '<p class="empty">二维码生成失败,直接复制链接分享</p>';
   });
 }
+
+/* 导出面板(export-panel.js)生成快照后的回调:弹同一个二维码弹层,顺带刷新快照列表 */
+window.ggExportHooks = {
+  onShared(url, isUpdate) {
+    showShareQr(
+      url,
+      isUpdate ? '快照已更新' : '分享快照已生成',
+      isUpdate
+        ? '链接和二维码不变;要再调整内容,回到「导出」重新勾选后保存。'
+        : '链接永久有效,内容固定;要调整内容,在「快照」列表点「更新」重新选择。'
+    );
+    renderShares(); // 快照列表(条件/更新时间)同步刷新
+  },
+};
 
 $('#btn-share-qr-copy').addEventListener('click', async () => {
   const st = $('#share-qr-status');
@@ -1280,7 +1301,47 @@ $('#btn-share-qr-save').addEventListener('click', () => {
 
 $('#btn-share-qr-close').addEventListener('click', () => { $('#share-qr-modal').hidden = true; });
 
-/* ---- 导出行程(按专辑 / 按起止日期 / 叠加) ---- */
+/* ---- 导出面板(行程总览 + 地图,与「导出」tab 同页) ----
+ * openExportPanel({album, from, to, token}):填条件 → 切到「导出」tab → 渲染总览+地图 → 滚到面板。
+ * token 非空 = 更新已有快照(预填该快照已包含的内容,链接不变)。 */
+async function openExportPanel(opts) {
+  const o = opts || {};
+  const aEl = $('#ex-album'), fEl = $('#ex-from'), tEl = $('#ex-to');
+  if (o.album != null) { if (aEl) aEl.value = o.album || ''; syncExAlbumLabel(); }
+  if (o.from != null && fEl) fEl.value = o.from || '';
+  if (o.to != null && tEl) tEl.value = o.to || '';
+  switchManageTab('export');
+  if (!window.ExportPanel) return;
+  const album = aEl ? aEl.value.trim() : '';
+  const from = fEl ? fEl.value : '';
+  const to = tEl ? tEl.value : '';
+  const rangeOk = /^\d{4}-\d{2}-\d{2}$/.test(from) && /^\d{4}-\d{2}-\d{2}$/.test(to) && from <= to;
+  // 没有条件(旧链接只带 tab=export)→ 只切到导出 tab,表单留给用户自己填
+  if (!album && !rangeOk && !o.token) return;
+  await window.ExportPanel.load({ album, from, to, token: o.token || '' });
+  const host = $('#export-panel');
+  if (host) host.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/* 旧 /export 链接(export.html 现在是跳转 stub)会带 ?album=&from=&to=&token= 过来,
+ * 这里读出来:登录后在「导出」tab 里原样恢复,不用用户重填一遍。 */
+function readExportUrlParams() {
+  const p = new URLSearchParams(location.search);
+  const pr = {
+    tab: p.get('tab') || '',
+    album: p.get('album') || '',
+    from: p.get('from') || '',
+    to: p.get('to') || '',
+    token: p.get('token') || '',
+  };
+  pr.has = !!(pr.album || pr.from || pr.to || pr.token);
+  return pr;
+}
+let pendingExportParams = null; // 未登录时先记着,登录后补上
+
+/* ---- 导出行程(按专辑 / 按起止日期 / 叠加) ----
+ * 2026-10-30:不再跳 export.html —— 行程总览和地图直接渲染在「导出」tab 下方,
+ * 改条件/改勾选/重新生成都在同一页完成(export.html 已改成跳转 stub)。 */
 $('#btn-export').addEventListener('click', () => {
   const album = $('#ex-album').value.trim();
   const from = $('#ex-from').value;
@@ -1293,11 +1354,8 @@ $('#btn-export').addEventListener('click', () => {
     const days = Math.round((new Date(to) - new Date(from)) / 86400000) + 1;
     if (days > 60) { st.textContent = '区间最多 60 天'; st.className = 'form-status error'; return; }
   }
-  const q = new URLSearchParams();
-  if (album) q.set('album', album);
-  if (from) q.set('from', from);
-  if (to) q.set('to', to);
-  location.href = `/export?${q.toString()}`;
+  st.textContent = '';
+  openExportPanel({ album, from, to });
 });
 
 /* ---- 微信推送(把当天公开动态推到 WxPusher) ---- */
@@ -1338,6 +1396,8 @@ function switchManageTab(tab) {
   // 写日记 FAB 只在「条目 / 专辑」两个内容区出现(导出/快照/推送用不上,免得挡住按钮)
   const fab = $('#btn-write');
   if (fab) fab.hidden = tab !== 'manage' && tab !== 'album-mgr';
+  // 导出面板里的地图:从别的 tab 切回来时容器尺寸变了,让 Leaflet 重算一次
+  if (tab === 'export' && window.ExportPanel && window.ExportPanel.resize) window.ExportPanel.resize();
   const bar = $('#manage-tabs');
   if (bar) {
     const active = bar.querySelector('.tab-btn.active');
@@ -1353,6 +1413,13 @@ function initManageTabs() {
   });
   const back = $('#btn-album-back');
   if (back) back.addEventListener('click', closeAlbumView);
+  // 专辑查看里的「生成分享页」:同页打开导出面板(不再跳 export.html)
+  const albumShare = $('#btn-album-share');
+  if (albumShare) albumShare.addEventListener('click', () => {
+    const album = albumShare.dataset.album || '';
+    closeAlbumView();
+    openExportPanel({ album, from: '', to: '' });
+  });
 }
 function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -1367,6 +1434,7 @@ initMgrTools(); // 管理条目工具行(日期过滤/每页条数/翻页),静�
 initManageTabs(); // 管理区 Tab(默认管理条目)
 initAuth();
 renderRecent();
+if (window.ExportPanel && window.ExportPanel.bind) window.ExportPanel.bind(); // 导出面板的「生成分享快照 / 导出 HTML」按钮
 
 /* ---------- 应用内更新入口(仅 Android app 内出现) ----------
  * 原生插件:GuguUpdaterPlugin.java(暴露 getVersion / checkUpdate)。
