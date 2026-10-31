@@ -1267,22 +1267,111 @@ async function renderShares() {
       if (cta) cta.addEventListener('click', (ev) => { ev.preventDefault(); switchManageTab('export'); });
       return;
     }
-    box.innerHTML = list.map((s) => `<div class="recent-item adm-share-item">
-        <span class="recent-info">
-          <b>${esc(shareCond(s) || '全部内容')}</b>
-          <em>更新于 ${esc(fmtDateTime(s.updated_at))}</em>
-        </span>
-        <span class="recent-actions">
-          <button type="button" class="btn-small btn-share-show" data-url="${esc(s.url)}">分享</button>
-          <button type="button" class="btn-small btn-share-update" data-token="${esc(s.token)}" data-album="${esc(s.album || '')}" data-from="${esc(s.from || '')}" data-to="${esc(s.to || '')}">更新</button>
-          <button type="button" class="btn-small btn-share-del" data-token="${esc(s.token)}">删除</button>
-        </span>
-      </div>`).join('');
-    box.querySelectorAll('.btn-share-show').forEach((b) => b.addEventListener('click', () => showShareQr(b.dataset.url)));
-    box.querySelectorAll('.btn-share-update').forEach((b) => b.addEventListener('click', () => updateShare(b.dataset)));
-    box.querySelectorAll('.btn-share-del').forEach((b) => b.addEventListener('click', () => deleteShare(b.dataset.token)));
+    // 每张卡只留两个可点区域:主体(预览)和 ⋯(其余操作)。
+    // 原来一行三个按钮「分享/更新/删除」平铺,既挤又主次不分,还缺了最该有的「看内容」。
+    box.innerHTML = list.map((s) => {
+      const cond = shareCond(s) || '全部内容';
+      const meta = [
+        s.count ? `${s.count} 条` : '',
+        s.updated_at ? `更新于 ${fmtDateTime(s.updated_at)}` : '',
+      ].filter(Boolean).join(' · ');
+      return `<div class="share-item">
+        <button type="button" class="share-open" data-url="${esc(s.url)}" title="打开预览">
+          <span class="share-title">${esc(cond)}</span>
+          <span class="share-meta">${esc(meta)}</span>
+        </button>
+        <button type="button" class="share-more" aria-label="更多操作" title="更多操作"
+          data-url="${esc(s.url)}" data-token="${esc(s.token)}"
+          data-album="${esc(s.album || '')}" data-from="${esc(s.from || '')}" data-to="${esc(s.to || '')}"
+          data-cond="${esc(cond)}" data-meta="${esc(meta)}">⋯</button>
+      </div>`;
+    }).join('');
+
+    box.querySelectorAll('.share-open').forEach((b) =>
+      b.addEventListener('click', () => openSharePreview(b.dataset.url)));
+    box.querySelectorAll('.share-more').forEach((b) =>
+      b.addEventListener('click', () => openShareSheet(b.dataset)));
   } catch { /* 忽略 */ }
 }
+
+/* 打开快照预览:同标签跳转。快照是独立的静态 html(github.io),没法用 hash 内嵌进管理页;
+ * 好在这是真实导航 —— 系统返回键认得,能直接退回管理页。 */
+function openSharePreview(url) {
+  if (!url) return;
+  location.href = (window.SITE_ORIGIN || location.origin) + url;
+}
+
+/* 快照动作表:预览 / 复制链接 / 二维码 / 更新 / 删除 */
+let ssData = null;
+
+function openShareSheet(d) {
+  ssData = d;
+  const mask = $('#share-sheet');
+  if (!mask) return;
+  const t = $('#ss-title');
+  const sub = $('#ss-sub');
+  if (t) t.textContent = d.cond || '分享快照';
+  if (sub) sub.textContent = d.meta || '';
+  mask.hidden = false;
+}
+
+function closeShareSheet() {
+  const mask = $('#share-sheet');
+  if (mask) mask.hidden = true;
+}
+
+(function bindShareSheet() {
+  const mask = $('#share-sheet');
+  if (!mask) return;
+  const on = (sel, fn) => { const el = $(sel); if (el) el.addEventListener('click', fn); };
+
+  on('#ss-close', closeShareSheet);
+  mask.addEventListener('click', (e) => { if (e.target === mask) closeShareSheet(); });
+
+  on('#ss-open', () => {
+    const u = ssData && ssData.url;
+    closeShareSheet();
+    if (u) openSharePreview(u);
+  });
+
+  on('#ss-copy', async () => {
+    const u = ssData && ssData.url;
+    if (!u) return;
+    const full = (window.SITE_ORIGIN || location.origin) + u;
+    closeShareSheet();
+    try {
+      await navigator.clipboard.writeText(full);
+      toast('链接已复制');
+    } catch {
+      // 剪贴板 API 在没有安全上下文/权限时会失败,退回 textarea 方案
+      const ta = document.createElement('textarea');
+      ta.value = full;
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); toast('链接已复制'); }
+      catch { toast('复制失败,请手动选择链接', true); }
+      ta.remove();
+    }
+  });
+
+  on('#ss-qr', () => {
+    const d = ssData;
+    closeShareSheet();
+    if (d && d.url) showShareQr(d.url, d.cond || '分享链接');
+  });
+
+  on('#ss-update', () => {
+    const d = ssData;
+    closeShareSheet();
+    if (d) updateShare({ token: d.token, album: d.album, from: d.from, to: d.to });
+  });
+
+  on('#ss-del', () => {
+    const d = ssData;
+    closeShareSheet();
+    if (d) deleteShare(d.token);
+  });
+})();
 
 /* 「更新」→ 回到「导出」tab 重新选择导出内容,预填该快照条件与已导出内容,保存后链接不变 */
 async function updateShare(d) {

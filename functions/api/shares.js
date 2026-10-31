@@ -21,6 +21,8 @@ export async function onRequestGet(context) {
         ck: s.ck || {},
         created_at: s.created_at || null,
         updated_at: s.updated_at || null,
+        // 列表里显示「N 条」,让用户不用打开就知道快照有多大
+        count: Array.isArray(s.entries) ? s.entries.length : 0,
         url: `/share/${s.token}.html`, // 一律 github.io 静态快照页
       });
     } catch { /* 跳过损坏项 */ }
