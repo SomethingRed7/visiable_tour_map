@@ -964,31 +964,57 @@ function closeAlbumPick() {
 
 /* 点专辑名 → 展开专辑查看(条目流 + 地图,复用 renderAlbumView) */
 /* ---------- 视图状态与系统返回键 ----------
- * tab 切换、专辑展开都是纯 JS 状态,不进浏览器历史 —— 于是系统返回键(右滑/返回)直接退到
- * 上一个页面,而不是上一个视图:从「专辑 → 某专辑 → 生成分享页」按返回会一路弹回首页。
- * 这里只给「下钻」补历史(专辑列表 → 专辑详情 → 导出面板),返回时逐级退。
- * 平级切换 tab 刻意不记,否则切五次 tab 就要按五次返回才能离开页面。 */
-function pushView(state) {
-  try { history.pushState(state, ''); } catch { /* 隐私模式等拿不到 history,忽略 */ }
+ * 页面内的「下钻」(专辑详情、导出面板)原本只是 JS 状态,不进历史 —— 系统返回键只能退到上一个
+ * 页面,于是一路弹回首页。
+ *
+ * 关键:用**真实 hash 导航**(location.hash)而不是 history.pushState。
+ * 实测 pushState 压进去的条目,WebView 的 canGoBack 看不到,系统返回仍然按"退一个页面"处理。
+ * hash 改变是一次真实导航,原生返回才认。
+ * 平级切 tab 仍然不记历史,否则切五次要点五次返回。 */
+function viewOf(state) {
+  return state && state.view ? state.view + ':' + (state.album || '') : '';
+}
+let curViewKey = '';
+
+function viewHash(state) {
+  if (!state || !state.view) return '';
+  if (state.view === 'album') return '#album=' + encodeURIComponent(state.album || '');
+  return '#' + state.view;
 }
 
-window.addEventListener('popstate', (e) => {
-  const st = e.state;
-  if (!st || !st.view) {
-    // 回到最初:只收起专辑详情,不强制切 tab
-    // (用户可能本来就在「专辑」tab,退的只是详情这一层)
-    hardCloseAlbumView();
-    return;
-  }
-  if (st.view === 'album') {
+function stateFromHash() {
+  const h = decodeURIComponent(String(location.hash || '').slice(1));
+  if (!h) return null;
+  if (h.startsWith('album=')) return { view: 'album', album: h.slice(6) };
+  if (h === 'export') return { view: 'export' };
+  return null;
+}
+
+function pushView(state) {
+  const h = viewHash(state);
+  if (!h) return;
+  curViewKey = viewOf(state);   // 先认账,免得下面 hashchange 又把同一个视图渲染一遍
+  if (location.hash === h) return;
+  try { location.hash = h; } catch { /* 忽略 */ }
+}
+
+function applyView(state) {
+  const k = viewOf(state);
+  if (k === curViewKey) return;  // 幂等:同一视图不重复渲染(否则会重复滚动、闪一下)
+  curViewKey = k;
+
+  if (!state) { hardCloseAlbumView(); return; }
+  if (state.view === 'album') {
     switchManageTab('album-mgr');
-    try { renderAlbumDetail(st.album); } catch { hardCloseAlbumView(); }
+    try { renderAlbumDetail(state.album); } catch { hardCloseAlbumView(); }
     return;
   }
-  if (st.view === 'export') {
-    switchManageTab('export');
-  }
-});
+  if (state.view === 'export') switchManageTab('export');
+}
+
+// hash 变化(原生返回/前进)和 popstate 都接上,不同 WebView 行为不一
+window.addEventListener('hashchange', () => applyView(stateFromHash()));
+window.addEventListener('popstate', () => applyView(stateFromHash()));
 
 /* Android 返回键(右滑/返回):WebView 的 canGoBack 对 history.pushState 产生的记录
  * 不一定同步,默认行为可能直接退出 app。这里自己接管:有视图历史就退一层
@@ -1020,9 +1046,12 @@ function renderAlbumDetail(album) {
   if (vbox) window.scrollTo({ top: Math.max(0, vbox.getBoundingClientRect().top + window.scrollY - 110), behavior: 'smooth' });
 }
 
-/* 专辑查看「返回」:有历史就走 history.back(),让界面按钮和系统返回键走同一条路 */
+/* 专辑查看「返回」:能退历史就退(和系统手势走同一条路),不能退就直接收起并把 hash 抹掉。
+ * 注意不能用 history.state 判断 —— 走 hash 导航后 state 是 null。 */
 function closeAlbumView() {
-  if (history.state && history.state.view === 'album') { history.back(); return; }
+  if (stateFromHash() && history.length > 1) { history.back(); return; }
+  try { history.replaceState(null, '', location.pathname + location.search); } catch { /* 忽略 */ }
+  curViewKey = '';
   hardCloseAlbumView();
 }
 
@@ -1493,6 +1522,10 @@ initMgrTools(); // 管理条目工具行(日期过滤/每页条数/翻页),静�
 initManageTabs(); // 管理区 Tab(默认管理条目)
 initAuth();
 renderRecent();
+
+// 带 hash 打开(刷新、或从别的页面回来)→ 直接还原到那个视图
+const initialView = stateFromHash();
+if (initialView) applyView(initialView);
 if (window.ExportPanel && window.ExportPanel.bind) window.ExportPanel.bind(); // 导出面板的「生成分享快照 / 导出 HTML」按钮
 
 /* ---------- 应用内更新入口(仅 Android app 内出现) ----------
