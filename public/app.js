@@ -332,10 +332,31 @@ function renderDayEntries(ds) {
   $('#day-title').textContent = `${y} 年 ${Number(m)} 月 ${Number(d)} 日`;
   $('#day-entries').innerHTML = dayEntries.length
     ? dayEntries.map((e) => entryCard(e, currentUser ? { editBtn: true } : null)).join('')
-    : '<p class="empty">当日无事发生</p>';
+    : dayEmptyHtml(ds);
   bindPhotoGridFallback($('#day-entries'));
   bindStreamEditBtns($('#day-entries'));
+  const addDay = $('#day-entries .day-empty-add');
+  if (addDay) addDay.addEventListener('click', () => {
+    EntryModal.open({ date: addDay.dataset.date, onSaved: refreshAll });
+  });
   renderDayMap(dayEntries);
+}
+
+/* 空白的一天不该只写「当日无事发生」——那是句结案陈词,不是邀请。
+ * 登录后直接给入口:今天写一条、过去的补一条;未来的日期不给按钮。 */
+function dayEmptyHtml(ds) {
+  const today = localToday();
+  const canAdd = ds <= today;
+  if (!currentUser || !canAdd) {
+    return `<p class="empty">${ds === today ? '今天还没记录' : '这天没有记录'}</p>`;
+  }
+  const label = ds === today
+    ? '今天还没记，写一条？'
+    : `补记 ${Number(ds.slice(5, 7))} 月 ${Number(ds.slice(8, 10))} 日 的？`;
+  return `<div class="day-empty">
+    <p>${esc(label)}</p>
+    <button type="button" class="day-empty-add" data-date="${esc(ds)}">+ 写一条</button>
+  </div>`;
 }
 
 /* 当天足迹地图:当天带定位的条目 → 点位 + 轨迹。

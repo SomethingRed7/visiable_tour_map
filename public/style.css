@@ -1746,3 +1746,35 @@ button.btn-add-entry {
   font-family: inherit;
   line-height: 1.4;
 }
+
+/* ---------- 空白日期：给入口，不只是给结论（2026-10-31） ----------
+ * 原来只有一句「当日无事发生」，像结案陈词。改成一句话 + 一个直接入口。 */
+.day-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 30px 16px 26px;
+  text-align: center;
+}
+.day-empty p {
+  margin: 0;
+  font-size: 0.92rem;
+  color: var(--text-soft, #8a8177);
+}
+.day-empty-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 20px;
+  border: 1px dashed var(--brand-line, #f2d3a8);
+  border-radius: 999px;
+  background: var(--brand-soft, #fef3c7);
+  color: var(--brand-deep, #b45309);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.day-empty-add:active { opacity: 0.75; }
