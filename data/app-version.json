@@ -1,7 +1,7 @@
 {
-  "versionCode": 10,
-  "versionName": "1.9",
+  "versionCode": 11,
+  "versionName": "2.0",
   "size": 7404799,
-  "notes": "修复更新装成旧版本：安装包文件名带上版本号，不再产生 -1/-2 副本，也不会被 CDN 缓存成旧包。",
+  "notes": "安装包文件名改成版本号（如 gugugaga-update-2.0.apk），在文件管理器里一眼能看出是哪个版本；同时修更新装成旧包的问题。",
   "publishedAt": "2026-10-31"
 }
