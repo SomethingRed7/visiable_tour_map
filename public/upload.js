@@ -617,9 +617,6 @@ function initMgrTools() {
   initEntrySheet();
   initSelBar();
 
-  const wxDate = $('#wx-date');
-  if (wxDate) wxDate.value = localToday(); // 微信推送默认今天
-
   // 批量选专辑弹层
   const bam = $('#batch-album-modal');
   if (bam) bam.addEventListener('click', (e) => { if (e.target === bam) closeBatchAlbumModal(); });
@@ -1543,31 +1540,9 @@ $('#btn-export').addEventListener('click', () => {
   openExportPanel({ album, from, to });
 });
 
-/* ---- 微信推送(把当天公开动态推到 WxPusher) ---- */
-$('#btn-wx-push').addEventListener('click', async () => {
-  const st = $('#wx-status');
-  const btn = $('#btn-wx-push');
-  const date = $('#wx-date').value || localToday();
-  st.className = 'form-status';
-  st.textContent = '推送中…';
-  btn.disabled = true;
-  try {
-    const res = await fetch('/api/push', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ date }),
-    });
-    if (res.status === 401) { bounceOn401(res); return; }
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) { st.className = 'form-status error'; st.textContent = data.error || `推送失败(HTTP ${res.status})`; return; }
-    st.textContent = data.message || '已推送 ✅';
-  } catch {
-    st.className = 'form-status error';
-    st.textContent = '网络异常,请重试';
-  } finally {
-    btn.disabled = false;
-  }
-});
+/* 「推送」tab 已移除（后端走 WxPusher，服务官方通道已停、项目也从未配过 token）。
+ * 后端 functions/api/push.js 保留：以后换 Server酱 之类只需改那边实现，前端加回按钮即可。 */
+
 /* 管理页 Tab(分段式;吸顶,窄屏可横滑) */
 function switchManageTab(tab) {
   document.querySelectorAll('#manage-tabs .tab-btn').forEach((b) => {

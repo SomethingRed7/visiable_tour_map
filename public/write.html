@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f4f5f7">
   <title>管理 · 咕咕嘎嘎</title>
   <link rel="stylesheet" href="style.css?v=20261030g">
-  <link rel="stylesheet" href="admin.css?v=20261031a">
+  <link rel="stylesheet" href="admin.css?v=20261031b">
 </head>
 <body class="write-page admin-page">
   <header class="site-header">
@@ -75,7 +75,6 @@
         <button type="button" class="tab-btn" data-tab="album-mgr">专辑</button>
         <button type="button" class="tab-btn" data-tab="export">导出</button>
         <button type="button" class="tab-btn" data-tab="share">快照</button>
-        <button type="button" class="tab-btn" data-tab="wechat">推送</button>
       </nav>
 
       <!-- ============ 条目 ============ -->
@@ -172,18 +171,10 @@
       </section>
 
       <!-- ============ 微信推送 ============ -->
-      <section id="tab-wechat" class="panel wechat-push-panel tab-pane" hidden>
-        <h2 class="panel-heading">微信推送</h2>
-        <p class="manage-hint">把当天公开动态推到微信(家人关注后可收到)。可选日期,默认今天</p>
-        <div class="export-form">
-          <label>
-            日期
-            <input type="date" id="wx-date">
-          </label>
-          <button type="button" id="btn-wx-push" class="btn-submit">推送到微信</button>
-        </div>
-        <p id="wx-status" class="form-status"></p>
-      </section>
+      <!-- 「推送」tab 已移除：后端 /api/push 走的是 WxPusher，而那个服务官方通道已停、
+           项目里也从未配过 WXPUSHER_APPTOKEN（wrangler.toml 里三行全是注释）。
+           即一个从没跑通过的功能占着一个 tab。后端文件保留着，以后换 Server酱之类
+           只要改 push.js 的实现，前端一行就能加回来。 -->
 
       <!-- 写日记:全页唯一主操作,浮动在右下角 -->
       <a id="btn-write" class="adm-fab" href="edit.html"><span aria-hidden="true">✏️</span>写日记</a>
@@ -386,7 +377,7 @@
   <script src="map-common.js?v=20261030a"></script>
   <script src="loc-picker.js?v=20261030c"></script>
   <script src="entry-modal.js?v=20261030a"></script>
-  <script src="upload.js?v=20261031a"></script>
+  <script src="upload.js?v=20261031b"></script>
   <script src="export-panel.js?v=20261030b"></script>
 </body>
 </html>
