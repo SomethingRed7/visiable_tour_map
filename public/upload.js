@@ -29,7 +29,7 @@ function setAuthed(user) {
     if (pendingExportParams) {
       const pr = pendingExportParams;
       pendingExportParams = null;
-      if (pr.tab === 'export' || pr.has) openExportPanel(pr);
+      if (pr.tab === 'export' || pr.has) openExportPanel({ ...pr, fromHistory: true });
     }
   } else {
     showLoginPanel();
@@ -963,7 +963,55 @@ function closeAlbumPick() {
 })();
 
 /* 点专辑名 → 展开专辑查看(条目流 + 地图,复用 renderAlbumView) */
-function showAlbumView(album) {
+/* ---------- 视图状态与系统返回键 ----------
+ * tab 切换、专辑展开都是纯 JS 状态,不进浏览器历史 —— 于是系统返回键(右滑/返回)直接退到
+ * 上一个页面,而不是上一个视图:从「专辑 → 某专辑 → 生成分享页」按返回会一路弹回首页。
+ * 这里只给「下钻」补历史(专辑列表 → 专辑详情 → 导出面板),返回时逐级退。
+ * 平级切换 tab 刻意不记,否则切五次 tab 就要按五次返回才能离开页面。 */
+function pushView(state) {
+  try { history.pushState(state, ''); } catch { /* 隐私模式等拿不到 history,忽略 */ }
+}
+
+window.addEventListener('popstate', (e) => {
+  const st = e.state;
+  if (!st || !st.view) {
+    // 回到最初:只收起专辑详情,不强制切 tab
+    // (用户可能本来就在「专辑」tab,退的只是详情这一层)
+    hardCloseAlbumView();
+    return;
+  }
+  if (st.view === 'album') {
+    switchManageTab('album-mgr');
+    try { renderAlbumDetail(st.album); } catch { hardCloseAlbumView(); }
+    return;
+  }
+  if (st.view === 'export') {
+    switchManageTab('export');
+  }
+});
+
+/* Android 返回键(右滑/返回):WebView 的 canGoBack 对 history.pushState 产生的记录
+ * 不一定同步,默认行为可能直接退出 app。这里自己接管:有视图历史就退一层
+ * (导出面板 → 专辑详情 → 专辑列表),退到底才真正退出。浏览器里没有 App 插件,不受影响。 */
+(function bindBackButton() {
+  const app = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+  if (!app || typeof app.addListener !== 'function') return;
+  app.addListener('backButton', () => {
+    if (history.state && history.state.view) { history.back(); return; }
+    if (history.length > 1) { history.back(); return; }
+    try { app.exitApp(); } catch { /* 忽略 */ }
+  });
+})();
+
+/* 展开专辑详情(记一条历史;从 popstate 恢复时传 fromHistory,重复点同一个专辑也不记) */
+function showAlbumView(album, opts) {
+  if (!opts || !opts.fromHistory) {
+    if (mgrActiveAlbum !== album) pushView({ view: 'album', album });
+  }
+  renderAlbumDetail(album);
+}
+
+function renderAlbumDetail(album) {
   mgrActiveAlbum = album;
   const vbox = $('#album-view-box');
   if (vbox) vbox.hidden = false;
@@ -972,8 +1020,13 @@ function showAlbumView(album) {
   if (vbox) window.scrollTo({ top: Math.max(0, vbox.getBoundingClientRect().top + window.scrollY - 110), behavior: 'smooth' });
 }
 
-/* 专辑查看「返回」:收起详情回到专辑列表 */
+/* 专辑查看「返回」:有历史就走 history.back(),让界面按钮和系统返回键走同一条路 */
 function closeAlbumView() {
+  if (history.state && history.state.view === 'album') { history.back(); return; }
+  hardCloseAlbumView();
+}
+
+function hardCloseAlbumView() {
   mgrActiveAlbum = null;
   const vbox = $('#album-view-box');
   if (vbox) vbox.hidden = true;
@@ -1306,6 +1359,12 @@ $('#btn-share-qr-close').addEventListener('click', () => { $('#share-qr-modal').
  * token 非空 = 更新已有快照(预填该快照已包含的内容,链接不变)。 */
 async function openExportPanel(opts) {
   const o = opts || {};
+  // 只有"从别的视图跳过来"才记历史:已经在导出 tab 里点「生成分享页」只是重新加载数据,
+  // 不该再压一条 —— 否则返回要按好几次。旧链接恢复由调用方传 fromHistory。
+  if (!o.fromHistory) {
+    const activeTab = document.querySelector('#manage-tabs .tab-btn.active');
+    if (!activeTab || activeTab.dataset.tab !== 'export') pushView({ view: 'export' });
+  }
   const aEl = $('#ex-album'), fEl = $('#ex-from'), tEl = $('#ex-to');
   if (o.album != null) { if (aEl) aEl.value = o.album || ''; syncExAlbumLabel(); }
   if (o.from != null && fEl) fEl.value = o.from || '';
