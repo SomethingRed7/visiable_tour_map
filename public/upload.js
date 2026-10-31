@@ -1016,6 +1016,14 @@ function applyView(state) {
 window.addEventListener('hashchange', () => applyView(stateFromHash()));
 window.addEventListener('popstate', () => applyView(stateFromHash()));
 
+/* 交给原生返回键的钩子(见 MainActivity.onBackPressed)。
+ * 页面内的视图切换只存在于 JS 历史里,WebView 的 canGoBack 看不见 ——
+ * 所以由网页告诉原生"我还退得动":有 hash 就自己退一层并回 handled,让原生别动。 */
+window.__ggBack = function () {
+  if (location.hash) { history.back(); return 'handled'; }
+  return 'default';
+};
+
 /* Android 返回键(右滑/返回):WebView 的 canGoBack 对 history.pushState 产生的记录
  * 不一定同步,默认行为可能直接退出 app。这里自己接管:有视图历史就退一层
  * (导出面板 → 专辑详情 → 专辑列表),退到底才真正退出。浏览器里没有 App 插件,不受影响。 */
@@ -1501,11 +1509,14 @@ function initManageTabs() {
   });
   const back = $('#btn-album-back');
   if (back) back.addEventListener('click', closeAlbumView);
-  // 专辑查看里的「生成分享页」:同页打开导出面板(不再跳 export.html)
+  // 专辑查看里的「生成分享页」:同页切到导出,不再跳 export.html。
+  // ⚠️ 这里必须用 hardCloseAlbumView(只收起,不动历史):点「‹ 返回」才该退历史。
+  //    早先调的是 closeAlbumView,它会 history.back(),紧接着又 push 导出视图 —— 两个历史操作打架,
+  //    结果返回键一路退回首页。
   const albumShare = $('#btn-album-share');
   if (albumShare) albumShare.addEventListener('click', () => {
     const album = albumShare.dataset.album || '';
-    closeAlbumView();
+    hardCloseAlbumView();
     openExportPanel({ album, from: '', to: '' });
   });
 }
