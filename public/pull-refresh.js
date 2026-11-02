@@ -123,6 +123,11 @@
           icon.textContent = '⚠';
         }
 
+        // 停一会儿再收起。原来紧跟着就滑走了，只剩收回动画那 0.26 秒，
+        // 一眨眼什么都看不清；失败提示停留得更久一点，因为更需要读。
+        const hold = result && result.ok ? 1200 : 1800;
+        await new Promise((r) => setTimeout(r, hold));
+
         el.classList.remove('is-busy');
         place(0, true);
         setTimeout(() => idle(false), 900);
