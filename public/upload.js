@@ -1598,6 +1598,23 @@ initManageTabs(); // 管理区 Tab(默认管理条目)
 initAuth();
 renderRecent();
 
+/* 下拉刷新:和首页共用 pull-refresh.js(手势让路逻辑只写一份)。
+ * 管理页要刷的是「条目列表 + 专辑数据」这两块公共数据;
+ * 快照列表(renderShares)需要登录态,失败会触发跳登录,所以不放进自动刷新。 */
+if (window.PullRefresh) {
+  PullRefresh.init({
+    onRefresh: async () => {
+      try {
+        await Promise.all([renderRecent(), refreshAllEntries()]);
+        renderAlbums();
+        return { ok: true };
+      } catch {
+        return { ok: false };
+      }
+    },
+  });
+}
+
 // 带 hash 打开(刷新、或从别的页面回来)→ 直接还原到那个视图
 const initialView = stateFromHash();
 if (initialView) applyView(initialView);

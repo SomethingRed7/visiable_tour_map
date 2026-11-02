@@ -216,22 +216,30 @@ function initDayNav() {
  * savedEntry:弹窗回传的刚保存条目;有则跳到它那天并切到「当日动态」,
  * 否则「记一把」之后新的那条不会出现在界面上(未选日期时当日动态根本不渲染) */
 async function refreshAll(savedEntry) {
+  let ok = true;
+  let count = -1;
   try {
-    const data = await (await fetch('/api/entries')).json();
+    // cache:'no-store' —— 接口默认头是 public,max-age=0,must-revalidate,
+    // 浏览器仍可能拿缓存副本回来。下拉刷新必须拿到真实最新数据。
+    const res = await fetch('/api/entries', { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
     allEntries = data.entries || [];
+    count = allEntries.length;
     writeEntriesCache(allEntries);
-  } catch { /* 保留旧数据 */ }
+  } catch { ok = false; /* 保留旧数据 */ }
   const ds = savedEntry && savedEntry.date;
   if (ds) {
     selectDate(ds);      // 重绘日历 + 当日动态 + 当日待办
     switchTab('entries');
-    return;
+    return { ok, count };
   }
   renderCalendar();
   if (selectedDate) {
     renderDayEntries(selectedDate);
     renderDayTodos(selectedDate);
   }
+  return { ok, count };
 }
 
 /* 已登录:动态/流条目按钮(改公开/预览/编辑/删除,与管理界面一致) */
@@ -338,7 +346,7 @@ function renderDayEntries(ds) {
   try {
     html = dayEntries.length
       ? dayEntries.map((e) => entryCard(e, currentUser ? { editBtn: true } : null)).join('')
-      : dayEmptyHtml(ds);
+      : '<p class="empty">这天没有记录</p>';
   } catch (err) {
     console.error('渲染当日条目失败', err);
     html = '<p class="empty">这天显示不出来，刷新一下试试</p>';
@@ -346,31 +354,7 @@ function renderDayEntries(ds) {
   $('#day-entries').innerHTML = html;
   bindPhotoGridFallback($('#day-entries'));
   bindStreamEditBtns($('#day-entries'));
-  const addDay = $('#day-entries .day-empty-add');
-  if (addDay) addDay.addEventListener('click', () => {
-    EntryModal.open({ date: addDay.dataset.date, onSaved: refreshAll });
-  });
   renderDayMap(dayEntries);
-}
-
-/* 空白的一天不该只写「当日无事发生」——那是句结案陈词,不是邀请。
- * 登录后直接给入口:今天写一条、过去的补一条;未来的日期不给按钮。
- * ⚠️ 用 todayStr() 不是 localToday():后者只在 upload.js(管理页)里有,
- *    在这里调会抛 ReferenceError,把后面的 innerHTML 赋值整个打断 ——
- *    表现就是「点了空白日期,标题变了但内容还是上一条」。 */
-function dayEmptyHtml(ds) {
-  const today = todayStr();
-  const canAdd = ds <= today;
-  if (!currentUser || !canAdd) {
-    return `<p class="empty">${ds === today ? '今天还没记录' : '这天没有记录'}</p>`;
-  }
-  const label = ds === today
-    ? '今天还没记，写一条？'
-    : `补记 ${Number(ds.slice(5, 7))} 月 ${Number(ds.slice(8, 10))} 日 的？`;
-  return `<div class="day-empty">
-    <p>${esc(label)}</p>
-    <button type="button" class="day-empty-add" data-date="${esc(ds)}">+ 写一条</button>
-  </div>`;
 }
 
 /* 当天足迹地图:当天带定位的条目 → 点位 + 轨迹。
@@ -1292,107 +1276,12 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || ['localho
   });
 }
 
-/* ---------- 下拉刷新 ----------
- * WebView 和浏览器都没有能用的原生下拉刷新(Chrome 那个是整页重载,会丢状态、要重新登录),
- * 所以自己实现:页面在顶部时下拉,超过阈值松手就重拉数据 —— 走「记一把」保存后同一个 refreshAll()。
- * 三种情况必须让路:页面已经滚下去了、起点在地图或输入框上、这次手势是横向的。 */
-(function initPullToRefresh() {
-  const THRESHOLD = 72;   // 松手时位移超过它才触发
-  const MAX_PULL = 110;   // 视觉上限,给手感一个"到底"的停顿
-  const DAMP = 0.52;      // 阻尼:手指走 1px,指示器只走 0.52px
-  const H = 56;           // 指示器高度,与 style.css 的 .pull-refresh 保持一致
-
-  const el = document.createElement('div');
-  el.className = 'pull-refresh';
-  el.innerHTML = '<span class="pull-refresh-icon" aria-hidden="true">↓</span><span class="pull-refresh-text">下拉刷新</span>';
-  document.body.appendChild(el);
-
-  const icon = el.querySelector('.pull-refresh-icon');
-  const textEl = el.querySelector('.pull-refresh-text');
-
-  let startY = 0;
-  let startX = 0;
-  let dist = 0;
-  let active = false;    // 这次触摸是否由我们接管
-  let decided = false;   // 是否已判定方向
-  let busy = false;      // 刷新进行中
-
-  function place(d, animate) {
-    dist = Math.max(0, Math.min(d, MAX_PULL));
-    el.style.transition = animate ? 'transform .26s cubic-bezier(.2,.8,.3,1)' : 'none';
-    el.style.transform = `translateY(${dist - H}px)`;
-  }
-
-  function idle(animate) {
-    el.classList.remove('is-ready');
-    textEl.textContent = '下拉刷新';
-    icon.textContent = '↓';
-    place(0, animate);
-  }
-
-  document.addEventListener('touchstart', (e) => {
-    if (busy || e.touches.length !== 1) return;
-    if (window.scrollY > 0) return;                                             // 已经滚下去了
-    if (e.target.closest('.leaflet-container, input, textarea, select')) return; // 地图拖动/输入控件
-    startY = e.touches[0].clientY;
-    startX = e.touches[0].clientX;
-    active = true;
-    decided = false;
-  }, { passive: true });
-
-  document.addEventListener('touchmove', (e) => {
-    if (!active || busy) return;
-    const dy = e.touches[0].clientY - startY;
-    const dx = e.touches[0].clientX - startX;
-
-    if (!decided) {
-      // 横滑(日历横滑、tab 横滑)或上滑(正常滚动)—— 都不是下拉,直接退出
-      if (Math.abs(dx) > Math.abs(dy) || dy <= 0) { active = false; return; }
-      decided = true;
-    }
-    if (dy <= 0) { idle(true); return; }
-
-    e.preventDefault();        // 接管手势,别让页面跟着做橡皮筋
-    place(dy * DAMP, false);
-
-    const ready = dist >= THRESHOLD;
-    if (ready !== el.classList.contains('is-ready')) {
-      el.classList.toggle('is-ready', ready);
-      textEl.textContent = ready ? '松手刷新' : '下拉刷新';
-      icon.textContent = ready ? '↻' : '↓';
-    }
-  }, { passive: false });
-
-  document.addEventListener('touchend', () => {
-    if (!active) return;
-    active = false;
-    if (el.classList.contains('is-ready')) refresh();
-    else idle(true);
-  }, { passive: true });
-
-  document.addEventListener('touchcancel', () => {
-    if (!active) return;
-    active = false;
-    idle(true);
-  }, { passive: true });
-
-  async function refresh() {
-    busy = true;
-    el.classList.add('is-busy');
-    el.classList.remove('is-ready');
-    textEl.textContent = '刷新中…';
-    icon.textContent = '↻';
-    place(H, true);            // 停在完全露出的位置
-
-    const t0 = Date.now();
-    try { await refreshAll(); } catch { /* 失败也收起,已有内容保持不动 */ }
-    // 收得太快会闪一下,兜一个最短展示时间
-    const wait = Math.max(0, 420 - (Date.now() - t0));
-    if (wait) await new Promise((r) => setTimeout(r, wait));
-
-    el.classList.remove('is-busy');
-    place(0, true);
-    setTimeout(() => idle(false), 280);
-    busy = false;
-  }
-})();
+/* 下拉刷新：实现在 pull-refresh.js（首页与管理页共用同一份 ——
+ * 手势让路逻辑抄第二份时最容易漏判，漏一个就会「地图拖不动」或「日历划不动」）。
+ * 未登录没有可刷的数据，重绘一下日历即可，不算失败。 */
+PullRefresh.init({
+  onRefresh: async () => {
+    if (!currentUser) { renderCalendar(); return { ok: true }; }
+    return refreshAll();
+  },
+});
