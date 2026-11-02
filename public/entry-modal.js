@@ -19,7 +19,7 @@ function emThumbUrl(p) { return p.replace(/\.(jpg|jpeg|png)$/i, '-thumb.$1'); }
 /* 图片压缩走 photo.js 的共享实现(解码一次出 full+thumb,带超时兜底) */
 
 /* 弹窗状态 */
-let emState = { entry: null, removedPaths: [], lat: null, lng: null, files: [] };
+let emState = { entry: null, removedPaths: [], lat: null, lng: null, files: [], album: '' };
 
 function emSetStatus(msg, isErr) {
   const el = $('#em-status');
@@ -28,19 +28,54 @@ function emSetStatus(msg, isErr) {
   el.className = 'form-status' + (isErr ? ' error' : '');
 }
 
-/* 专辑下拉(与打卡弹窗同款:已有专辑 + 新建;编辑时保留已选) */
+/* 专辑选择:横向胶囊(替代原生 select)。
+ * 原生下拉在 WebView 里会渲染成一屏大圆点列表 —— 十来个专辑要滚半天,还得先点开再选。
+ * 胶囊点一下就选中,一行横向滑动,不占高度。 */
 async function emLoadAlbums() {
-  const sel = $('#em-album');
-  if (!sel) return;
-  const prev = sel.value;
+  const box = $('#em-album');
+  if (!box) return;
+  let albums = [];
   try {
     const data = await (await fetch('/api/entries')).json();
-    const albums = [...new Set((data.entries || []).map((e) => e.album).filter(Boolean))].sort();
-    sel.innerHTML = '<option value="">不设专辑</option>'
-      + albums.map((a) => `<option value="${esc(a)}">${esc(a)}</option>`).join('')
-      + '<option value="__new__">➕ 新建专辑…</option>';
-  } catch { /* 保持默认 */ }
-  if (prev) sel.value = prev;
+    albums = [...new Set((data.entries || []).map((e) => e.album).filter(Boolean))].sort();
+  } catch { /* 拿不到就只留「不设」和「新建」 */ }
+  emRenderAlbumChips(box, albums);
+  if (!box.dataset.bound) {
+    box.dataset.bound = '1';
+    box.addEventListener('click', emOnAlbumChipClick);
+  }
+}
+
+function emRenderAlbumChips(box, albums) {
+  const cur = emState.album || '';
+  // 编辑一条「专辑已被删掉」的旧记录时，把当前值补进列表，否则选不回来
+  const extra = cur && !albums.includes(cur) ? [cur] : [];
+  const all = [''].concat(albums, extra);
+  box.innerHTML = all
+    .map((a) => `<button type="button" class="chip" data-album="${esc(a)}" aria-pressed="${a === cur}">${esc(a || '不设')}</button>`)
+    .join('') + '<button type="button" class="chip chip-new" data-new="1">+ 新建</button>';
+}
+
+function emOnAlbumChipClick(e) {
+  const btn = e.target.closest('.chip');
+  if (!btn) return;
+  const box = $('#em-album');
+  if (!box) return;
+
+  if (btn.dataset.new) {
+    const name = (prompt('新专辑名字：') || '').trim().slice(0, 50);
+    if (!name) return;
+    emState.album = name;
+    const albums = [...box.querySelectorAll('.chip[data-album]')]
+      .map((b) => b.dataset.album).filter(Boolean);
+    emRenderAlbumChips(box, albums.includes(name) ? albums : albums.concat(name));
+    const added = box.querySelector(`.chip[data-album="${CSS.escape(name)}"]`);
+    if (added) added.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    return;
+  }
+
+  emState.album = btn.dataset.album || '';
+  box.querySelectorAll('.chip').forEach((b) => b.setAttribute('aria-pressed', String(b === btn)));
 }
 
 function emClose() {
@@ -53,7 +88,7 @@ function emOpen(opts) {
   if (!modal) return;
   opts = opts || {};
   const entry = opts.entry || null;
-  emState = { entry, removedPaths: [], lat: null, lng: null, files: [] };
+  emState = { entry, removedPaths: [], lat: null, lng: null, files: [], album: (entry && entry.album) || '' };
 
   // 标题/日期
   $('#em-title').textContent = entry ? '编辑日记' : '写日记';
@@ -64,21 +99,8 @@ function emOpen(opts) {
   $('#em-text').value = entry ? (entry.text || '') : '';
   $('#em-vis').value = entry && entry.visibility === 'private' ? 'private' : 'public';
 
-  // 专辑(先填充再回填,勿用固定延时)
-  emLoadAlbums().then(() => {
-    if (entry && entry.album) {
-      const exists = [...$('#em-album').options].some((o) => o.value === entry.album);
-      if (!exists) {
-        const o = document.createElement('option');
-        o.value = entry.album;
-        o.textContent = entry.album;
-        $('#em-album').insertBefore(o, $('#em-album').lastChild);
-      }
-      $('#em-album').value = entry.album;
-    } else {
-      $('#em-album').value = '';
-    }
-  });
+  // 专辑:选中态由 emState.album 决定,胶囊渲染时自动高亮(见 emRenderAlbumChips)
+  emLoadAlbums();
 
   // 地点 + 坐标
   const loc = (entry && entry.location) || {};
@@ -220,21 +242,13 @@ async function emSave() {
   const date = $('#em-date').value;
   const title = $('#em-title-input').value.trim();
   const text = $('#em-text').value.trim();
-  const albumRaw = $('#em-album').value;
+  // 专辑:胶囊点选时已写进 emState.album(新建也在那里处理完,这里不用再 prompt)
+  const album = emState.album || '';
   const vis = $('#em-vis').value;
   const location = $('#em-loc').value.trim() || null;
   const files = emState.files; // 累积暂存的待上传照片(不能读 input,它每次选择都会被覆盖)
 
   if (!date) return emSetStatus('请选择日期', true);
-
-  // 专辑:选中「➕ 新建专辑…」→ prompt 输入
-  let album = albumRaw;
-  if (albumRaw === '__new__') {
-    album = prompt('新专辑名字:');
-    if (!album) return emSetStatus('专辑名不能为空', true);
-    album = album.trim().slice(0, 50);
-    if (!album) return emSetStatus('专辑名不能为空', true);
-  }
 
   const fd = new FormData();
   fd.append('date', date);

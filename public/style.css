@@ -1801,3 +1801,46 @@ button.btn-add-entry {
 .pull-refresh.is-busy {
   color: var(--brand-deep, #b45309);
 }
+
+/* ---------- 专辑胶囊（2026-11-02） ----------
+ * 替代原生 select。原生下拉在 WebView 里会渲染成一屏大圆点列表：
+ * 十来个专辑要滚半天，而且得先点开列表才能选。胶囊一行横向滑动，点一下就选中。 */
+.chip-row {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 0;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.chip-row::-webkit-scrollbar { display: none; }
+
+.chip {
+  flex: 0 0 auto;
+  padding: 7px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--text-soft);
+  font: inherit;
+  font-size: 0.86rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.chip:active { transform: scale(0.97); }
+
+.chip[aria-pressed="true"] {
+  background: var(--brand-soft);
+  border-color: var(--brand);
+  color: #b45309;
+  font-weight: 600;
+}
+
+.chip-new {
+  border-style: dashed;
+  color: #9ca3af;
+}
