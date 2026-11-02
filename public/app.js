@@ -330,9 +330,20 @@ function renderDayEntries(ds) {
     .sort((a, b) => ((a.created_at || '') < (b.created_at || '') ? -1 : 1));
   const [y, m, d] = ds.split('-');
   $('#day-title').textContent = `${y} 年 ${Number(m)} 月 ${Number(d)} 日`;
-  $('#day-entries').innerHTML = dayEntries.length
-    ? dayEntries.map((e) => entryCard(e, currentUser ? { editBtn: true } : null)).join('')
-    : dayEmptyHtml(ds);
+
+  // 先算好 HTML 再一次性赋值。渲染中途抛错时绝不能保留上一天的内容 ——
+  // 那会变成「标题是 20 号、内容是 18 号的」,用户会以为自己记错了日子。
+  // (2026-11-02 就吃过一次:dayEmptyHtml 里误用 localToday,ReferenceError 把赋值打断。)
+  let html;
+  try {
+    html = dayEntries.length
+      ? dayEntries.map((e) => entryCard(e, currentUser ? { editBtn: true } : null)).join('')
+      : dayEmptyHtml(ds);
+  } catch (err) {
+    console.error('渲染当日条目失败', err);
+    html = '<p class="empty">这天显示不出来，刷新一下试试</p>';
+  }
+  $('#day-entries').innerHTML = html;
   bindPhotoGridFallback($('#day-entries'));
   bindStreamEditBtns($('#day-entries'));
   const addDay = $('#day-entries .day-empty-add');
@@ -343,9 +354,12 @@ function renderDayEntries(ds) {
 }
 
 /* 空白的一天不该只写「当日无事发生」——那是句结案陈词,不是邀请。
- * 登录后直接给入口:今天写一条、过去的补一条;未来的日期不给按钮。 */
+ * 登录后直接给入口:今天写一条、过去的补一条;未来的日期不给按钮。
+ * ⚠️ 用 todayStr() 不是 localToday():后者只在 upload.js(管理页)里有,
+ *    在这里调会抛 ReferenceError,把后面的 innerHTML 赋值整个打断 ——
+ *    表现就是「点了空白日期,标题变了但内容还是上一条」。 */
 function dayEmptyHtml(ds) {
-  const today = localToday();
+  const today = todayStr();
   const canAdd = ds <= today;
   if (!currentUser || !canAdd) {
     return `<p class="empty">${ds === today ? '今天还没记录' : '这天没有记录'}</p>`;
