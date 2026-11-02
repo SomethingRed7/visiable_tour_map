@@ -27,7 +27,7 @@
 
       const el = document.createElement('div');
       el.className = 'pull-refresh';
-      el.innerHTML = '<span class="pull-refresh-icon" aria-hidden="true">↓</span><span class="pull-refresh-text">下拉刷新</span>';
+      el.innerHTML = '<span class="pr-pill"><span class="pull-refresh-icon" aria-hidden="true">↓</span><span class="pull-refresh-text">下拉刷新</span></span>';
       document.body.appendChild(el);
 
       const icon = el.querySelector('.pull-refresh-icon');

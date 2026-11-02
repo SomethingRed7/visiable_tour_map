@@ -1591,12 +1591,30 @@ body.lb-open { overflow: hidden; }
   justify-content: center;
   gap: 6px;
   transform: translateY(-56px);
-  background: var(--bg);
+  /* 透明 —— 原来铺 var(--bg) 一整条不透明色块，下拉时像盖了块板，整个屏幕都变沉。
+     现在只让文字浮着；白色描边保证压在任何内容上都读得清。 */
+  background: transparent;
   color: var(--text-soft);
   font-size: 0.85rem;
   pointer-events: none;
   z-index: 20;
   will-change: transform;
+}
+.pull-refresh-icon,
+.pull-refresh-text {
+  text-shadow: 0 1px 3px rgba(255, 255, 255, 0.95), 0 0 10px rgba(255, 255, 255, 0.8);
+}
+/* 只有文字带一个很淡的胶囊底，其余全透明。
+ * 纯透明会让文字和页头标题叠在一起（下拉时指示器是盖在页面内容上的）；
+ * 整条铺背景又太重 —— 折中成小胶囊。 */
+.pr-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06);
 }
 .pull-refresh-icon { font-size: 1rem; }
 .pull-refresh.is-ready { color: var(--brand-deep, #b45309); }
@@ -1778,3 +1796,8 @@ button.btn-add-entry {
   -webkit-tap-highlight-color: transparent;
 }
 .day-empty-add:active { opacity: 0.75; }
+/* 就绪/刷新中时用主色，比灰字更醒目；描边仍然保留 */
+.pull-refresh.is-ready,
+.pull-refresh.is-busy {
+  color: var(--brand-deep, #b45309);
+}
