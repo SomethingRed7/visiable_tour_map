@@ -11,7 +11,7 @@
 // 分享链接一律 /share/<name>.html(github.io);写入失败静态页会暂时 404,但生成中/不存在由 github.io 404 页友好提示,不再跳 pages.dev。
 import { verifySession } from '../_lib/auth.js';
 import { buildSnapshotHtml } from '../_lib/snapshot.js';
-import { shareName } from '../_lib/slug.js';
+import { shareName, randomSuffix } from '../_lib/slug.js';
 
 const GH_REPO = 'SomethingRed7/somethingred7.github.io';
 
@@ -62,6 +62,25 @@ async function ghDeletePage(env, name) {
 }
 
 // 冻结后写 KV + 尽力写 github.io 静态页;分享链接一律用 github.io(/share/<name>.html),不跳 pages.dev
+/* 已有同条件的快照就复用它的 token:重复生成不该产生第二份,也不该换掉已经发给家人的链接 */
+async function findExistingToken(env, cond) {
+  const album = cond.album || '';
+  const from = cond.from || '';
+  const to = cond.to || '';
+  try {
+    const list = await env.ENTRIES.list({ prefix: 'share:' });
+    for (const k of (list.keys || [])) {
+      const raw = await env.ENTRIES.get(k.name);
+      if (!raw) continue;
+      try {
+        const s = JSON.parse(raw);
+        if ((s.album || '') === album && (s.from || '') === from && (s.to || '') === to) return s.token;
+      } catch { /* 跳过损坏项 */ }
+    }
+  } catch { /* KV 异常就当没有,走新建 */ }
+  return '';
+}
+
 async function persistSnapshot(env, snap, name) {
   const html = buildSnapshotHtml(snap, { cspMeta: true, origin: 'https://gugugaga-viw.pages.dev' });
   await ghWritePage(env, name, html);
@@ -194,8 +213,16 @@ export async function onRequestPost(context) {
   const { entries, todos } = await freeze(context.env, cond);
   const now = new Date().toISOString();
   // 分享名:专辑名英文拼音 slug,否则 起止日期~trip(不用随机名);同名再次生成 = 覆盖更新
-  const name = shareName(cond.album, cond.from, cond.to);
-  if (!NAME_RE.test(name)) return Response.json({ error: '无法生成有效的分享名,请检查专辑名或日期' }, { status: 400 });
+  const base = shareName(cond.album, cond.from, cond.to);
+  if (!NAME_RE.test(base)) return Response.json({ error: '无法生成有效的分享名,请检查专辑名或日期' }, { status: 400 });
+
+  // 同一个专辑/区间重复生成 = 更新同一个快照(链接不变)。
+  // 所以先找有没有同条件的现成的;没有才造新 token —— 在可读 slug 后加随机后缀,
+  // 避免「猜专辑名就能撞到分享链接」。已有快照(老的无后缀 token)照旧复用,不破坏已发出去的链接。
+  const reuse = await findExistingToken(context.env, cond);
+  const name = reuse || `${base}-${randomSuffix()}`;
+  if (!NAME_RE.test(name)) return Response.json({ error: '无法生成有效的分享名' }, { status: 400 });
+
   const snap = { token: name, album: cond.album, from: cond.from, to: cond.to, entries, todos, created_at: now, updated_at: now };
   const shareUrl = await persistSnapshot(context.env, snap, name);
   return Response.json({ ok: true, token: name, url: shareUrl, created_at: now, updated_at: now, entries: entries.length, todos: todos.length });

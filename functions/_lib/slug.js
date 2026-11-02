@@ -25,3 +25,16 @@ export function shareName(album, from, to) {
   if (from && to) return `${from}~${to}-trip`;
   return 'trip';
 }
+
+/* 分享 token 的随机后缀。
+ * 原来 token 就是专辑名拼音(changsha-2026)或日期区间,纯可枚举 —— 猜几个常见专辑名
+ * 就能撞到别人分享过的快照,而静态页没有任何防枚举。加一段随机后,不拿到链接进不来。
+ * 用 crypto 而不是 Math.random:后者在 Worker 里同实例内可预测。 */
+export function randomSuffix(len = 4) {
+  const AB = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  const buf = new Uint8Array(len);
+  crypto.getRandomValues(buf);
+  let s = '';
+  for (const b of buf) s += AB[b % AB.length];
+  return s;
+}
