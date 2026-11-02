@@ -120,7 +120,15 @@ function fromWgs(lat, lng) { if (!inChina(lat, lng)) return { lat, lng }; return
  * tile.openstreetmap.org 国内不可达 → 国内走高德;海外走 OSM 但**经本站代理**
  * (functions/tiles/[[path]].js),否则人在国内看海外路线还是整片灰(用户 2026-09-17 反馈)。 */
 const tileOsmUrl = () => `${window.API_ORIGIN || ''}/tiles/{z}/{x}/{y}.png`;
-const TILE_GAODE = 'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}';
+// 高德底图。⚠️ 两个参数都有讲究:
+//   host  ：webrd = 纯路网(road),wprd = 标准图(带楼栋号/小区名/地标)。
+//           原来用 webrd + style=8,放大到小区级别只有路名,连楼栋号都没有,
+//           对比高德 App 差得很远(2026-11-02 用户反馈)。
+//   style ：7 = 标准图,8 = 路网。webrd 配 style=7 会直接返回坏图(3KB 空白),
+//           只有 wprd 配 style=7 才正常。
+// 说明:高德对「无 key 的瓦片请求」只下发简版,店铺级 POI 不在瓦片里 ——
+// 想要高德 App 那种可点店铺,得接 JS API(AMap.Map),不是换瓦片能解决的。
+const TILE_GAODE = 'https://wprd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}';
 let pickerGcj = false; // 选点地图的空间:true=GCJ-02(国内),false=WGS-84(海外)
 /* 存储坐标(GCJ-02)↔ 地图空间坐标。海外两者相同,故 toWgs/fromWgs 自动退化为恒等 */
 const toMap = (lat, lng) => (pickerGcj ? { lat, lng } : toWgs(lat, lng));
