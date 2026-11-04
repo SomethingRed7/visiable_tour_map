@@ -26,11 +26,13 @@ async function ensureTable(env) {
        note TEXT,
        summary TEXT,
        photos TEXT,
+       override_key TEXT,
        author_name TEXT,
        created_at TEXT NOT NULL
      )`
   ).run();
   await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_rm_date ON reading_manual(date)').run();
+  try { await env.DB.prepare('ALTER TABLE reading_manual ADD COLUMN override_key TEXT').run(); } catch { /* 已存在 */ }
   ensured = true;
 }
 
@@ -68,6 +70,7 @@ export async function onRequestGet(context) {
     minutes: Number(r.minutes) || 0,
     summary: r.summary || '',
     photos: safeParse(r.photos),
+    override_key: r.override_key || '',
     author_name: r.author_name || '',
     created_at: r.created_at,
   }));
@@ -102,6 +105,7 @@ export async function onRequestPost(context) {
   const author = String(form.get('author') || '').trim().slice(0, LIMITS.author);
   const summary = String(form.get('summary') || '').trim().slice(0, LIMITS.summary);
   const editId = parseInt(form.get('id') || '0', 10) || 0;
+  const overrideKey = String(form.get('override_key') || '').slice(0, 60);
 
   // 图片：最多 4 张，逐张校验大小
   const files = form.getAll('photos').filter((f) => f && typeof f !== 'string');
@@ -141,19 +145,19 @@ export async function onRequestPost(context) {
     await context.env.DB.prepare(
       `UPDATE reading_manual
           SET title = ?2, author = ?3, minutes = ?4, summary = ?5, photos = ?6, ts = ?7,
-              author_name = ?8
+              author_name = ?8, override_key = ?9
         WHERE id = ?1`
     ).bind(editId, title, author, minutes, summary, JSON.stringify(photoPaths), ts,
-           String(user || '').slice(0, 40)).run();
+           String(user || '').slice(0, 40), overrideKey || null).run();
     return json({ ok: true, date, photos: photoPaths, updated: true });
   }
 
   await context.env.DB.prepare(
-    `INSERT INTO reading_manual (date, ts, title, author, minutes, summary, photos, author_name, created_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`
+    `INSERT INTO reading_manual (date, ts, title, author, minutes, summary, photos, override_key, author_name, created_at)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`
   ).bind(
     date, ts, title, author, minutes, summary,
-    JSON.stringify(photoPaths), String(user || '').slice(0, 40),
+    JSON.stringify(photoPaths), overrideKey || null, String(user || '').slice(0, 40),
     new Date().toISOString()
   ).run();
 

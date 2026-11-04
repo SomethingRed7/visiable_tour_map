@@ -100,8 +100,12 @@
       '<div class="rm-by">' + tag(SYNC_OWNER) + '</div>';
   }
 
-  function fullCard(it) {
+  function fullCard(it, ov, date) {
     const book = it.book || {};
+    // ov = 用户对这张同步卡的手工校正（书名/作者/时长），没改就是 null
+    const title = ov && ov.title ? ov.title : (book.title || '在读');
+    const author = ov ? (ov.author || '') : (book.author || '');
+    const mins = ov && ov.minutes ? ov.minutes : it.minutes;
     const pct = Math.max(0, Math.min(100, Number(it.progress) || 0));
     const facts = [];
     if (it.highlights_today) facts.push('当日划线 ' + it.highlights_today + ' 条');
@@ -110,9 +114,9 @@
     const quotes = (it.quotes || []).slice(0, 2).map((q) =>
       '<p class="rd-quote">' + esc(q.t) + '</p>').join('');
     return '<div class="rd-top">' +
-        '<div class="rd-book"><b>' + esc(book.title || '在读') + '</b>' +
-          '<span class="rd-author">' + esc(book.author || '') + '</span></div>' +
-        '<div class="rd-min">' + mm(it.minutes) + '<small>这天</small></div>' +
+        '<div class="rd-book"><b>' + esc(title) + '</b>' +
+          '<span class="rd-author">' + esc(author) + '</span></div>' +
+        '<div class="rd-min">' + mm(mins) + '<small>这天</small></div>' +
       '</div>' +
       '<div class="rd-progress"><div class="rd-progress-fill" style="width:' + pct + '%"></div></div>' +
       '<div class="rd-progress-label"><span>全书 ' + pct + '% · 第 ' + (it.chapter_idx || '') + '／' +
@@ -120,7 +124,9 @@
       '' +
       (facts.length ? '<p class="rd-facts">' + esc(facts.join(' · ')) + '</p>' : '') +
       quotes +
-      '<div class="rm-by">' + tag(SYNC_OWNER) + '</div>';
+      '<div class="rm-by">' + tag(SYNC_OWNER) +
+        '<button type="button" class="rm-act" data-rm-edit="wx-' + date + '">修改</button>' +
+      '</div>';
     // 有记录就不推「接下来读」了（那是空状态用来引导翻书的）
   }
 
@@ -157,7 +163,8 @@
   }
 
   function manualBlock(date) {
-    const list = manuals.get(date) || [];
+    // 覆盖微信读书卡的记录不单独成条，它已经顶到上面的卡里了
+    const list = (manuals.get(date) || []).filter((x) => !x.override_key);
     const cards = list.map(manualCard).join('');
     // 「记一本」在面板右上角（和「记一把」同一个位置），这里只管条目
     const acts = document.getElementById('rd-actions');
@@ -173,34 +180,50 @@
       b.onclick = () => rmDelete(Number(b.dataset.rmDel));
     });
     body.querySelectorAll('[data-rm-edit]').forEach((b) => {
-      b.onclick = () => rmOpen(Number(b.dataset.rmEdit));
+      b.onclick = () => rmOpen(b.dataset.rmEdit);
     });
   }
 
-  let rmEditId = 0;   // 0 = 新建，>0 = 修改这条
+  let rmEditId = 0;    // 手写条目的 id，0 = 新建
+  let rmEditKey = '';  // 覆盖微信读书卡时的 key（wx-<date>）
 
-  function rmOpen(id) {
+  function rmOpen(target) {
     const modal = document.getElementById('read-modal');
     if (!modal) return;
-    rmEditId = Number(id) || 0;
+    rmEditId = 0;
+    rmEditKey = '';
     ['rm-title', 'rm-author', 'rm-minutes', 'rm-summary'].forEach((k) => {
       const el = document.getElementById(k);
       if (el) el.value = '';
     });
-    // 修改模式：把原值填回表单
-    if (rmEditId) {
-      const list = manuals.get(curDate) || [];
-      const x = list.find((it) => it.id === rmEditId);
+    const set = (k, v) => { const el = document.getElementById(k); if (el) el.value = v == null ? '' : v; };
+
+    if (typeof target === 'string' && target.indexOf('wx-') === 0) {
+      // 改微信读书同步来的那张卡：用当前展示值（可能已有覆盖）打底
+      rmEditKey = target;
+      const date = target.slice(3);
+      const it = payloads.get(date);
+      const ov = (manuals.get(date) || []).find((x) => x.override_key === target) || null;
+      if (it) {
+        const book = it.book || {};
+        set('rm-title', ov && ov.title ? ov.title : (book.title || ''));
+        set('rm-author', ov ? (ov.author || '') : (book.author || ''));
+        set('rm-minutes', (ov && ov.minutes) ? ov.minutes : (Number(it.minutes) || ''));
+        set('rm-summary', ov ? (ov.summary || '') : '');
+      }
+    } else if (target) {
+      rmEditId = Number(target) || 0;
+      const x = (manuals.get(curDate) || []).find((it) => it.id === rmEditId);
       if (x) {
-        const set = (k, v) => { const el = document.getElementById(k); if (el) el.value = v == null ? '' : v; };
         set('rm-title', x.title);
         set('rm-author', x.author);
         set('rm-minutes', x.minutes || '');
         set('rm-summary', x.summary);
       }
     }
+
     const head = document.getElementById('rm-head');
-    if (head) head.textContent = rmEditId ? '修改这本' : '记一本';
+    if (head) head.textContent = (rmEditId || rmEditKey) ? '修改这本' : '记一本';
     const file = document.getElementById('rm-photos');
     if (file) file.value = '';
     const cnt = document.getElementById('rm-file-count');
@@ -226,6 +249,7 @@
 
     const fd = new FormData();
     if (rmEditId) fd.append('id', String(rmEditId));
+    if (rmEditKey) fd.append('override_key', rmEditKey);
     fd.append('date', curDate || todayStr());
     fd.append('title', title);
     fd.append('author', val('rm-author'));
@@ -243,6 +267,7 @@
       if (!r.ok) throw new Error(j.error || '保存失败');
       rmClose();
       rmEditId = 0;
+      rmEditKey = '';
       await loadManuals();
       render(curDate || todayStr());
     } catch (err) {
@@ -282,8 +307,10 @@
     curDate = date;
     const it = payloads.get(date);
     const m = it ? Number(it.minutes) || 0 : (minutes.get(date) || 0);
+    // 微信读书那张卡也允许校正：一天一张，key 固定为 wx-<date>
+    const wxOv = (manuals.get(date) || []).find((x) => x.override_key === 'wx-' + date) || null;
     let html;
-    if (it && m > 0) html = fullCard(it);
+    if (it && m > 0) html = fullCard(it, wxOv, date);
     else if (m > 0) html = compactState(date);
     else html = emptyState(date);
     body.innerHTML = html + manualBlock(date);
