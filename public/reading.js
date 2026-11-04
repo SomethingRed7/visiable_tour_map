@@ -120,8 +120,8 @@
       '' +
       (facts.length ? '<p class="rd-facts">' + esc(facts.join(' · ')) + '</p>' : '') +
       quotes +
-      '<div class="rm-by">' + tag(SYNC_OWNER) + '</div>' +
-      recoBlock('接下来读');
+      '<div class="rm-by">' + tag(SYNC_OWNER) + '</div>';
+    // 有记录就不推「接下来读」了（那是空状态用来引导翻书的）
   }
 
   // ---------- 手动添加的阅读记录（微信读书之外的书 / 纸质书） ----------
