@@ -1,7 +1,7 @@
 {
-  "versionCode": 11,
-  "versionName": "2.0",
+  "versionCode": 12,
+  "versionName": "2.1",
   "size": 7404799,
-  "notes": "安装包文件名改成版本号（如 gugugaga-update-2.0.apk），在文件管理器里一眼能看出是哪个版本；同时修更新装成旧包的问题。",
-  "publishedAt": "2026-10-31"
+  "notes": "",
+  "publishedAt": "2026-11-04"
 }
