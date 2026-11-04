@@ -140,9 +140,11 @@ export async function onRequestPost(context) {
   if (editId) {
     await context.env.DB.prepare(
       `UPDATE reading_manual
-          SET title = ?2, author = ?3, minutes = ?4, summary = ?5, photos = ?6, ts = ?7
+          SET title = ?2, author = ?3, minutes = ?4, summary = ?5, photos = ?6, ts = ?7,
+              author_name = ?8
         WHERE id = ?1`
-    ).bind(editId, title, author, minutes, summary, JSON.stringify(photoPaths), ts).run();
+    ).bind(editId, title, author, minutes, summary, JSON.stringify(photoPaths), ts,
+           String(user || '').slice(0, 40)).run();
     return json({ ok: true, date, photos: photoPaths, updated: true });
   }
 

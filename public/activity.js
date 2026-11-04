@@ -105,16 +105,18 @@
       '</div>';
 
     // 一律带操作：COROS 同步的也能改（改完存成本地覆盖记录，不动同步数据）
+    // 和「当日动态」条目上的用户名徽标同一套样式
+    const tag = (n) => '<span class="author-tag' + (n === '小红' ? ' rose' : '') + '">' + esc(n) + '</span>';
     const who = it.manual
-      ? (it.author_name ? esc(it.author_name) + ' 记的' : '手动记录')
-      : '高驰同步';
+      ? (it.author_name ? tag(it.author_name) : '<span class="ac-by-plain">手动记录</span>')
+      : '<span class="ac-by-plain">高驰同步</span>';
     const target = it.manual ? it.id : it._key;
     const del = it.manual
       ? '<button type="button" class="rm-act rm-act-del" data-am-del="' + it.id + '">删除</button>'
       : '';
     return '<div class="ac-manual">' + row +
       '<div class="ac-manual-acts">' +
-        '<span class="rm-by">' + who + '</span>' +
+        '<span class="ac-by">' + who + '</span>' +
         '<span class="ac-manual-btns">' +
           '<button type="button" class="rm-act" data-am-edit="' + target + '">修改</button>' +
           del +
@@ -339,7 +341,10 @@
     const dist = items.reduce((s, x) => s + (Number(x.dist) || 0), 0);
     const parts = ['共 ' + items.length + ' 项'];
     if (total) parts.push(mmss(total));
-    if (dist) parts.push(dist.toFixed(dist >= 10 ? 0 : 1) + ' km');
+    if (dist) {
+      const kmv = dist / 1000;   // dist 存的是米（和 COROS 同单位）
+      parts.push(kmv.toFixed(kmv >= 10 ? 0 : 1) + ' km');
+    }
     return '<p class="ac-facts">' + esc(parts.join(' · ')) + '</p>';
   }
 

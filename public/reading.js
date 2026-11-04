@@ -124,6 +124,11 @@
   // ---------- 手动添加的阅读记录（微信读书之外的书 / 纸质书） ----------
 
   // 排版刻意复用 rd-* 那套（书名/作者/右侧时长），视觉和微信读书那张卡一致
+  // 和「当日动态」里条目上的用户名徽标同一套样式
+  function tag(name) {
+    return '<span class="author-tag' + (name === '小红' ? ' rose' : '') + '">' + esc(name) + '</span>';
+  }
+
   function manualCard(x) {
     const photos = (x.photos || []).slice(0, 4)
       .map((p) => '<img src="' + esc(p) + '" alt="" loading="lazy">').join('');
@@ -136,7 +141,9 @@
         '</div>' +
         (mins ? '<div class="rd-min">' + mins + '分<small>这天</small></div>' : '') +
       '</div>' +
-      (x.author_name ? '<p class="rm-by">' + esc(x.author_name) + ' 记的</p>' : '') +
+      (x.author_name
+        ? '<div class="rm-by">' + tag(x.author_name) + '</div>'
+        : '') +
       (x.summary ? '<p class="rm-summary">' + esc(x.summary) + '</p>' : '') +
       (photos ? '<div class="rm-photos">' + photos + '</div>' : '') +
       '<div class="rm-acts">' +

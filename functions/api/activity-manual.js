@@ -105,8 +105,11 @@ export async function onRequestPost(context) {
       .prepare('SELECT id FROM activity_manual WHERE id = ?1').bind(editId).first();
     if (!row) return json({ error: '这条记录不存在了' }, 404);
     await context.env.DB.prepare(
-      `UPDATE activity_manual SET name = ?2, icon = ?3, dur = ?4, dist = ?5, ts = ?6, override_key = ?7 WHERE id = ?1`
-    ).bind(editId, name, icon, minutes * 60, dist, Date.now(), overrideKey || null).run();
+      `UPDATE activity_manual SET name = ?2, icon = ?3, dur = ?4, dist = ?5, ts = ?6,
+              override_key = ?7, author_name = ?8
+        WHERE id = ?1`
+    ).bind(editId, name, icon, minutes * 60, dist, Date.now(), overrideKey || null,
+           String(user || '').slice(0, 40)).run();
     return json({ ok: true, updated: true });
   }
 

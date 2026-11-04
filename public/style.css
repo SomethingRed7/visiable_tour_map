@@ -2172,3 +2172,8 @@ button.btn-add-entry {
 /* 面板右上角的主操作按钮（记一本 / 记一次），位置对齐「记一把」 */
 .pane-actions { display: flex; justify-content: flex-end; margin-bottom: 10px; }
 .pane-actions .btn-add-entry { margin-left: 0; }
+
+/* 运动/读书条目上的记录人：徽标和「当日动态」条目一致，垂直居中对齐 */
+.ac-by { display: inline-flex; align-items: center; }
+.ac-by-plain { font-size: 0.72rem; color: #b9b2a8; }
+.rm-by { margin-top: 6px; }
