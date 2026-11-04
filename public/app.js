@@ -1383,20 +1383,3 @@ PullRefresh.init({
   title.addEventListener('mouseleave', cancel);
 })();
 
-/* 页脚版本标记：把「实际加载的版本 + 域名」写在最下面一行小字里。
- * 排查「改了看不到」时，截图一眼就能判断是缓存、是别的域名、还是真的没部署。
- * 正常情况下它几乎看不见，不影响观感。 */
-(function showBuildTag() {
-  const el = document.getElementById('build-tag');
-  if (!el) return;
-  const self = [...document.scripts].find((s) => /app\.js\?v=/.test(s.src));
-  const v = (self && (self.src.match(/app\.js\?v=([0-9a-z]+)/) || [])[1]) || '?';
-  el.textContent = ` · ${location.host} · ${v}`;
-  el.title = '实际加载版本（点一下复制）';
-  el.style.cursor = 'pointer';
-  el.addEventListener('click', () => {
-    const txt = `${location.host} · ${v}`;
-    try { navigator.clipboard.writeText(txt); el.textContent = ' · 已复制'; }
-    catch { el.textContent = ' · ' + txt; }
-  });
-})();
