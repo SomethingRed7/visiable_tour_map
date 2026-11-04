@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>咕咕嘎嘎 · 旅行日记</title>
-  <link rel="stylesheet" href="style.css?v=20261104h">
+  <link rel="stylesheet" href="style.css?v=20261104b">
 </head>
 <body>
   <header class="site-header">
@@ -34,6 +34,7 @@
         <button type="button" class="tab-btn active" data-tab="entries">当日动态</button>
         <button type="button" class="tab-btn" data-tab="todos">当日待办</button>
         <button type="button" class="tab-btn" data-tab="reading">当日在读</button>
+        <button type="button" class="tab-btn" data-tab="activity">当日运动</button>
       </div>
       <div id="tab-todos" class="tab-pane" hidden>
         <div id="day-todos" class="todo-section" hidden></div>
@@ -48,6 +49,10 @@
       <!-- 当日在读:微信读书每日总结(数据由播报脚本推送,前端只读;跟随所选日期) -->
       <div id="tab-reading" class="tab-pane" hidden>
         <div id="reading-body" class="reading-body"></div>
+      </div>
+      <!-- 当日运动:COROS 同步的运动记录(同样由外部脚本推送;跟随所选日期) -->
+      <div id="tab-activity" class="tab-pane" hidden>
+        <div id="activity-body" class="activity-body"></div>
       </div>
       <!-- 前一天/后一天:与直接点日历那天走同一条路径(跨月时日历跟着翻) -->
       <div class="day-nav" id="day-nav" hidden>
@@ -152,5 +157,6 @@
   <script src="pull-refresh.js?v=20261102d"></script>
   <script src="app.js?v=20261104f"></script>
   <script src="reading.js?v=20261104h"></script>
+  <script src="activity.js?v=20261104b"></script>
 </body>
 </html>

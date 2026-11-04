@@ -1915,3 +1915,49 @@ button.btn-add-entry {
   font-size: 0.68rem; color: var(--brand); background: var(--brand-soft);
   border-radius: 999px; padding: 1px 8px; white-space: nowrap;
 }
+
+/* ---------- 当日运动（2026-11-04） ----------
+ * 和「当日在读」同一个面板位置，视觉沿用同一套：无卡片套框、行间细线分隔。 */
+.activity-body { padding: 2px 0; }
+
+.ac-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 2px;
+  border-bottom: 1px solid var(--line);
+}
+.ac-item:last-of-type { border-bottom: none; }
+
+.ac-icon { font-size: 1.15rem; line-height: 1; }
+.ac-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+/* 子元素也要 min-width:0 + 省略号，否则长文案会把右侧数字顶出屏幕（2026-11-04 实测） */
+.ac-main b,
+.ac-main em {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ac-main b { font-size: 0.95rem; }
+.ac-main em { font-style: normal; font-size: 0.78rem; color: var(--text-soft); }
+
+.ac-figure {
+  flex: 0 0 auto;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--brand);
+  white-space: nowrap;
+}
+
+.ac-week { display: flex; align-items: flex-end; gap: 10px; margin-top: 14px; }
+.ac-week-label { flex: 0 0 auto; font-size: 0.75rem; color: var(--text-soft); }
+.ac-bars { flex: 1; display: flex; align-items: flex-end; gap: 5px; height: 40px; }
+.ac-bar { flex: 1; max-width: 18px; background: #fde7c0; border-radius: 3px; }
+.ac-bar.is-current { background: var(--brand); }
+
+.ac-facts { margin: 12px 0 0; font-size: 0.78rem; color: var(--text-soft); }
+
+.ac-empty { padding: 26px 4px; text-align: center; }
+.ac-empty-main { margin: 0; font-size: 0.95rem; color: var(--text); }
+.ac-empty-sub { margin: 6px 0 0; font-size: 0.8rem; color: var(--text-soft); }
