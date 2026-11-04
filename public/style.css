@@ -2037,3 +2037,6 @@ button.btn-add-entry {
   font-size: 0.92rem;
   color: var(--text-soft);
 }
+
+/* 页脚版本标记：极淡的小字，排查问题时截图可见，平时几乎不打扰 */
+.build-tag { font-size: 0.7rem; color: #c8c2ba; margin-left: 2px; }
