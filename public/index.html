@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>咕咕嘎嘎 · 旅行日记</title>
-  <link rel="stylesheet" href="style.css?v=20261104q">
+  <link rel="stylesheet" href="style.css?v=20261104r">
 </head>
 <body>
   <header class="site-header">
@@ -19,12 +19,9 @@
     <section class="panel day-panel">
       <div class="day-head">
         <h2 id="day-title" class="panel-heading">点击日历上的日期,查看当天动态</h2>
-        <div class="day-head-right">
-          <a id="btn-entry-add" class="btn-add-entry" href="edit.html" hidden>记一把</a>
-          <div class="day-nav" id="day-nav" hidden>
-            <button type="button" id="day-prev" class="day-nav-btn" aria-label="前一天">‹</button>
-            <button type="button" id="day-next" class="day-nav-btn" aria-label="后一天">›</button>
-          </div>
+        <div class="day-nav" id="day-nav" hidden>
+          <button type="button" id="day-prev" class="day-nav-btn" aria-label="前一天">‹</button>
+          <button type="button" id="day-next" class="day-nav-btn" aria-label="后一天">›</button>
         </div>
       </div>
       <div class="panel-tabs" id="panel-tabs">
@@ -38,6 +35,7 @@
       </div>
       <div id="tab-entries" class="tab-pane">
         <!-- tab 已经写明「当日动态」,这里不再重复标题;只留「记一把」入口 -->
+        <div class="day-head-actions" id="day-head-actions"><a id="btn-entry-add" class="btn-add-entry" href="edit.html" hidden>记一把</a></div>
         <div id="day-entries" class="entries"></div>
       </div>
       <!-- 当日在读:微信读书每日总结(数据由播报脚本推送,前端只读;跟随所选日期) -->

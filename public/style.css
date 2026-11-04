@@ -299,7 +299,6 @@ body {
   margin-bottom: 10px;
 }
 .day-head .panel-heading { margin: 0; }
-.day-head-right { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 .day-nav { display: flex; gap: 6px; flex: 0 0 auto; }
 .day-nav-btn {
   width: 32px;
@@ -332,6 +331,7 @@ body {
 
 /* 当日动态「＋ 记录」:小号按钮,登录可见,右侧 */
 .btn-add-entry {
+  margin-left: auto;
   font-size: 0.85rem;
   font-weight: 600;
   color: #fff;
