@@ -1324,6 +1324,13 @@ PullRefresh.init({
  */
 (function versionCheck() {
   try {
+    // WebView（尤其安卓 Capacitor）不会像 Chrome 那样在导航时主动查 SW 更新，
+    // 导致 app 里长期停在旧版、而浏览器打开却是新的。这里每次加载都催一次。
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistration()
+        .then((r) => r && r.update())
+        .catch(() => {});
+    }
     if (sessionStorage.getItem('gg_ver_checked')) return;
     const self = [...document.scripts].find((s) => /app\.js\?v=/.test(s.src));
     const mine = self && (self.src.match(/app\.js\?v=([0-9a-z]+)/) || [])[1];
@@ -1337,4 +1344,41 @@ PullRefresh.init({
       })
       .catch(() => { /* 拿不到就算了，不打扰用户 */ });
   } catch { /* 隐私模式等拿不到 sessionStorage，跳过 */ }
+})();
+
+/* ---------- 长按标题清缓存（2026-11-04） ----------
+ * 安卓 Capacitor 的 WebView 不会像 Chrome 那样主动更新 Service Worker，app 里可能长期
+ * 停在旧版，而浏览器打开却是新的。app 内又没有任何清缓存入口，用户只能干瞪眼。
+ * 这里给个藏起来的自救开关：长按左上角标题 1.2 秒 → 注销 SW + 清离线缓存 → 重载。
+ * （网页端仍可用 /reset.html，作用一样。） */
+(function bindHardReset() {
+  const title = document.querySelector('.site-title') || document.querySelector('.header-main');
+  if (!title) return;
+  let timer = null;
+
+  const run = async () => {
+    try {
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (const r of regs) { try { await r.unregister(); } catch { /* 忽略 */ } }
+      }
+      if (window.caches) {
+        const keys = await caches.keys();
+        for (const k of keys) { try { await caches.delete(k); } catch { /* 忽略 */ } }
+      }
+      try { sessionStorage.clear(); } catch { /* 隐私模式 */ }
+    } catch { /* 清不掉也照常重载 */ }
+    location.replace('/?fresh=' + Date.now());
+  };
+
+  const start = () => { if (!timer) timer = setTimeout(() => { timer = null; run(); }, 1200); };
+  const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
+
+  title.addEventListener('touchstart', start, { passive: true });
+  title.addEventListener('touchend', cancel);
+  title.addEventListener('touchmove', cancel, { passive: true });
+  title.addEventListener('touchcancel', cancel);
+  title.addEventListener('mousedown', start);
+  title.addEventListener('mouseup', cancel);
+  title.addEventListener('mouseleave', cancel);
 })();
