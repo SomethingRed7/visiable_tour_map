@@ -190,6 +190,9 @@ function selectDate(ds) {
   renderCalendar();
   renderDayEntries(ds);
   renderDayTodos(ds);
+  // 外部模块(reading.js 的「在读」卡片)跟随所选日期:单一事件源,避免各处重复改
+  window.__ggSelectedDate = ds;
+  window.dispatchEvent(new CustomEvent('gg:date', { detail: { date: ds } }));
 }
 
 /* 前一天 / 后一天:与直接点日历那天完全一致 —— 同样走 selectDate(跨月由它同步日历月份) */

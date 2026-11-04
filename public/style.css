@@ -1874,3 +1874,13 @@ button.btn-add-entry {
   font-size: 0.86rem; color: #374151;
 }
 .rd-foot { margin: 12px 0 0; font-size: 0.7rem; color: #9ca3af; }
+
+/* 在读卡片:空状态 / 精简状态 */
+.rd-empty { padding: 4px 2px 2px; }
+.rd-empty-main { margin: 0 0 4px; font-size: 1rem; font-weight: 600; }
+.rd-empty-sub { margin: 0 0 12px; font-size: 0.82rem; color: var(--text-soft); }
+.rd-empty-link {
+  display: inline-block; font-size: 0.8rem; color: var(--brand);
+  background: var(--brand-soft); border-radius: 999px; padding: 5px 12px;
+  text-decoration: none;
+}
