@@ -14,6 +14,7 @@
   let loaded = false;
   const manuals = new Map();   // date -> 手动添加的条目[]
   let curDate = '';            // 当前选中日期（弹窗保存时要用）
+  const SYNC_OWNER = '小红';   // 微信读书同步的记录都算她的
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => (
@@ -96,7 +97,7 @@
     return '<div class="rd-top"><div class="rd-book"><b>' + mm(m) + '</b>' +
       '<span class="rd-author">这天读了这么久</span></div></div>' +
       '<p class="rd-facts">当天明细没有单独记录(明细只在推送当天保存)</p>' +
-      '';
+      '<div class="rm-by">' + tag(SYNC_OWNER) + '</div>';
   }
 
   function fullCard(it) {
@@ -118,7 +119,9 @@
         (it.chapters || '') + ' 章</span><span>当周 ' + mm(it.week_minutes) + '</span></div>' +
       '' +
       (facts.length ? '<p class="rd-facts">' + esc(facts.join(' · ')) + '</p>' : '') +
-      quotes + recoBlock('接下来读');
+      quotes +
+      '<div class="rm-by">' + tag(SYNC_OWNER) + '</div>' +
+      recoBlock('接下来读');
   }
 
   // ---------- 手动添加的阅读记录（微信读书之外的书 / 纸质书） ----------

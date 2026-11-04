@@ -15,6 +15,8 @@
   let amEditKey = '';               // 覆盖 COROS 某条时用的 key
   let amIcon = '🏃';
 
+  const SYNC_OWNER = '小红';   // 高驰同步的记录都算她的
+
   const KINDS = [
     { name: '跑步', icon: '🏃' }, { name: '骑行', icon: '🚴' },
     { name: '羽毛球', icon: '🏸' }, { name: '攀岩', icon: '🧗' },
@@ -107,9 +109,10 @@
     // 一律带操作：COROS 同步的也能改（改完存成本地覆盖记录，不动同步数据）
     // 和「当日动态」条目上的用户名徽标同一套样式
     const tag = (n) => '<span class="author-tag' + (n === '小红' ? ' rose' : '') + '">' + esc(n) + '</span>';
+    // 高驰同步来的归小红（设备和账号都是她的）
     const who = it.manual
       ? (it.author_name ? tag(it.author_name) : '<span class="ac-by-plain">手动记录</span>')
-      : '<span class="ac-by-plain">高驰同步</span>';
+      : tag(SYNC_OWNER);
     const target = it.manual ? it.id : it._key;
     const del = it.manual
       ? '<button type="button" class="rm-act rm-act-del" data-am-del="' + it.id + '">删除</button>'
