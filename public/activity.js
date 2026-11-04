@@ -153,7 +153,10 @@
           });
         });
         loaded = true;
-        if (current) render(current);
+        // 数据到了就把当前选中日补渲染一次。current 可能还是空的
+        // （用户还没点日历、gg:date 没派发过），这时按 app.js 的选中日期兜底 ——
+        // 否则切到「当日运动」看到的就是一片空白。
+        render(current || window.__ggSelectedDate || todayStr());
       })
       .catch(() => { loaded = true; });
   }

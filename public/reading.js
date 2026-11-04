@@ -67,24 +67,24 @@
     const isToday = date === todayStr();
     const book = (latest && latest.book) || {};
     const name = book.title ? '《' + book.title + '》' : '';
-    // 前一天读了多久,用来把「该去读书了」说得具体一点
-    let prevTip = '';
+    // 往前找最近一次读书，把「上次」说得具体 —— 比空喊「该去读书了」有用
+    let last = '';
     for (let i = 1; i <= 7; i++) {
       const d = new Date(date + 'T00:00:00');
       d.setDate(d.getDate() - i);
       const p = (n) => String(n).padStart(2, '0');
       const key = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
       const m = minutes.get(key);
-      if (m) { prevTip = (i === 1 ? '昨天' : '前 ' + i + ' 天') + '读了 ' + mm(m); break; }
+      if (m) { last = (i === 1 ? '昨天' : '前 ' + i + ' 天') + ' ' + mm(m); break; }
     }
+    const sub = [name ? '上次读到' + name : '', last].filter(Boolean).join(' · ')
+      || '翻开一本书，今天就有可记的';
     const link = book.link
-      ? '<a class="rd-empty-link" href="' + esc(book.link) + '">去读' + esc(name) + '</a>'
+      ? '<a class="rd-empty-link" href="' + esc(book.link) + '">' + (name ? '继续读' : '去读书') + '</a>'
       : '';
     return '<div class="rd-empty">' +
       '<p class="rd-empty-main">' + (isToday ? '今天还没翻开书' : '这天没有读书记录') + '</p>' +
-      '<p class="rd-empty-sub">' + (isToday
-        ? ('该去读书了' + (prevTip ? ' · ' + prevTip : ''))
-        : '换一天看看,或者从今天开始') + '</p>' +
+      '<p class="rd-empty-sub">' + esc(sub) + '</p>' +
       link + recoBlock() + '</div>';
   }
 

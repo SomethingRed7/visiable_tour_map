@@ -773,7 +773,19 @@ body {
   margin: 6px 0 12px;
   border-bottom: 1px solid var(--line);
   padding-bottom: 10px;
-  flex-wrap: wrap;
+  /* 一行横滑，不换行 —— 四个 tab 在窄屏换行会占掉两行高度，把内容往下挤 */
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.panel-tabs::-webkit-scrollbar { display: none; }
+.panel-tabs .tab-btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  /* 收一点内边距：四个 tab（当日动态/待办/在读/运动）在 390px 宽能整排露出，
+     再多才需要横滑 */
+  padding: 6px 11px;
 }
 .tab-btn {
   font: inherit;

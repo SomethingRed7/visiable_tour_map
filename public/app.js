@@ -451,13 +451,15 @@ function switchTab(tab) {
   document.querySelectorAll('#panel-tabs .tab-btn').forEach((b) => {
     b.classList.toggle('active', b.dataset.tab === tab);
   });
-  ['todos', 'entries', 'reading'].forEach((t) => {
+  // ⚠️ 这里列出所有「当日面板」的子 tab。漏一个的后果不是报错，而是那个面板
+  // 永远保持 hidden —— 点了 tab 标题高亮，内容区却一片空白（2026-11-04 加「当日运动」时就漏了）
+  ['todos', 'entries', 'reading', 'activity'].forEach((t) => {
     const pane = $('#tab-' + t);
     if (pane) pane.hidden = t !== tab;
   });
   if (tab === 'todos' && selectedDate) renderDayTodos(selectedDate);
   if (tab === 'entries' && selectedDate) renderDayEntries(selectedDate);
-  // 「当日在读」内容由 reading.js 自行跟随日期渲染,这里不用管
+  // 「当日在读」「当日运动」内容由各自脚本跟随日期渲染,这里不用管
 }
 
 function initTabs() {
