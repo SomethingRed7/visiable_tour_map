@@ -773,22 +773,17 @@ body {
   margin: 6px 0 12px;
   border-bottom: 1px solid var(--line);
   padding-bottom: 10px;
+  /* 一行横滑，不换行也不压缩 —— tab 保持内容宽度，放不下就左右滑。
+   * 之前误以为用户说的「都没了」是 tab 被推出屏幕，改成了均分；其实那是内容区空白的
+   * 另一个 bug。已改回横滑（2026-11-04）。 */
   flex-wrap: nowrap;
-  /* 两者兼得：放得下就均分填满，放不下就保持最小宽度、可以横滑 */
   overflow-x: auto;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
 }
 .panel-tabs::-webkit-scrollbar { display: none; }
-/* flex: 1 0 auto —— grow 让它有余宽时均分，shrink:0 让它不够宽时不被压扁。
- * 加上 min-width 保证至少能容下四个字，不至于挤成省略号。
- * 只写 flex:1 1 0 会被压到放得下为止（不能滑），只写 flex:0 0 auto 又会把后面的 tab
- * 推出屏幕外（2026-11-04 来回改错两次，这个组合才对）。 */
 .panel-tabs .tab-btn {
-  flex: 1 0 auto;
-  min-width: 4.6em;
-  padding: 6px 12px;
-  text-align: center;
+  flex: 0 0 auto;
   white-space: nowrap;
 }
 .tab-btn {
