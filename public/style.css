@@ -285,15 +285,34 @@ body {
 }
 
 /* 当日面板底部「前一天 / 后一天」:两端对齐 + 细分隔线;按钮沿用 .btn-small */
-.day-nav {
+/* 日期标题行：左边「2026 年 11 月 4 日」，右边两个圆形箭头（2026-11-04 改）
+ * 原来「前一天/后一天」是底部两个占满宽度的按钮，占地方且和日历重复 */
+.day-head {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-top: 18px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
+  margin-bottom: 10px;
 }
-.day-nav .btn-small { min-height: 34px; }
+.day-head .panel-heading { margin: 0; }
+.day-nav { display: flex; gap: 6px; flex: 0 0 auto; }
+.day-nav-btn {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--text-soft);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.day-nav-btn:active { background: #f3f4f6; }
 
 .todo-head {
   display: flex;

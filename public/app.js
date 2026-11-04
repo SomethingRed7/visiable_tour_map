@@ -357,7 +357,7 @@ function renderDayEntries(ds) {
   $('#day-entries').innerHTML = html;
   bindPhotoGridFallback($('#day-entries'));
   bindStreamEditBtns($('#day-entries'));
-  renderDayMap(dayEntries);
+  // 当日足迹地图已从「当日动态」移除（2026-11-04 用户要求），renderDayMap 保留备用
 }
 
 /* 当天足迹地图:当天带定位的条目 → 点位 + 轨迹。
