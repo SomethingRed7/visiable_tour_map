@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>咕咕嘎嘎 · 旅行日记</title>
-  <link rel="stylesheet" href="style.css?v=20261104c">
+  <link rel="stylesheet" href="style.css?v=20261104e">
 </head>
 <body>
   <header class="site-header">
@@ -33,6 +33,7 @@
       <div class="panel-tabs" id="panel-tabs">
         <button type="button" class="tab-btn active" data-tab="entries">当日动态</button>
         <button type="button" class="tab-btn" data-tab="todos">当日待办</button>
+        <button type="button" class="tab-btn" data-tab="reading">当日在读</button>
       </div>
       <div id="tab-todos" class="tab-pane" hidden>
         <div id="day-todos" class="todo-section" hidden></div>
@@ -45,20 +46,15 @@
         <!-- 当天足迹:当天带定位的条目点位 + 轨迹(复用 map-common.renderCheckinMap,与专辑/分享/导出页同款组件) -->
         <div id="day-map" class="day-map"></div>
       </div>
+      <!-- 当日在读:微信读书每日总结(数据由播报脚本推送,前端只读;跟随所选日期) -->
+      <div id="tab-reading" class="tab-pane" hidden>
+        <div id="reading-body" class="reading-body"></div>
+      </div>
       <!-- 前一天/后一天:与直接点日历那天走同一条路径(跨月时日历跟着翻) -->
       <div class="day-nav" id="day-nav" hidden>
         <button type="button" id="day-prev" class="btn-small">‹ 前一天</button>
         <button type="button" id="day-next" class="btn-small">后一天 ›</button>
       </div>
-    </section>
-
-    <!-- 最近在读:微信读书每日总结(数据由播报脚本推送,前端只读) -->
-    <section class="panel reading-panel" id="reading-panel" hidden>
-      <div class="reading-head">
-        <h2 class="panel-heading" id="reading-title">在读</h2>
-        <span id="reading-sub" class="reading-sub"></span>
-      </div>
-      <div id="reading-body" class="reading-body"></div>
     </section>
   </main>
 
@@ -155,7 +151,7 @@
   <script src="loc-picker.js?v=20261102f"></script>
   <script src="entry-modal.js?v=20261102e"></script>
   <script src="pull-refresh.js?v=20261102d"></script>
-  <script src="app.js?v=20261104c"></script>
-  <script src="reading.js?v=20261104d"></script>
+  <script src="app.js?v=20261104e"></script>
+  <script src="reading.js?v=20261104f"></script>
 </body>
 </html>

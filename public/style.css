@@ -1846,12 +1846,6 @@ button.btn-add-entry {
 }
 
 /* ---------- 最近在读(首页读书卡,数据来自 /api/reading) ---------- */
-.reading-panel { grid-column: 1 / -1; }
-.reading-head {
-  display: flex; align-items: baseline; justify-content: space-between;
-  gap: 10px; flex-wrap: wrap; margin-bottom: 12px;
-}
-.reading-sub { font-size: 0.78rem; color: var(--text-soft); }
 .rd-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .rd-book b { font-size: 1.02rem; }
 .rd-author { display: block; font-size: 0.76rem; color: var(--text-soft); margin-top: 2px; }
@@ -1860,10 +1854,15 @@ button.btn-add-entry {
 .rd-progress { height: 6px; background: #f3f4f6; border-radius: 3px; overflow: hidden; margin: 14px 0 6px; }
 .rd-progress-fill { height: 100%; background: var(--brand); border-radius: 3px; }
 .rd-progress-label { display: flex; justify-content: space-between; font-size: 0.74rem; color: var(--text-soft); }
-.rd-chart { display: flex; align-items: flex-end; gap: 6px; height: 68px; margin: 16px 0 4px; }
+.rd-chart { display: flex; align-items: flex-end; gap: 8px; height: 84px; margin: 16px 0 4px; }
 .rd-col {
-  flex: 1; display: flex; flex-direction: column; justify-content: flex-end;
-  align-items: center; height: 100%; gap: 5px; min-width: 0;
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  height: 100%; gap: 6px; min-width: 0;
+}
+/* 柱子放进独立容器:否则柱高与日期标签争空间,flex 会把各柱等比压平,看不出差异 */
+.rd-bar-wrap {
+  flex: 1; width: 100%; max-width: 56px; display: flex;
+  align-items: flex-end; justify-content: center; min-height: 0;
 }
 .rd-bar { width: 100%; background: #fbbf24; border-radius: 4px 4px 0 0; min-height: 3px; }
 .rd-bar.rd-off { background: #f3f4f6; }

@@ -1,14 +1,11 @@
-// 首页「在读」卡片:跟随日历所选日期(app.js 的 selectDate 派发 gg:date 事件)。
+// 「当日在读」tab 内容:跟随日历所选日期(app.js 的 selectDate 派发 gg:date 事件)。
 // 数据来自 /api/reading(每日播报脚本从微信读书推送);前端只读。
-// - 当天有记录 → 完整读书卡(书名/时长/进度/7 天柱状图/最近划线)
+// - 当天有记录 → 完整卡(书名/时长/进度/7 天柱状图/最近划线)
 // - 只有时长没有明细(历史日期,由 payload.days 反推)→ 精简卡
 // - 完全没读 → 提示该去读书了
 (function () {
-  const panel = document.getElementById('reading-panel');
-  if (!panel) return;
   const body = document.getElementById('reading-body');
-  const sub = document.getElementById('reading-sub');
-  const title = document.getElementById('reading-title');
+  if (!body) return;
 
   const payloads = new Map();   // date -> payload
   const minutes = new Map();    // date -> 分钟(含 payload.days 反推)
@@ -29,10 +26,6 @@
   }
 
   function md(d) { return String(d || '').slice(5).replace('-', '.'); }
-  function cnDate(d) {
-    const p = String(d || '').split('-');
-    return p.length === 3 ? (Number(p[1]) + ' 月 ' + Number(p[2]) + ' 日') : '';
-  }
   function todayStr() {
     const d = new Date();
     const p = (n) => String(n).padStart(2, '0');
@@ -47,8 +40,8 @@
       const m = Number(d.m) || 0;
       const h = Math.max(3, Math.round((m / max) * 100));
       return '<div class="rd-col">' +
-        '<div class="rd-bar' + (m > 0 ? '' : ' rd-off') + '" style="height:' + h + '%" title="' +
-        esc(md(d.d)) + ' · ' + mm(m) + '"></div>' +
+        '<div class="rd-bar-wrap"><div class="rd-bar' + (m > 0 ? '' : ' rd-off') +
+        '" style="height:' + h + '%" title="' + esc(md(d.d)) + ' · ' + mm(m) + '"></div></div>' +
         '<span class="rd-day">' + esc(md(d.d)) + '</span></div>';
     }).join('');
     return '<div class="rd-chart">' + cols + '</div>';
@@ -87,7 +80,7 @@
       barChart(latest && latest.days);
   }
 
-  function fullCard(it, date) {
+  function fullCard(it) {
     const book = it.book || {};
     const pct = Math.max(0, Math.min(100, Number(it.progress) || 0));
     const facts = [];
@@ -102,32 +95,20 @@
         '<div class="rd-min">' + mm(it.minutes) + '<small>这天</small></div>' +
       '</div>' +
       '<div class="rd-progress"><div class="rd-progress-fill" style="width:' + pct + '%"></div></div>' +
-      '<div class="rd-progress-label"><span>全书 ' + pct + '%</span>' +
-        '<span>当周 ' + mm(it.week_minutes) + '</span></div>' +
+      '<div class="rd-progress-label"><span>全书 ' + pct + '% · 第 ' + (it.chapter_idx || '') + '／' +
+        (it.chapters || '') + ' 章</span><span>当周 ' + mm(it.week_minutes) + '</span></div>' +
       barChart(it.days) +
       (facts.length ? '<p class="rd-facts">' + esc(facts.join(' · ')) + '</p>' : '') +
       quotes;
   }
 
   function render(date) {
-    if (!date) { panel.hidden = true; return; }
-    panel.hidden = false;
-    const isToday = date === todayStr();
+    if (!date) { body.innerHTML = ''; return; }
     const it = payloads.get(date);
     const m = it ? Number(it.minutes) || 0 : (minutes.get(date) || 0);
-
-    title.textContent = isToday ? '今日在读' : (cnDate(date) + ' 在读');
-
-    if (it && m > 0) {
-      sub.textContent = it.chapter ? '第 ' + (it.chapter_idx || '') + ' 章 · 全书 ' + (it.progress || 0) + '%' : '';
-      body.innerHTML = fullCard(it, date);
-    } else if (m > 0) {
-      sub.textContent = '';
-      body.innerHTML = compactState(date);
-    } else {
-      sub.textContent = '';
-      body.innerHTML = emptyState(date);
-    }
+    if (it && m > 0) body.innerHTML = fullCard(it);
+    else if (m > 0) body.innerHTML = compactState(date);
+    else body.innerHTML = emptyState(date);
   }
 
   function load() {
@@ -152,7 +133,7 @@
         // 调试直链 ?rd=YYYY-MM-DD:app.js 初始化会先选中今天,等它渲染完再强制回目标日期
         if (forced && forced !== cur) setTimeout(() => render(forced), 350);
       })
-      .catch(() => { panel.hidden = true; });
+      .catch(() => { /* 接口挂了就当这天没读,不报错 */ });
   }
 
   // 跟随日历:selectDate 会派发 gg:date

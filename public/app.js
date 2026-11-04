@@ -395,7 +395,11 @@ async function initPortalUser(authP) {
     // 登录态:用户名 + 管理按钮(btn-write 样式,同原「写日记」入口)
     box.innerHTML = `<span class="user-name">${esc(currentUser)}</span><a class="btn-write" href="/write">管理</a>`;
     const tabsBar = $('#panel-tabs');
-    if (tabsBar) tabsBar.hidden = false;   // tab 面板仅登录可见(未登录无待办可看)
+    if (tabsBar) {
+      tabsBar.hidden = false;   // tab 栏常显:当日动态/当日在读 未登录也能看
+      const todoTab = tabsBar.querySelector('.tab-btn[data-tab="todos"]');
+      if (todoTab) todoTab.hidden = false; // 待办仅登录可见
+    }
     // 当日动态「记一把」按钮(登录可见;点击打开日记弹窗,不跳转写日记页)
     const addBtn = $('#btn-entry-add');
     if (addBtn) {
@@ -424,10 +428,15 @@ async function initPortalUser(authP) {
       box.innerHTML = '<a class="btn-write" href="/write">登录</a>';
     }
     const tabsBar2 = $('#panel-tabs');
-    if (tabsBar2) tabsBar2.hidden = true; // 未登录无 tab 栏:默认只展示当日动态
+    if (tabsBar2) {
+      // 未登录:tab 栏仍显示(「当日在读」对家人也开放),只把「当日待办」藏掉
+      tabsBar2.hidden = false;
+      const todoTab = tabsBar2.querySelector('.tab-btn[data-tab="todos"]');
+      if (todoTab) todoTab.hidden = true;
+    }
     const addBtn2 = $('#btn-entry-add');
     if (addBtn2) addBtn2.hidden = true;
-    if (activeTab === 'todos') switchTab('entries'); // 未登录默认动态
+    if (activeTab === 'todos') switchTab('entries'); // 未登录不留在待办 tab
   }
 }
 
@@ -438,12 +447,13 @@ function switchTab(tab) {
   document.querySelectorAll('#panel-tabs .tab-btn').forEach((b) => {
     b.classList.toggle('active', b.dataset.tab === tab);
   });
-  ['todos', 'entries'].forEach((t) => {
+  ['todos', 'entries', 'reading'].forEach((t) => {
     const pane = $('#tab-' + t);
     if (pane) pane.hidden = t !== tab;
   });
   if (tab === 'todos' && selectedDate) renderDayTodos(selectedDate);
   if (tab === 'entries' && selectedDate) renderDayEntries(selectedDate);
+  // 「当日在读」内容由 reading.js 自行跟随日期渲染,这里不用管
 }
 
 function initTabs() {
@@ -1236,6 +1246,10 @@ async function init() {
   initCalendar();
   initTabs();
   initDayNav(); // 当日面板底部「前一天/后一天」
+
+  // 直链某 tab:#reading / #todos / #entries(分享与调试用)
+  const hashTab = (location.hash || '').replace('#', '');
+  if (['entries', 'todos', 'reading'].includes(hashTab)) switchTab(hashTab);
 
   // 2) 登录态探测与条目拉取并行,别串成两个跨境往返(探到登录还要再拉待办,那是第三步)
   const authP = fetch('/api/auth').then((r) => r.json()).catch(() => ({ user: null }));
