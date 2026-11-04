@@ -13,7 +13,7 @@
  * ⚠️ /sw.js 自己的响应头必须是 no-cache(_headers 里单独写了),否则浏览器永远拿不到新版本。
  */
 
-const VERSION = 'gg-sw-20261030a';
+const VERSION = 'gg-sw-20261104a';
 const HTML_CACHE = VERSION + '-html';
 const ASSET_CACHE = VERSION + '-asset';
 // HTML 只留一份:主页面和 ?date=xxx 返回的是同一份 HTML,不必按 query 分开存

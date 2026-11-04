@@ -774,19 +774,22 @@ body {
   border-bottom: 1px solid var(--line);
   padding-bottom: 10px;
   flex-wrap: nowrap;
+  /* 两者兼得：放得下就均分填满，放不下就保持最小宽度、可以横滑 */
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
 }
-/* tab 均分整行，永远整排可见。
- * 之前用 flex:0 0 auto + overflow-x:auto，在窄屏会把后两个 tab 推出屏幕外 ——
- * 用户看不到「当日在读」「当日运动」，以为功能没了（2026-11-04）。
- * 均分后每个 tab 至少还有 4 个字的宽度，再多就靠字号收。 */
+.panel-tabs::-webkit-scrollbar { display: none; }
+/* flex: 1 0 auto —— grow 让它有余宽时均分，shrink:0 让它不够宽时不被压扁。
+ * 加上 min-width 保证至少能容下四个字，不至于挤成省略号。
+ * 只写 flex:1 1 0 会被压到放得下为止（不能滑），只写 flex:0 0 auto 又会把后面的 tab
+ * 推出屏幕外（2026-11-04 来回改错两次，这个组合才对）。 */
 .panel-tabs .tab-btn {
-  flex: 1 1 0;
-  min-width: 0;
-  padding: 6px 8px;
+  flex: 1 0 auto;
+  min-width: 4.6em;
+  padding: 6px 12px;
   text-align: center;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 .tab-btn {
   font: inherit;
@@ -1974,3 +1977,68 @@ button.btn-add-entry {
 .ac-empty { padding: 26px 4px; text-align: center; }
 .ac-empty-main { margin: 0; font-size: 0.95rem; color: var(--text); }
 .ac-empty-sub { margin: 6px 0 0; font-size: 0.8rem; color: var(--text-soft); }
+
+/* 空状态的行动提示（比「今天还没动」多一句有用的话，且带数据依据） */
+.ac-empty-tip {
+  margin: 10px 0 0;
+  font-size: 0.82rem;
+  color: var(--brand);
+  font-weight: 600;
+}
+
+/* ---------- 当日面板四个 tab 的空状态，统一成一套（2026-11-04） ----------
+ * 原来各写各的：.empty / .todo-empty / .rd-empty / .ac-empty 四种排版、四种字号，
+ * 切 tab 时观感跳变。统一成 .day-empty 系列，四个 tab 都是「居中三段：主文案 / 补充 / 提示」。 */
+.day-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 30px 16px 26px;
+  text-align: center;
+}
+.day-empty-main {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--text);
+  line-height: 1.5;
+}
+.day-empty-sub {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-soft);
+  line-height: 1.5;
+}
+.day-empty-tip {
+  margin: 3px 0 0;
+  font-size: 0.82rem;
+  color: var(--brand);
+  font-weight: 600;
+}
+.day-empty-link {
+  margin-top: 10px;
+  display: inline-block;
+  padding: 7px 18px;
+  border: 1px solid var(--brand);
+  border-radius: 999px;
+  color: var(--brand);
+  font-size: 0.85rem;
+  text-decoration: none;
+}
+/* 推荐书单在统一容器里保持左对齐、整宽 */
+.day-empty .rd-reco {
+  width: 100%;
+  margin-top: 16px;
+  text-align: left;
+}
+
+/* 旧类名保留兜底：别处还在用的 .empty / .todo-empty 也按同一套走 */
+.todo-empty,
+.entries > .empty,
+.day-panel > .empty {
+  margin: 0;
+  padding: 28px 16px;
+  text-align: center;
+  font-size: 0.92rem;
+  color: var(--text-soft);
+}

@@ -80,11 +80,11 @@
     const sub = [name ? '上次读到' + name : '', last].filter(Boolean).join(' · ')
       || '翻开一本书，今天就有可记的';
     const link = book.link
-      ? '<a class="rd-empty-link" href="' + esc(book.link) + '">' + (name ? '继续读' : '去读书') + '</a>'
+      ? '<a class="day-empty-link" href="' + esc(book.link) + '">' + (name ? '继续读' : '去读书') + '</a>'
       : '';
-    return '<div class="rd-empty">' +
-      '<p class="rd-empty-main">' + (isToday ? '今天还没翻开书' : '这天没有读书记录') + '</p>' +
-      '<p class="rd-empty-sub">' + esc(sub) + '</p>' +
+    return '<div class="day-empty">' +
+      '<p class="day-empty-main">' + (isToday ? '今天还没翻开书' : '这天没有读书记录') + '</p>' +
+      '<p class="day-empty-sub">' + esc(sub) + '</p>' +
       link + recoBlock() + '</div>';
   }
 

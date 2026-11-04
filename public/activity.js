@@ -96,7 +96,7 @@
 
   function emptyState(date) {
     const isToday = date === todayStr();
-    // 往前找最近一次运动,把「该动了」说得具体点
+    // 往前找最近一次运动，把「上次」说得具体
     let prev = '';
     for (let i = 1; i <= 30; i++) {
       const key = shiftDay(date, -i);
@@ -104,14 +104,38 @@
       const first = p && (p.items || [])[0];
       if (first) {
         const label = i === 1 ? '昨天' : i === 2 ? '前天' : `${Number(key.slice(5, 7))} 月 ${Number(key.slice(8, 10))} 日`;
-        const what = [first.name, km(first.dist) || mmss(first.dur)].filter(Boolean).join(' ');
+        const what = [first.name, km(first.dist) || clock(first.dur)].filter(Boolean).join(' ');
         prev = `${label} ${what}`;
         break;
       }
     }
-    return '<div class="ac-empty">' +
-      '<p class="ac-empty-main">' + (isToday ? '今天还没动' : '这天没有运动记录') + '</p>' +
-      (prev ? '<p class="ac-empty-sub">上次：' + esc(prev) + '</p>' : '') +
+
+    // 本周（从周一起）动了几天 —— 提示用真实数据说话，比空喊「该运动了」有用
+    const dow = new Date(date + 'T00:00:00').getDay() || 7;   // 周日算第 7 天
+    let weekCount = 0;
+    for (let i = 0; i < dow; i++) {
+      const k = shiftDay(date, -i);
+      const p = byDate.get(k);
+      if ((p && (p.items || []).length) || (minutes.get(k) || 0) > 0) weekCount++;
+    }
+
+    let tip = '';
+    if (!isToday) {
+      tip = '这天没有运动记录';
+    } else if (!byDate.size && !minutes.size) {
+      tip = '动一下，这里就有记录了';
+    } else if (weekCount === 0) {
+      tip = '这周还没动过，今天开个头？';
+    } else if (weekCount <= 2) {
+      tip = `这周动了 ${weekCount} 天，今天再补一次？`;
+    } else {
+      tip = `这周已经动了 ${weekCount} 天，保持住`;
+    }
+
+    return '<div class="day-empty">' +
+      '<p class="day-empty-main">' + (isToday ? '今天还没动' : '这天没有运动记录') + '</p>' +
+      (prev ? '<p class="day-empty-sub">上次：' + esc(prev) + '</p>' : '') +
+      '<p class="day-empty-tip">' + esc(tip) + '</p>' +
       '</div>';
   }
 

@@ -349,7 +349,7 @@ function renderDayEntries(ds) {
   try {
     html = dayEntries.length
       ? dayEntries.map((e) => entryCard(e, currentUser ? { editBtn: true } : null)).join('')
-      : '<p class="empty">这天没有记录</p>';
+      : '<div class="day-empty"><p class="day-empty-main">这天没有记录</p></div>';
   } catch (err) {
     console.error('渲染当日条目失败', err);
     html = '<p class="empty">这天显示不出来，刷新一下试试</p>';
@@ -502,7 +502,7 @@ function renderDayTodos(ds) {
         <button type="button" class="todo-del" data-id="${t.id}" aria-label="删除">✕</button>
       </div>`;
       }).join('')
-    : '<p class="todo-empty">这天还没有待办,添加一条开始打卡</p>';
+    : '<div class="day-empty"><p class="day-empty-main">这天还没有待办</p><p class="day-empty-tip">加一条，开始打卡</p></div>';
   box.innerHTML = `
     <div class="todo-head-slim"><span class="todo-progress">已勾 ${done}/${list.length}</span></div>
     <form class="todo-add"><input type="text" maxlength="200" placeholder="添加一条待办…" required><button type="submit" class="btn-small">添加</button></form>
