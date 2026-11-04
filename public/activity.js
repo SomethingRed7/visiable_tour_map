@@ -10,6 +10,16 @@
   let minutes = new Map();      // date -> 运动分钟(含 days 反推)
   let loaded = false;
   let current = '';
+  const manualByDate = new Map();   // date -> 手写的运动记录[]
+  let amEditId = 0;                 // 0 = 新增，>0 = 修改
+  let amIcon = '🏃';
+
+  const KINDS = [
+    { name: '跑步', icon: '🏃' }, { name: '骑行', icon: '🚴' },
+    { name: '羽毛球', icon: '🏸' }, { name: '攀岩', icon: '🧗' },
+    { name: '跳绳', icon: '🤸' }, { name: '爬楼', icon: '🪜' },
+    { name: '健身', icon: '🏋️' }, { name: '徒步', icon: '🥾' },
+  ];
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => (
@@ -85,13 +95,23 @@
     if (p) facts.push(p + '/km');
     if (Number(it.hr) > 0) facts.push('心率 ' + Math.round(it.hr));
     if (Number(it.cal) > 0) facts.push(Math.round(it.cal) + ' 千卡');
-    return '<div class="ac-item">' +
+    const row = '<div class="ac-item">' +
       '<span class="ac-icon">' + icon + '</span>' +
       '<span class="ac-main"><b>' + name + '</b>' +
         (facts.length ? '<em>' + esc(facts.join(' · ')) + '</em>' : '') +
       '</span>' +
       (main ? '<span class="ac-figure">' + esc(main) + '</span>' : '') +
       '</div>';
+
+    if (!it.manual) return row;   // COROS 同步的只读，不带操作
+    return '<div class="ac-manual">' + row +
+      '<div class="ac-manual-acts">' +
+        (it.author_name ? '<span class="rm-by">' + esc(it.author_name) + ' 记的</span>' : '<span></span>') +
+        '<span class="ac-manual-btns">' +
+          '<button type="button" class="rm-act" data-am-edit="' + it.id + '">修改</button>' +
+          '<button type="button" class="rm-act rm-act-del" data-am-del="' + it.id + '">删除</button>' +
+        '</span>' +
+      '</div></div>';
   }
 
   function emptyState(date) {
@@ -140,11 +160,127 @@
       '</div>';
   }
 
+  // ---------- 手动运动记录 ----------
+
+  function loadManual() {
+    return fetch('/api/activity-manual?days=60', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        manualByDate.clear();
+        ((d && d.items) || []).forEach((it) => {
+          if (!manualByDate.has(it.date)) manualByDate.set(it.date, []);
+          manualByDate.get(it.date).push(it);
+        });
+      })
+      .catch(() => { /* 接口挂了就当没有手写记录 */ });
+  }
+
+  function bindManualActs() {
+    const add = document.getElementById('am-add');
+    if (add) add.onclick = () => amOpen();
+    body.querySelectorAll('[data-am-edit]').forEach((b) => {
+      b.onclick = () => amOpen(Number(b.dataset.amEdit));
+    });
+    body.querySelectorAll('[data-am-del]').forEach((b) => {
+      b.onclick = () => amDelete(Number(b.dataset.amDel));
+    });
+  }
+
+  function renderKinds() {
+    const box = document.getElementById('am-kinds');
+    if (!box) return;
+    box.innerHTML = KINDS.map((k) =>
+      '<button type="button" class="chip" data-kind="' + k.name + '" data-icon="' + k.icon + '"' +
+      ' aria-pressed="' + (k.icon === amIcon) + '">' + k.icon + ' ' + k.name + '</button>'
+    ).join('');
+    box.querySelectorAll('.chip').forEach((b) => {
+      b.onclick = () => {
+        amIcon = b.dataset.icon;
+        const nm = document.getElementById('am-name');
+        if (nm && !nm.value.trim()) nm.value = b.dataset.kind;
+        renderKinds();
+      };
+    });
+  }
+
+  function amOpen(id) {
+    const modal = document.getElementById('act-modal');
+    if (!modal) return;
+    amEditId = Number(id) || 0;
+    ['am-name', 'am-minutes', 'am-dist'].forEach((k) => {
+      const el = document.getElementById(k);
+      if (el) el.value = '';
+    });
+    amIcon = '🏃';
+    if (amEditId) {
+      const x = (manualByDate.get(current) || []).find((it) => it.id === amEditId);
+      if (x) {
+        const set = (k, v) => { const el = document.getElementById(k); if (el) el.value = v == null ? '' : v; };
+        set('am-name', x.name);
+        set('am-minutes', x.dur ? Math.round(x.dur / 60) : '');
+        set('am-dist', x.dist || '');
+        amIcon = x.icon || '🏃';
+      }
+    }
+    const head = document.getElementById('am-head');
+    if (head) head.textContent = amEditId ? '修改这次' : '记一次';
+    renderKinds();
+    modal.hidden = false;
+  }
+
+  function amClose() {
+    const modal = document.getElementById('act-modal');
+    if (modal) modal.hidden = true;
+  }
+
+  async function amSave() {
+    const btn = document.getElementById('am-save');
+    const val = (id) => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+    const name = val('am-name');
+    if (!name) { alert('写个运动名称'); return; }
+
+    const fd = new FormData();
+    if (amEditId) fd.append('id', String(amEditId));
+    fd.append('date', current || todayStr());
+    fd.append('name', name);
+    fd.append('icon', amIcon);
+    fd.append('minutes', val('am-minutes') || '0');
+    fd.append('dist', val('am-dist') || '0');
+
+    if (btn) { btn.disabled = true; btn.textContent = '保存中…'; }
+    try {
+      const r = await fetch('/api/activity-manual', { method: 'POST', body: fd });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || '保存失败');
+      amClose();
+      amEditId = 0;
+      await loadManual();
+      render(current || todayStr());
+    } catch (err) {
+      alert(err.message || '保存失败');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '保存'; }
+    }
+  }
+
+  async function amDelete(id) {
+    if (!id || !confirm('删掉这条运动记录？')) return;
+    try {
+      const r = await fetch('/api/activity-manual?id=' + id, { method: 'DELETE' });
+      if (!r.ok) throw new Error('删除失败');
+      await loadManual();
+      render(current || todayStr());
+    } catch (err) {
+      alert(err.message || '删除失败');
+    }
+  }
+
   function render(date) {
     current = date || '';
     if (!date) { body.innerHTML = ''; return; }
     const it = byDate.get(date);
-    const items = (it && it.items) || [];
+    // COROS 同步的在前，手写的追加在后
+    const items = ((it && it.items) || []).concat(manualByDate.get(date) || []);
     if (items.length) {
       const total = items.reduce((s, x) => s + (Number(x.dur) || 0), 0);
       const cal = items.reduce((s, x) => s + (Number(x.cal) || 0), 0);
@@ -162,9 +298,17 @@
     } else {
       body.innerHTML = emptyState(date);
     }
+    body.insertAdjacentHTML('beforeend', manualAddBtn());
+    bindManualActs();
+  }
+
+  function manualAddBtn() {
+    if (!window.currentUser) return '';
+    return '<button type="button" class="rm-add" id="am-add">＋ 记一次</button>';
   }
 
   function load() {
+    loadManual().then(() => { if (loaded && current) render(current); });
     fetch('/api/activity?days=30', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
@@ -189,6 +333,14 @@
         render(current || window.__ggSelectedDate || todayStr());
       });
   }
+
+  // 弹窗按钮
+  const amCloseBtn = document.getElementById('am-close');
+  if (amCloseBtn) amCloseBtn.onclick = amClose;
+  const amSaveBtn = document.getElementById('am-save');
+  if (amSaveBtn) amSaveBtn.onclick = amSave;
+  const amModal = document.getElementById('act-modal');
+  if (amModal) amModal.addEventListener('click', (e) => { if (e.target === amModal) amClose(); });
 
   window.addEventListener('gg:date', (e) => {
     const date = e.detail && e.detail.date;

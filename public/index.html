@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>咕咕嘎嘎 · 旅行日记</title>
-  <link rel="stylesheet" href="style.css?v=20261104u">
+  <link rel="stylesheet" href="style.css?v=20261104v">
 </head>
 <body>
   <header class="site-header">
@@ -68,6 +68,32 @@
     <div class="modal-card">
       <div id="preview-body"></div>
       <button type="button" id="btn-preview-close" class="btn-small">关闭</button>
+    </div>
+  </div>
+
+  <!-- 记一次:手动添加运动记录(COROS 没记到的) -->
+  <div id="act-modal" class="ckin-modal" hidden>
+    <div class="ckin-box">
+      <div class="ckin-head"><span id="am-head">记一次</span><button type="button" id="am-close" class="ckin-x" aria-label="关闭">✕</button></div>
+      <div class="ckin-vis-row">
+        <label class="ckin-vis-label">运动</label>
+        <div id="am-kinds" class="chip-row"></div>
+      </div>
+      <div class="ckin-vis-row">
+        <label class="ckin-vis-label" for="am-name">名称</label>
+        <input id="am-name" maxlength="30" placeholder="跑步 / 骑行 / 羽毛球…">
+      </div>
+      <div class="ckin-vis-row">
+        <label class="ckin-vis-label" for="am-minutes">时长</label>
+        <input id="am-minutes" type="number" min="0" max="1440" placeholder="分钟">
+      </div>
+      <div class="ckin-vis-row">
+        <label class="ckin-vis-label" for="am-dist">距离</label>
+        <input id="am-dist" type="number" min="0" step="0.1" placeholder="公里（可空）">
+      </div>
+      <div class="rm-save-row">
+        <button type="button" id="am-save" class="rm-save-btn">保存</button>
+      </div>
     </div>
   </div>
 
@@ -183,7 +209,7 @@
   <script src="entry-modal.js?v=20261102e"></script>
   <script src="pull-refresh.js?v=20261102d"></script>
   <script src="app.js?v=20261104t"></script>
-  <script src="reading.js?v=20261104u"></script>
-  <script src="activity.js?v=20261104i"></script>
+  <script src="reading.js?v=20261104v"></script>
+  <script src="activity.js?v=20261104v"></script>
 </body>
 </html>

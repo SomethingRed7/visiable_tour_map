@@ -96,7 +96,7 @@
     return '<div class="rd-top"><div class="rd-book"><b>' + mm(m) + '</b>' +
       '<span class="rd-author">这天读了这么久</span></div></div>' +
       '<p class="rd-facts">当天明细没有单独记录(明细只在推送当天保存)</p>' +
-      barChart(latest && latest.days);
+      '';
   }
 
   function fullCard(it) {
@@ -116,7 +116,7 @@
       '<div class="rd-progress"><div class="rd-progress-fill" style="width:' + pct + '%"></div></div>' +
       '<div class="rd-progress-label"><span>全书 ' + pct + '% · 第 ' + (it.chapter_idx || '') + '／' +
         (it.chapters || '') + ' 章</span><span>当周 ' + mm(it.week_minutes) + '</span></div>' +
-      barChart(it.days) +
+      '' +
       (facts.length ? '<p class="rd-facts">' + esc(facts.join(' · ')) + '</p>' : '') +
       quotes + recoBlock('接下来读');
   }
@@ -136,6 +136,7 @@
         '</div>' +
         (mins ? '<div class="rd-min">' + mins + '分<small>这天</small></div>' : '') +
       '</div>' +
+      (x.author_name ? '<p class="rm-by">' + esc(x.author_name) + ' 记的</p>' : '') +
       (x.summary ? '<p class="rm-summary">' + esc(x.summary) + '</p>' : '') +
       (photos ? '<div class="rm-photos">' + photos + '</div>' : '') +
       '<div class="rm-acts">' +

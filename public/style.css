@@ -2145,3 +2145,22 @@ button.btn-add-entry {
 }
 .rm-save-btn:disabled { opacity: 0.6; }
 .rm-save-btn:active { filter: brightness(0.96); }
+
+/* 手动条目的「谁记的」——和正文区分开，淡淡一行 */
+.rm-by {
+  margin: 5px 0 0;
+  font-size: 0.72rem;
+  color: #b9b2a8;
+}
+
+/* ---------- 手动运动记录（2026-11-04） ---------- */
+/* 手写的那条：行下面挂「谁记的 + 修改/删除」，COROS 同步的没有这层 */
+.ac-manual { border-bottom: 1px solid var(--line); }
+.ac-manual .ac-item { border-bottom: none; padding-bottom: 2px; }
+.ac-manual-acts {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px 10px 32px;
+}
+.ac-manual-btns { display: flex; gap: 14px; }
