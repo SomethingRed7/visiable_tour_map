@@ -15,7 +15,30 @@ async function ensureTable(env) {
        updated_at TEXT NOT NULL
      )`
   ).run();
+  await env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS reading_reco (
+       id INTEGER PRIMARY KEY AUTOINCREMENT,
+       source TEXT NOT NULL,
+       title TEXT NOT NULL,
+       author TEXT,
+       link TEXT,
+       note TEXT,
+       sort_order INTEGER NOT NULL DEFAULT 0
+     )`
+  ).run();
   ensured = true;
+}
+
+// 推荐书单:整表替换(书单变化很慢,不做增量)
+async function readReco(env) {
+  try {
+    const { results } = await env.DB
+      .prepare('SELECT source, title, author, link, note FROM reading_reco ORDER BY sort_order ASC, id ASC')
+      .all();
+    return results || [];
+  } catch {
+    return [];   // 表还没建
+  }
 }
 
 export async function onRequestGet(context) {
@@ -47,7 +70,7 @@ export async function onRequestGet(context) {
     })
     .filter(Boolean);
 
-  return Response.json({ items });
+  return Response.json({ items, reco: await readReco(context.env) });
 }
 
 export async function onRequestPost(context) {
@@ -63,12 +86,38 @@ export async function onRequestPost(context) {
   } catch {
     return Response.json({ error: 'body 不是 JSON' }, { status: 400 });
   }
+
+  await ensureTable(context.env);
+
+  // 推送推荐书单:body = { reco: [{source,title,author,link,note}] },整表替换
+  if (Array.isArray(body.reco)) {
+    const list = body.reco.slice(0, 12);
+    await context.env.DB.prepare('DELETE FROM reading_reco').run();
+    for (let i = 0; i < list.length; i++) {
+      const b = list[i] || {};
+      await context.env.DB
+        .prepare(
+          `INSERT INTO reading_reco (source, title, author, link, note, sort_order)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6)`
+        )
+        .bind(
+          String(b.source || ''),
+          String(b.title || ''),
+          String(b.author || ''),
+          String(b.link || ''),
+          String(b.note || ''),
+          i
+        )
+        .run();
+    }
+    return Response.json({ ok: true, reco: list.length });
+  }
+
   const date = String(body.date || '');
   if (!DATE_RE.test(date)) return Response.json({ error: '日期格式不对' }, { status: 400 });
 
   const payload = JSON.stringify(body);
   const now = new Date().toISOString();
-  await ensureTable(context.env);
   await context.env.DB
     .prepare(
       `INSERT INTO reading_daily (date, payload, updated_at) VALUES (?1, ?2, ?3)

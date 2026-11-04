@@ -1883,3 +1883,19 @@ button.btn-add-entry {
   background: var(--brand-soft); border-radius: 999px; padding: 5px 12px;
   text-decoration: none;
 }
+
+/* 换书推荐(读书记录为空时出现) */
+.rd-reco { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--line); }
+.rd-reco-title { margin: 0 0 10px; font-size: 0.76rem; color: var(--text-soft); }
+.rd-reco-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.rd-chip {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  font-size: 0.82rem; color: var(--text); text-decoration: none;
+  background: #f9fafb; border: 1px solid var(--line); border-radius: 999px;
+  padding: 5px 12px 5px 6px;
+}
+.rd-chip-plain { color: var(--text-soft); border-style: dashed; }
+.rd-chip-src {
+  font-size: 0.68rem; color: var(--brand); background: var(--brand-soft);
+  border-radius: 999px; padding: 1px 8px; white-space: nowrap;
+}

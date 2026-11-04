@@ -40,3 +40,14 @@ CREATE TABLE IF NOT EXISTS reading_daily (
   payload TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+
+-- 换书推荐(微信读书/番茄书架各挑 1-2 本;推送时整表替换)
+CREATE TABLE IF NOT EXISTS reading_reco (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  source TEXT NOT NULL,            -- weread | fanqie
+  title TEXT NOT NULL,
+  author TEXT,
+  link TEXT,                       -- 番茄无可直达公开页,留空
+  note TEXT,                       -- 推荐理由(接着读/放了几年)
+  sort_order INTEGER NOT NULL DEFAULT 0
+);

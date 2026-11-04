@@ -10,6 +10,7 @@
   const payloads = new Map();   // date -> payload
   const minutes = new Map();    // date -> 分钟(含 payload.days 反推)
   let latest = null;            // 最新一条 payload(取书名/链接用)
+  let reco = [];                // 换书推荐(微信读书/番茄书架各 1-2 本)
   let loaded = false;
 
   function esc(s) {
@@ -47,6 +48,21 @@
     return '<div class="rd-chart">' + cols + '</div>';
   }
 
+  // 书架推荐:微信读书的可点直达,番茄没有公开书籍页,只作书名提示
+  function recoBlock(title) {
+    if (!reco.length) return '';
+    const chips = reco.slice(0, 4).map((b) => {
+      const src = b.source === 'fanqie' ? '番茄' : '微信读书';
+      const inner = '<span class="rd-chip-src">' + esc(src) + '</span>' + esc(b.title);
+      const tip = b.note ? ' title="' + esc(b.note) + '"' : '';
+      return b.link
+        ? '<a class="rd-chip" href="' + esc(b.link) + '"' + tip + '>' + inner + '</a>'
+        : '<span class="rd-chip rd-chip-plain"' + tip + '>' + inner + '</span>';
+    }).join('');
+    return '<div class="rd-reco"><p class="rd-reco-title">' + esc(title || '也可以换一本') + '</p>' +
+      '<div class="rd-reco-list">' + chips + '</div></div>';
+  }
+
   function emptyState(date) {
     const isToday = date === todayStr();
     const book = (latest && latest.book) || {};
@@ -69,7 +85,7 @@
       '<p class="rd-empty-sub">' + (isToday
         ? ('该去读书了' + (prevTip ? ' · ' + prevTip : ''))
         : '换一天看看,或者从今天开始') + '</p>' +
-      link + '</div>';
+      link + recoBlock() + '</div>';
   }
 
   function compactState(date) {
@@ -99,7 +115,7 @@
         (it.chapters || '') + ' 章</span><span>当周 ' + mm(it.week_minutes) + '</span></div>' +
       barChart(it.days) +
       (facts.length ? '<p class="rd-facts">' + esc(facts.join(' · ')) + '</p>' : '') +
-      quotes;
+      quotes + recoBlock('接下来读');
   }
 
   function render(date) {
@@ -116,6 +132,7 @@
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         const items = (d && d.items) || [];
+        reco = (d && d.reco) || [];
         items.forEach((it) => {
           payloads.set(it.date, it);
           // 明细里自带的 7 天序列,顺手补上「只有时长」的历史日
