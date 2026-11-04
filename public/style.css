@@ -2164,3 +2164,7 @@ button.btn-add-entry {
   padding: 0 2px 10px 32px;
 }
 .ac-manual-btns { display: flex; gap: 14px; }
+
+/* 「记一次」按钮所在行：和「记一把」一样靠右 */
+.ac-add-row { display: flex; justify-content: flex-end; margin-top: 12px; }
+.ac-add-row .btn-add-entry { margin-left: 0; }

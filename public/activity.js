@@ -11,7 +11,8 @@
   let loaded = false;
   let current = '';
   const manualByDate = new Map();   // date -> 手写的运动记录[]
-  let amEditId = 0;                 // 0 = 新增，>0 = 修改
+  let amEditId = 0;                 // 手写条目的 id，0 = 新增
+  let amEditKey = '';               // 覆盖 COROS 某条时用的 key
   let amIcon = '🏃';
 
   const KINDS = [
@@ -103,13 +104,20 @@
       (main ? '<span class="ac-figure">' + esc(main) + '</span>' : '') +
       '</div>';
 
-    if (!it.manual) return row;   // COROS 同步的只读，不带操作
+    // 一律带操作：COROS 同步的也能改（改完存成本地覆盖记录，不动同步数据）
+    const who = it.manual
+      ? (it.author_name ? esc(it.author_name) + ' 记的' : '手动记录')
+      : '高驰同步';
+    const target = it.manual ? it.id : it._key;
+    const del = it.manual
+      ? '<button type="button" class="rm-act rm-act-del" data-am-del="' + it.id + '">删除</button>'
+      : '';
     return '<div class="ac-manual">' + row +
       '<div class="ac-manual-acts">' +
-        (it.author_name ? '<span class="rm-by">' + esc(it.author_name) + ' 记的</span>' : '<span></span>') +
+        '<span class="rm-by">' + who + '</span>' +
         '<span class="ac-manual-btns">' +
-          '<button type="button" class="rm-act" data-am-edit="' + it.id + '">修改</button>' +
-          '<button type="button" class="rm-act rm-act-del" data-am-del="' + it.id + '">删除</button>' +
+          '<button type="button" class="rm-act" data-am-edit="' + target + '">修改</button>' +
+          del +
         '</span>' +
       '</div></div>';
   }
@@ -179,7 +187,7 @@
     const add = document.getElementById('am-add');
     if (add) add.onclick = () => amOpen();
     body.querySelectorAll('[data-am-edit]').forEach((b) => {
-      b.onclick = () => amOpen(Number(b.dataset.amEdit));
+      b.onclick = () => amOpen(b.dataset.amEdit);
     });
     body.querySelectorAll('[data-am-del]').forEach((b) => {
       b.onclick = () => amDelete(Number(b.dataset.amDel));
@@ -203,27 +211,44 @@
     });
   }
 
-  function amOpen(id) {
+  function amOpen(target) {
     const modal = document.getElementById('act-modal');
     if (!modal) return;
-    amEditId = Number(id) || 0;
+    amEditId = 0;
+    amEditKey = '';
     ['am-name', 'am-minutes', 'am-dist'].forEach((k) => {
       const el = document.getElementById(k);
       if (el) el.value = '';
     });
     amIcon = '🏃';
-    if (amEditId) {
+
+    const set = (k, v) => { const el = document.getElementById(k); if (el) el.value = v == null ? '' : v; };
+
+    if (typeof target === 'string' && target.indexOf('auto-') === 0) {
+      // 改 COROS 同步来的那条：把它的值填进来，保存时写成覆盖记录
+      amEditKey = target;
+      const idx = Number(target.split('-').pop());
+      const it = byDate.get(current);
+      const x = (it && it.items && it.items[idx]) || null;
+      if (x) {
+        set('am-name', x.name);
+        set('am-minutes', x.dur ? Math.round(Number(x.dur) / 60) : '');
+        set('am-dist', x.dist ? (Number(x.dist) / 1000).toFixed(1) : '');
+        amIcon = x.icon || '🏃';
+      }
+    } else if (target) {
+      amEditId = Number(target) || 0;
       const x = (manualByDate.get(current) || []).find((it) => it.id === amEditId);
       if (x) {
-        const set = (k, v) => { const el = document.getElementById(k); if (el) el.value = v == null ? '' : v; };
         set('am-name', x.name);
         set('am-minutes', x.dur ? Math.round(x.dur / 60) : '');
         set('am-dist', x.dist || '');
         amIcon = x.icon || '🏃';
       }
     }
+
     const head = document.getElementById('am-head');
-    if (head) head.textContent = amEditId ? '修改这次' : '记一次';
+    if (head) head.textContent = (amEditId || amEditKey) ? '修改这次' : '记一次';
     renderKinds();
     modal.hidden = false;
   }
@@ -241,6 +266,7 @@
 
     const fd = new FormData();
     if (amEditId) fd.append('id', String(amEditId));
+    if (amEditKey) fd.append('override_key', amEditKey);
     fd.append('date', current || todayStr());
     fd.append('name', name);
     fd.append('icon', amIcon);
@@ -254,6 +280,7 @@
       if (!r.ok) throw new Error(j.error || '保存失败');
       amClose();
       amEditId = 0;
+      amEditKey = '';
       await loadManual();
       render(current || todayStr());
     } catch (err) {
@@ -279,22 +306,26 @@
     current = date || '';
     if (!date) { body.innerHTML = ''; return; }
     const it = byDate.get(date);
-    // COROS 同步的在前，手写的追加在后
-    const items = ((it && it.items) || []).concat(manualByDate.get(date) || []);
+
+    // COROS 每条给个稳定 key，手写记录可以按这个 key 覆盖它（相当于校正同步数据）
+    const auto = ((it && it.items) || []).map((x, i) => Object.assign({}, x, {
+      _key: 'auto-' + date + '-' + i,
+      manual: false,
+    }));
+    const manualAll = manualByDate.get(date) || [];
+    const overrides = new Map();
+    manualAll.forEach((m) => { if (m.override_key) overrides.set(m.override_key, m); });
+
+    const items = auto.map((a) => {
+      const ov = overrides.get(a._key);
+      return ov ? Object.assign({}, ov, { manual: true }) : a;
+    }).concat(manualAll.filter((m) => !m.override_key));
+
     if (items.length) {
-      const total = items.reduce((s, x) => s + (Number(x.dur) || 0), 0);
-      const cal = items.reduce((s, x) => s + (Number(x.cal) || 0), 0);
-      body.innerHTML =
-        items.map(itemRow).join('') +
-        barChart((it && it.days) || []) +
-        (items.length > 1
-          ? '<p class="ac-facts">共 ' + items.length + ' 项' +
-            (total ? ' · ' + mmss(total) : '') + (cal ? ' · ' + Math.round(cal) + ' 千卡' : '') + '</p>'
-          : '');
+      body.innerHTML = items.map(itemRow).join('') + summaryBar(items);
     } else if (minutes.get(date) > 0) {
       // 只有时长没有明细(历史日期,从 days 反推)
-      body.innerHTML = '<p class="ac-facts">这天运动了 ' + minutes.get(date) + ' 分钟（明细没单独记录）</p>' +
-        barChart((it && it.days) || []);
+      body.innerHTML = '<p class="ac-facts">这天运动了 ' + minutes.get(date) + ' 分钟（明细没单独记录）</p>';
     } else {
       body.innerHTML = emptyState(date);
     }
@@ -302,9 +333,20 @@
     bindManualActs();
   }
 
+  // 底部汇总：共几项、多长时间、多少距离
+  function summaryBar(items) {
+    const total = items.reduce((s, x) => s + (Number(x.dur) || 0), 0);
+    const dist = items.reduce((s, x) => s + (Number(x.dist) || 0), 0);
+    const parts = ['共 ' + items.length + ' 项'];
+    if (total) parts.push(mmss(total));
+    if (dist) parts.push(dist.toFixed(dist >= 10 ? 0 : 1) + ' km');
+    return '<p class="ac-facts">' + esc(parts.join(' · ')) + '</p>';
+  }
+
   function manualAddBtn() {
     if (!window.currentUser) return '';
-    return '<button type="button" class="rm-add" id="am-add">＋ 记一次</button>';
+    // 和「记一把」同一个样式（橙色实心胶囊、靠右）
+    return '<div class="ac-add-row"><button type="button" class="btn-add-entry" id="am-add">＋ 记一次</button></div>';
   }
 
   function load() {

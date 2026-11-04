@@ -22,11 +22,14 @@ async function ensureTable(env) {
          icon TEXT,
          dur INTEGER,
          dist REAL,
+         override_key TEXT,
          author_name TEXT,
          created_at TEXT NOT NULL
        )`
     ).run();
     await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_am_date ON activity_manual(date)').run();
+    // 老版本建的表没有这列，补上（SQLite 不支持 IF NOT EXISTS 加列，失败就算了）
+    try { await env.DB.prepare('ALTER TABLE activity_manual ADD COLUMN override_key TEXT').run(); } catch { /* 已存在 */ }
     ensured = true;
   }
 }
@@ -62,6 +65,7 @@ export async function onRequestGet(context) {
       icon: r.icon || '🏃',
       dur: Number(r.dur) || 0,       // 秒
       dist: Number(r.dist) || 0,     // 公里
+      override_key: r.override_key || '',
       author_name: r.author_name || '',
       manual: true,
     })),
@@ -89,6 +93,7 @@ export async function onRequestPost(context) {
   const minutes = Math.max(0, Math.min(1440, parseInt(form.get('minutes') || '0', 10) || 0));
   const dist = Math.max(0, Math.min(1000, parseFloat(form.get('dist') || '0') || 0));
   const editId = parseInt(form.get('id') || '0', 10) || 0;
+  const overrideKey = String(form.get('override_key') || '').slice(0, 60);
 
   await ensureTable(context.env);
 
@@ -97,16 +102,16 @@ export async function onRequestPost(context) {
       .prepare('SELECT id FROM activity_manual WHERE id = ?1').bind(editId).first();
     if (!row) return json({ error: '这条记录不存在了' }, 404);
     await context.env.DB.prepare(
-      `UPDATE activity_manual SET name = ?2, icon = ?3, dur = ?4, dist = ?5, ts = ?6 WHERE id = ?1`
-    ).bind(editId, name, icon, minutes * 60, dist, Date.now()).run();
+      `UPDATE activity_manual SET name = ?2, icon = ?3, dur = ?4, dist = ?5, ts = ?6, override_key = ?7 WHERE id = ?1`
+    ).bind(editId, name, icon, minutes * 60, dist, Date.now(), overrideKey || null).run();
     return json({ ok: true, updated: true });
   }
 
   await context.env.DB.prepare(
-    `INSERT INTO activity_manual (date, ts, name, icon, dur, dist, author_name, created_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`
+    `INSERT INTO activity_manual (date, ts, name, icon, dur, dist, override_key, author_name, created_at)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`
   ).bind(
-    date, Date.now(), name, icon, minutes * 60, dist,
+    date, Date.now(), name, icon, minutes * 60, dist, overrideKey || null,
     String(user.name || '').slice(0, 40), new Date().toISOString()
   ).run();
 
