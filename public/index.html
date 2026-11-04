@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>咕咕嘎嘎 · 旅行日记</title>
-  <link rel="stylesheet" href="style.css?v=20261104t">
+  <link rel="stylesheet" href="style.css?v=20261104u">
 </head>
 <body>
   <header class="site-header">
@@ -74,7 +74,7 @@
   <!-- 记一本:手动添加阅读记录(微信读书之外的书/纸质书) -->
   <div id="read-modal" class="ckin-modal" hidden>
     <div class="ckin-box">
-      <div class="ckin-head"><span>记一本</span><button type="button" id="rm-close" class="ckin-x" aria-label="关闭">✕</button></div>
+      <div class="ckin-head"><span id="rm-head">记一本</span><button type="button" id="rm-close" class="ckin-x" aria-label="关闭">✕</button></div>
       <div class="ckin-vis-row">
         <label class="ckin-vis-label" for="rm-title">书名</label>
         <input id="rm-title" maxlength="100" placeholder="必填">
@@ -87,18 +87,14 @@
         <label class="ckin-vis-label" for="rm-minutes">时长</label>
         <input id="rm-minutes" type="number" min="0" max="1440" placeholder="分钟">
       </div>
-      <div class="ckin-vis-row">
-        <label class="ckin-vis-label" for="rm-note">简评</label>
-        <input id="rm-note" maxlength="200" placeholder="一句话感受">
-      </div>
-      <textarea id="rm-summary" rows="3" maxlength="2000" placeholder="摘要（可选）"></textarea>
+      <textarea id="rm-summary" rows="4" maxlength="2000" placeholder="摘要 / 感想（可选）"></textarea>
       <div class="rm-file-row">
         <label class="rm-file-btn" for="rm-photos">+ 图片</label>
         <input id="rm-photos" type="file" accept="image/*" multiple hidden>
         <span id="rm-file-count" class="rm-file-count"></span>
       </div>
-      <div class="ckin-foot">
-        <button type="button" id="rm-save" class="btn-primary">保存</button>
+      <div class="rm-save-row">
+        <button type="button" id="rm-save" class="rm-save-btn">保存</button>
       </div>
     </div>
   </div>
@@ -187,7 +183,7 @@
   <script src="entry-modal.js?v=20261102e"></script>
   <script src="pull-refresh.js?v=20261102d"></script>
   <script src="app.js?v=20261104t"></script>
-  <script src="reading.js?v=20261104t"></script>
+  <script src="reading.js?v=20261104u"></script>
   <script src="activity.js?v=20261104i"></script>
 </body>
 </html>

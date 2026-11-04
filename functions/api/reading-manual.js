@@ -66,7 +66,6 @@ export async function onRequestGet(context) {
     title: r.title,
     author: r.author || '',
     minutes: Number(r.minutes) || 0,
-    note: r.note || '',
     summary: r.summary || '',
     photos: safeParse(r.photos),
     author_name: r.author_name || '',
@@ -101,8 +100,8 @@ export async function onRequestPost(context) {
 
   const minutes = Math.max(0, Math.min(1440, parseInt(form.get('minutes') || '0', 10) || 0));
   const author = String(form.get('author') || '').trim().slice(0, LIMITS.author);
-  const note = String(form.get('note') || '').trim().slice(0, LIMITS.note);
   const summary = String(form.get('summary') || '').trim().slice(0, LIMITS.summary);
+  const editId = parseInt(form.get('id') || '0', 10) || 0;
 
   // 图片：最多 4 张，逐张校验大小
   const files = form.getAll('photos').filter((f) => f && typeof f !== 'string');
@@ -116,6 +115,19 @@ export async function onRequestPost(context) {
 
   const ts = Date.now();
   let photoPaths = [];
+
+  // 编辑：没传新图就保留原来的，别把旧图删掉
+  if (editId) {
+    try {
+      const row = await context.env.DB
+        .prepare('SELECT photos FROM reading_manual WHERE id = ?1').bind(editId).first();
+      if (!row) return json({ error: '这条记录不存在了' }, 404);
+      photoPaths = safeParse(row.photos);
+    } catch {
+      return json({ error: '读取原记录失败' }, 500);
+    }
+  }
+
   if (files.length) {
     try {
       // 复用日记那套 R2 存储：key 用 <date>/<ts>-<n>.jpg，返回 /photos/... 显示路径
@@ -125,11 +137,20 @@ export async function onRequestPost(context) {
     }
   }
 
+  if (editId) {
+    await context.env.DB.prepare(
+      `UPDATE reading_manual
+          SET title = ?2, author = ?3, minutes = ?4, summary = ?5, photos = ?6, ts = ?7
+        WHERE id = ?1`
+    ).bind(editId, title, author, minutes, summary, JSON.stringify(photoPaths), ts).run();
+    return json({ ok: true, date, photos: photoPaths, updated: true });
+  }
+
   await context.env.DB.prepare(
-    `INSERT INTO reading_manual (date, ts, title, author, minutes, note, summary, photos, author_name, created_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`
+    `INSERT INTO reading_manual (date, ts, title, author, minutes, summary, photos, author_name, created_at)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`
   ).bind(
-    date, ts, title, author, minutes, note, summary,
+    date, ts, title, author, minutes, summary,
     JSON.stringify(photoPaths), String(user.name || '').slice(0, 40),
     new Date().toISOString()
   ).run();

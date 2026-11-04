@@ -2065,43 +2065,43 @@ button.btn-add-entry {
 .build-tag { font-size: 0.7rem; color: #c8c2ba; margin-left: 2px; }
 
 /* ---------- 「记一本」手动阅读条目（2026-11-04） ---------- */
-.rm-wrap { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+/* 手动条目：不套卡片边框，用虚线上沿和上面那张微信读书卡隔开，
+ * 排版直接复用 .rd-top / .rd-book / .rd-author / .rd-min，视觉完全一致 */
+.rm-wrap { margin-top: 4px; display: flex; flex-direction: column; gap: 18px; }
 
-.rm-card {
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 11px 13px;
-  background: #fffdf8;
-}
-.rm-top { display: flex; align-items: baseline; gap: 8px; }
-.rm-top b { font-size: 0.95rem; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rm-top em { font-style: normal; font-size: 0.76rem; color: var(--text-soft); flex: 0 0 auto; }
-.rm-del {
-  flex: 0 0 auto;
-  border: none;
-  background: none;
-  color: #c9c2b8;
-  font-size: 0.95rem;
-  line-height: 1;
-  padding: 0 2px;
-  cursor: pointer;
-}
-.rm-note { margin: 6px 0 0; font-size: 0.85rem; color: var(--text); }
+.rm-card { padding-top: 16px; border-top: 1px dashed var(--line); }
+.rm-wrap > .rm-card:first-child { border-top: none; padding-top: 4px; }
+
 .rm-summary {
-  margin: 6px 0 0;
+  margin: 10px 0 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--brand-soft);
   font-size: 0.82rem;
   color: var(--text-soft);
+  line-height: 1.75;
   white-space: pre-wrap;
-  line-height: 1.6;
 }
-.rm-photos { display: flex; gap: 6px; margin-top: 9px; }
+.rm-photos { display: flex; gap: 6px; margin-top: 10px; }
 .rm-photos img {
-  width: 72px;
-  height: 72px;
+  width: 76px;
+  height: 76px;
   object-fit: cover;
   border-radius: 8px;
   background: #f3f4f6;
 }
+
+.rm-acts { display: flex; gap: 16px; margin-top: 10px; }
+.rm-act {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--text-soft);
+  cursor: pointer;
+}
+.rm-act:active { opacity: 0.6; }
+.rm-act-del { color: #c99a9a; }
 
 .rm-add {
   align-self: flex-start;
@@ -2127,3 +2127,21 @@ button.btn-add-entry {
   cursor: pointer;
 }
 .rm-file-count { font-size: 0.78rem; color: var(--text-soft); }
+
+/* 弹窗里的保存按钮：整行实心，别做成角落里的小灰块 */
+.rm-save-row { margin-top: 16px; }
+.rm-save-btn {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 10px;
+  background: var(--brand);
+  color: #fff;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.rm-save-btn:disabled { opacity: 0.6; }
+.rm-save-btn:active { filter: brightness(0.96); }

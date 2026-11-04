@@ -123,21 +123,25 @@
 
   // ---------- 手动添加的阅读记录（微信读书之外的书 / 纸质书） ----------
 
+  // 排版刻意复用 rd-* 那套（书名/作者/右侧时长），视觉和微信读书那张卡一致
   function manualCard(x) {
     const photos = (x.photos || []).slice(0, 4)
       .map((p) => '<img src="' + esc(p) + '" alt="" loading="lazy">').join('');
-    const meta = [];
-    if (x.author) meta.push(x.author);
-    if (x.minutes) meta.push(x.minutes + ' 分');
+    const mins = Number(x.minutes) || 0;
     return '<div class="rm-card">' +
-      '<div class="rm-top">' +
-        '<b>' + esc(x.title) + '</b>' +
-        (meta.length ? '<em>' + esc(meta.join(' · ')) + '</em>' : '') +
-        '<button type="button" class="rm-del" data-rm-del="' + x.id + '" aria-label="删除这条">✕</button>' +
+      '<div class="rd-top">' +
+        '<div class="rd-book">' +
+          '<b>' + esc(x.title) + '</b>' +
+          (x.author ? '<span class="rd-author">' + esc(x.author) + '</span>' : '') +
+        '</div>' +
+        (mins ? '<div class="rd-min">' + mins + '分<small>这天</small></div>' : '') +
       '</div>' +
-      (x.note ? '<p class="rm-note">' + esc(x.note) + '</p>' : '') +
       (x.summary ? '<p class="rm-summary">' + esc(x.summary) + '</p>' : '') +
       (photos ? '<div class="rm-photos">' + photos + '</div>' : '') +
+      '<div class="rm-acts">' +
+        '<button type="button" class="rm-act" data-rm-edit="' + x.id + '">修改</button>' +
+        '<button type="button" class="rm-act rm-act-del" data-rm-del="' + x.id + '">删除</button>' +
+      '</div>' +
       '</div>';
   }
 
@@ -154,19 +158,39 @@
 
   function bindManual() {
     const addBtn = document.getElementById('rm-add');
-    if (addBtn) addBtn.onclick = rmOpen;
-    body.querySelectorAll('.rm-del').forEach((b) => {
+    if (addBtn) addBtn.onclick = () => rmOpen();
+    body.querySelectorAll('[data-rm-del]').forEach((b) => {
       b.onclick = () => rmDelete(Number(b.dataset.rmDel));
+    });
+    body.querySelectorAll('[data-rm-edit]').forEach((b) => {
+      b.onclick = () => rmOpen(Number(b.dataset.rmEdit));
     });
   }
 
-  function rmOpen() {
+  let rmEditId = 0;   // 0 = 新建，>0 = 修改这条
+
+  function rmOpen(id) {
     const modal = document.getElementById('read-modal');
     if (!modal) return;
-    ['rm-title', 'rm-author', 'rm-minutes', 'rm-note', 'rm-summary'].forEach((id) => {
-      const el = document.getElementById(id);
+    rmEditId = Number(id) || 0;
+    ['rm-title', 'rm-author', 'rm-minutes', 'rm-summary'].forEach((k) => {
+      const el = document.getElementById(k);
       if (el) el.value = '';
     });
+    // 修改模式：把原值填回表单
+    if (rmEditId) {
+      const list = manuals.get(curDate) || [];
+      const x = list.find((it) => it.id === rmEditId);
+      if (x) {
+        const set = (k, v) => { const el = document.getElementById(k); if (el) el.value = v == null ? '' : v; };
+        set('rm-title', x.title);
+        set('rm-author', x.author);
+        set('rm-minutes', x.minutes || '');
+        set('rm-summary', x.summary);
+      }
+    }
+    const head = document.getElementById('rm-head');
+    if (head) head.textContent = rmEditId ? '修改这本' : '记一本';
     const file = document.getElementById('rm-photos');
     if (file) file.value = '';
     const cnt = document.getElementById('rm-file-count');
@@ -191,11 +215,11 @@
     if (!title) { alert('书名不能为空'); return; }
 
     const fd = new FormData();
+    if (rmEditId) fd.append('id', String(rmEditId));
     fd.append('date', curDate || todayStr());
     fd.append('title', title);
     fd.append('author', val('rm-author'));
     fd.append('minutes', val('rm-minutes') || '0');
-    fd.append('note', val('rm-note'));
     fd.append('summary', val('rm-summary'));
 
     const fileInput = document.getElementById('rm-photos');
@@ -208,6 +232,7 @@
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.error || '保存失败');
       rmClose();
+      rmEditId = 0;
       await loadManuals();
       render(curDate || todayStr());
     } catch (err) {
