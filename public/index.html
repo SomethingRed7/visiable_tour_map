@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>咕咕嘎嘎 · 旅行日记</title>
-  <link rel="stylesheet" href="style.css?v=20261102e">
+  <link rel="stylesheet" href="style.css?v=20261104b">
 </head>
 <body>
   <header class="site-header">
@@ -50,6 +50,15 @@
         <button type="button" id="day-prev" class="btn-small">‹ 前一天</button>
         <button type="button" id="day-next" class="btn-small">后一天 ›</button>
       </div>
+    </section>
+
+    <!-- 最近在读:微信读书每日总结(数据由播报脚本推送,前端只读) -->
+    <section class="panel reading-panel" id="reading-panel" hidden>
+      <div class="reading-head">
+        <h2 class="panel-heading">最近在读</h2>
+        <span id="reading-sub" class="reading-sub"></span>
+      </div>
+      <div id="reading-body" class="reading-body"></div>
     </section>
   </main>
 
@@ -147,5 +156,6 @@
   <script src="entry-modal.js?v=20261102e"></script>
   <script src="pull-refresh.js?v=20261102d"></script>
   <script src="app.js?v=20261102b"></script>
+  <script src="reading.js?v=20261104a"></script>
 </body>
 </html>

@@ -33,3 +33,10 @@ CREATE TABLE IF NOT EXISTS todos (
   created_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_todos_date ON todos (date);
+
+-- 每日读书总结(微信读书推送;payload 存当天 JSON 快照,date=YYYY-MM-DD)
+CREATE TABLE IF NOT EXISTS reading_daily (
+  date TEXT PRIMARY KEY,
+  payload TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
