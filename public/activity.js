@@ -132,8 +132,9 @@
       tip = `这周已经动了 ${weekCount} 天，保持住`;
     }
 
+    const isFuture = !isToday && date > todayStr();
     return '<div class="day-empty">' +
-      '<p class="day-empty-main">' + (isToday ? '今天还没动' : '这天没有运动记录') + '</p>' +
+      '<p class="day-empty-main">' + (isFuture ? '还没到这天' : isToday ? '今天还没动' : '这天没有运动记录') + '</p>' +
       (prev ? '<p class="day-empty-sub">上次：' + esc(prev) + '</p>' : '') +
       '<p class="day-empty-tip">' + esc(tip) + '</p>' +
       '</div>';

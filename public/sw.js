@@ -18,7 +18,7 @@ const HTML_CACHE = VERSION + '-html';
 const ASSET_CACHE = VERSION + '-asset';
 // HTML 只留一份:主页面和 ?date=xxx 返回的是同一份 HTML,不必按 query 分开存
 const SHELL_KEY = '/__gg_shell';
-const HTML_TIMEOUT_MS = 1500;
+const HTML_TIMEOUT_MS = 2500;
 
 self.addEventListener('install', () => {
   // 新版立刻接手,不等所有 tab 关掉(家庭自用场景,不需要灰度)

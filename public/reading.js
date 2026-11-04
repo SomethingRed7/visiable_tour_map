@@ -82,8 +82,9 @@
     const link = book.link
       ? '<a class="day-empty-link" href="' + esc(book.link) + '">' + (name ? '继续读' : '去读书') + '</a>'
       : '';
+    const isFuture = !isToday && date > todayStr();
     return '<div class="day-empty">' +
-      '<p class="day-empty-main">' + (isToday ? '今天还没翻开书' : '这天没有读书记录') + '</p>' +
+      '<p class="day-empty-main">' + (isFuture ? '还没到这天' : isToday ? '今天还没翻开书' : '这天没有读书记录') + '</p>' +
       '<p class="day-empty-sub">' + esc(sub) + '</p>' +
       link + recoBlock() + '</div>';
   }

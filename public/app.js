@@ -1313,3 +1313,28 @@ PullRefresh.init({
     return refreshAll();
   },
 });
+
+/* ---------- 版本自检：发现自己加载的是旧版就自动刷一次（2026-11-04） ----------
+ * 成因：SW 对 HTML 是 network-first，但超时（原来 1.5s）就用缓存 —— pages.dev 国内没边缘
+ * 节点，跨境经常超时，于是拿到旧 HTML，旧 HTML 又引用旧 ?v= 的 JS/CSS。表现就是
+ * 「代码明明改了，用户看到的还是上一版」（今天为此反复踩坑）。
+ *
+ * 做法：一次会话只查一次，把自己的 app.js?v= 和服务端 HTML 里的对比，不一致就 reload。
+ * 用 sessionStorage 打标防止死循环。
+ */
+(function versionCheck() {
+  try {
+    if (sessionStorage.getItem('gg_ver_checked')) return;
+    const self = [...document.scripts].find((s) => /app\.js\?v=/.test(s.src));
+    const mine = self && (self.src.match(/app\.js\?v=([0-9a-z]+)/) || [])[1];
+    if (!mine) return;
+    sessionStorage.setItem('gg_ver_checked', '1');
+    fetch('/', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.text() : ''))
+      .then((html) => {
+        const m = html && html.match(/app\.js\?v=([0-9a-z]+)/);
+        if (m && m[1] && m[1] !== mine) location.reload();
+      })
+      .catch(() => { /* 拿不到就算了，不打扰用户 */ });
+  } catch { /* 隐私模式等拿不到 sessionStorage，跳过 */ }
+})();
