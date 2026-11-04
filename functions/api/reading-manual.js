@@ -151,7 +151,7 @@ export async function onRequestPost(context) {
      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`
   ).bind(
     date, ts, title, author, minutes, summary,
-    JSON.stringify(photoPaths), String(user.name || '').slice(0, 40),
+    JSON.stringify(photoPaths), String(user || '').slice(0, 40),
     new Date().toISOString()
   ).run();
 

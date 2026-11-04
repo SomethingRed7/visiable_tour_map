@@ -91,7 +91,10 @@ export async function onRequestPost(context) {
   const icon = String(form.get('icon') || '🏃').slice(0, 8);
   // dur 传分钟，存秒（前端展示统一用 分:秒）
   const minutes = Math.max(0, Math.min(1440, parseInt(form.get('minutes') || '0', 10) || 0));
-  const dist = Math.max(0, Math.min(1000, parseFloat(form.get('dist') || '0') || 0));
+  // 前端填的是公里，统一存成米 —— 和 COROS 同步来的 dist 同单位，
+  // 否则 itemRow 里的 km() 会再除一次 1000（显示 0.005 km 那种）
+  const distKm = Math.max(0, Math.min(1000, parseFloat(form.get('dist') || '0') || 0));
+  const dist = Math.round(distKm * 1000);
   const editId = parseInt(form.get('id') || '0', 10) || 0;
   const overrideKey = String(form.get('override_key') || '').slice(0, 60);
 
@@ -112,7 +115,7 @@ export async function onRequestPost(context) {
      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`
   ).bind(
     date, Date.now(), name, icon, minutes * 60, dist, overrideKey || null,
-    String(user.name || '').slice(0, 40), new Date().toISOString()
+    String(user || '').slice(0, 40), new Date().toISOString()
   ).run();
 
   return json({ ok: true, date });

@@ -149,16 +149,15 @@
   function manualBlock(date) {
     const list = manuals.get(date) || [];
     const cards = list.map(manualCard).join('');
-    // 未登录只看不写：有别人的记录就照常显示，但没有「记一本」按钮
-    const add = window.currentUser
-      ? '<button type="button" class="rm-add" id="rm-add">＋ 记一本</button>'
-      : '';
-    if (!cards && !add) return '';
-    return '<div class="rm-wrap">' + cards + add + '</div>';
+    // 「记一本」在面板右上角（和「记一把」同一个位置），这里只管条目
+    const acts = document.getElementById('rd-actions');
+    if (acts) acts.hidden = !window.currentUser;
+    if (!cards) return '';
+    return '<div class="rm-wrap">' + cards + '</div>';
   }
 
   function bindManual() {
-    const addBtn = document.getElementById('rm-add');
+    const addBtn = document.getElementById('rm-add-top');
     if (addBtn) addBtn.onclick = () => rmOpen();
     body.querySelectorAll('[data-rm-del]').forEach((b) => {
       b.onclick = () => rmDelete(Number(b.dataset.rmDel));

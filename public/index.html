@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>咕咕嘎嘎 · 旅行日记</title>
-  <link rel="stylesheet" href="style.css?v=20261104w">
+  <link rel="stylesheet" href="style.css?v=20261104x">
 </head>
 <body>
   <header class="site-header">
@@ -40,10 +40,12 @@
       </div>
       <!-- 当日在读:微信读书每日总结(数据由播报脚本推送,前端只读;跟随所选日期) -->
       <div id="tab-reading" class="tab-pane" hidden>
+        <div class="pane-actions" id="rd-actions" hidden><button type="button" class="btn-add-entry" id="rm-add-top">＋ 记一本</button></div>
         <div id="reading-body" class="reading-body"></div>
       </div>
       <!-- 当日运动:COROS 同步的运动记录(同样由外部脚本推送;跟随所选日期) -->
       <div id="tab-activity" class="tab-pane" hidden>
+        <div class="pane-actions" id="ac-actions" hidden><button type="button" class="btn-add-entry" id="am-add-top">＋ 记一次</button></div>
         <div id="activity-body" class="activity-body"></div>
       </div>
     </section>
@@ -209,7 +211,7 @@
   <script src="entry-modal.js?v=20261102e"></script>
   <script src="pull-refresh.js?v=20261102d"></script>
   <script src="app.js?v=20261104t"></script>
-  <script src="reading.js?v=20261104v"></script>
-  <script src="activity.js?v=20261104w"></script>
+  <script src="reading.js?v=20261104x"></script>
+  <script src="activity.js?v=20261104x"></script>
 </body>
 </html>

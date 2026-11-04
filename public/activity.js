@@ -184,7 +184,7 @@
   }
 
   function bindManualActs() {
-    const add = document.getElementById('am-add');
+    const add = document.getElementById('am-add-top');
     if (add) add.onclick = () => amOpen();
     body.querySelectorAll('[data-am-edit]').forEach((b) => {
       b.onclick = () => amOpen(b.dataset.amEdit);
@@ -329,7 +329,7 @@
     } else {
       body.innerHTML = emptyState(date);
     }
-    body.insertAdjacentHTML('beforeend', manualAddBtn());
+    syncActions();
     bindManualActs();
   }
 
@@ -343,10 +343,10 @@
     return '<p class="ac-facts">' + esc(parts.join(' · ')) + '</p>';
   }
 
-  function manualAddBtn() {
-    if (!window.currentUser) return '';
-    // 和「记一把」同一个样式（橙色实心胶囊、靠右）
-    return '<div class="ac-add-row"><button type="button" class="btn-add-entry" id="am-add">＋ 记一次</button></div>';
+  // 「记一次」在面板右上角（和「记一把」同一个位置），不在列表末尾
+  function syncActions() {
+    const acts = document.getElementById('ac-actions');
+    if (acts) acts.hidden = !window.currentUser;
   }
 
   function load() {

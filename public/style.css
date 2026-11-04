@@ -2168,3 +2168,7 @@ button.btn-add-entry {
 /* 「记一次」按钮所在行：和「记一把」一样靠右 */
 .ac-add-row { display: flex; justify-content: flex-end; margin-top: 12px; }
 .ac-add-row .btn-add-entry { margin-left: 0; }
+
+/* 面板右上角的主操作按钮（记一本 / 记一次），位置对齐「记一把」 */
+.pane-actions { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+.pane-actions .btn-add-entry { margin-left: 0; }
