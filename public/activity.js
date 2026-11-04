@@ -158,7 +158,11 @@
         // 否则切到「当日运动」看到的就是一片空白。
         render(current || window.__ggSelectedDate || todayStr());
       })
-      .catch(() => { loaded = true; });
+      .catch(() => {
+        // 同上:失败也要落地一次渲染,否则面板一片空白
+        loaded = true;
+        render(current || window.__ggSelectedDate || todayStr());
+      });
   }
 
   window.addEventListener('gg:date', (e) => {

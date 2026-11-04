@@ -459,7 +459,12 @@ function switchTab(tab) {
   });
   if (tab === 'todos' && selectedDate) renderDayTodos(selectedDate);
   if (tab === 'entries' && selectedDate) renderDayEntries(selectedDate);
-  // 「当日在读」「当日运动」内容由各自脚本跟随日期渲染,这里不用管
+  // 「当日在读」「当日运动」由各自脚本渲染。这里再补发一次日期事件：
+  // 光靠初始化那次 gg:date 不够 —— 若那时数据还没到（或请求失败），面板就会空着。
+  // 切 tab 是用户明确要看内容，重放一次最稳。
+  if ((tab === 'reading' || tab === 'activity') && selectedDate) {
+    window.dispatchEvent(new CustomEvent('gg:date', { detail: { date: selectedDate } }));
+  }
 }
 
 function initTabs() {

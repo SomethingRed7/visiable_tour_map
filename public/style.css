@@ -773,19 +773,20 @@ body {
   margin: 6px 0 12px;
   border-bottom: 1px solid var(--line);
   padding-bottom: 10px;
-  /* 一行横滑，不换行 —— 四个 tab 在窄屏换行会占掉两行高度，把内容往下挤 */
   flex-wrap: nowrap;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
 }
-.panel-tabs::-webkit-scrollbar { display: none; }
+/* tab 均分整行，永远整排可见。
+ * 之前用 flex:0 0 auto + overflow-x:auto，在窄屏会把后两个 tab 推出屏幕外 ——
+ * 用户看不到「当日在读」「当日运动」，以为功能没了（2026-11-04）。
+ * 均分后每个 tab 至少还有 4 个字的宽度，再多就靠字号收。 */
 .panel-tabs .tab-btn {
-  flex: 0 0 auto;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 6px 8px;
+  text-align: center;
   white-space: nowrap;
-  /* 收一点内边距：四个 tab（当日动态/待办/在读/运动）在 390px 宽能整排露出，
-     再多才需要横滑 */
-  padding: 6px 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .tab-btn {
   font: inherit;

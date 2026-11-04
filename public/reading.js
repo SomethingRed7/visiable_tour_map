@@ -150,7 +150,12 @@
         // 调试直链 ?rd=YYYY-MM-DD:app.js 初始化会先选中今天,等它渲染完再强制回目标日期
         if (forced && forced !== cur) setTimeout(() => render(forced), 350);
       })
-      .catch(() => { /* 接口挂了就当这天没读,不报错 */ });
+      .catch(() => {
+        // 接口挂了也要把 loaded 置 true 并渲染 —— 否则之后每个 gg:date 都被
+        // 「if (!loaded) return」丢掉，面板永远空白（2026-11-04 用户报「当日在读没了」）。
+        loaded = true;
+        render(window.__ggSelectedDate || todayStr());
+      });
   }
 
   // 跟随日历:selectDate 会派发 gg:date
