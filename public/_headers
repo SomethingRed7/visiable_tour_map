@@ -12,10 +12,13 @@
 
 # ---------- 缓存 ----------
 # HTML 不缓存:改完 deploy 要立刻生效(Cloudflare 默认就是 no-cache,这里显式写死防误改)
+# no-store：HTML 一律不进 HTTP 缓存。离线可用性交给 Service Worker 自己管
+# （sw.js 里 htmlNetworkFirst 有 cache 兜底），这样「改完部署立刻生效」不被任何一层挡住。
+# 原来是 max-age=0, must-revalidate —— 安卓 WebView 对它的处理不一致，实测会拿到旧页面。
 /*.html
-  Cache-Control: public, max-age=0, must-revalidate
+  Cache-Control: no-store
 /
-  Cache-Control: public, max-age=0, must-revalidate
+  Cache-Control: no-store
 
 # JS/CSS 一律带 ?v=YYYYMMDDx 版本号,可长缓存。
 # ⚠️ 改完 public/ 下的 js/css 必须 bump 引用处的版本号,否则手机拿的是旧文件(现约定见 CLAUDE.md)

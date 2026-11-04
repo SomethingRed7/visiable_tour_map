@@ -13,7 +13,7 @@
  * ⚠️ /sw.js 自己的响应头必须是 no-cache(_headers 里单独写了),否则浏览器永远拿不到新版本。
  */
 
-const VERSION = 'gg-sw-20261104a';
+const VERSION = 'gg-sw-20261104b';
 const HTML_CACHE = VERSION + '-html';
 const ASSET_CACHE = VERSION + '-asset';
 // HTML 只留一份:主页面和 ?date=xxx 返回的是同一份 HTML,不必按 query 分开存
@@ -85,11 +85,14 @@ async function htmlNetworkFirst(req) {
     });
   }
 
-  // 有缓存:谁先到用谁(网络 1.5s 内没回就用缓存,后台继续等网络)
-  const timeout = new Promise((resolve) => setTimeout(() => resolve(null), HTML_TIMEOUT_MS));
-  const winner = await Promise.race([network, timeout]);
-  if (winner) return winner;
-  network.then((res) => { if (res) cache.put(SHELL_KEY, res.clone()).catch(() => {}); });
+  // 有缓存也先等网络 —— 宁可多等一会儿，也不要给用户看旧版本。
+  // 只在网络彻底失败（离线/超时到浏览器放弃）时才回退缓存。
+  // 原来是「1.5s 内没回就用缓存」，国内到 pages.dev 跨境经常超时，
+  // 结果长期停在旧版：代码改了、网页也更新了，app 里始终是上一版（2026-11-04 用户反馈）。
+  try {
+    const res = await network;
+    if (res) return res;
+  } catch { /* 网络挂了，走下面的缓存兜底 */ }
   return cached;
 }
 
