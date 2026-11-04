@@ -389,7 +389,8 @@ async function initPortalUser(authP) {
   try {
     const res = await (authP || fetch('/api/auth').then((r) => r.json()));
     currentUser = res.user || null;
-  } catch { currentUser = null; }
+    window.currentUser = currentUser;   // 供 reading.js 等独立模块判断登录态
+  } catch { currentUser = null; window.currentUser = null; }
   if (currentUser) {
     box.hidden = false;
     // 登录态:用户名 + 管理按钮(btn-write 样式,同原「写日记」入口)

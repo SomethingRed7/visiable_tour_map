@@ -2063,3 +2063,67 @@ button.btn-add-entry {
 
 /* 页脚版本标记：极淡的小字，排查问题时截图可见，平时几乎不打扰 */
 .build-tag { font-size: 0.7rem; color: #c8c2ba; margin-left: 2px; }
+
+/* ---------- 「记一本」手动阅读条目（2026-11-04） ---------- */
+.rm-wrap { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+
+.rm-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 11px 13px;
+  background: #fffdf8;
+}
+.rm-top { display: flex; align-items: baseline; gap: 8px; }
+.rm-top b { font-size: 0.95rem; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rm-top em { font-style: normal; font-size: 0.76rem; color: var(--text-soft); flex: 0 0 auto; }
+.rm-del {
+  flex: 0 0 auto;
+  border: none;
+  background: none;
+  color: #c9c2b8;
+  font-size: 0.95rem;
+  line-height: 1;
+  padding: 0 2px;
+  cursor: pointer;
+}
+.rm-note { margin: 6px 0 0; font-size: 0.85rem; color: var(--text); }
+.rm-summary {
+  margin: 6px 0 0;
+  font-size: 0.82rem;
+  color: var(--text-soft);
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+.rm-photos { display: flex; gap: 6px; margin-top: 9px; }
+.rm-photos img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 8px;
+  background: #f3f4f6;
+}
+
+.rm-add {
+  align-self: flex-start;
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 7px 16px;
+  border: 1px dashed var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--text-soft);
+  cursor: pointer;
+}
+.rm-add:active { background: #f9fafb; }
+
+/* 弹窗里的选图行 */
+.rm-file-row { display: flex; align-items: center; gap: 10px; margin: 10px 0 2px; }
+.rm-file-btn {
+  font-size: 0.85rem;
+  padding: 6px 14px;
+  border: 1px dashed var(--line);
+  border-radius: 999px;
+  color: var(--text-soft);
+  cursor: pointer;
+}
+.rm-file-count { font-size: 0.78rem; color: var(--text-soft); }

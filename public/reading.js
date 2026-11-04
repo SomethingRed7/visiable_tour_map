@@ -12,6 +12,8 @@
   let latest = null;            // 最新一条 payload(取书名/链接用)
   let reco = [];                // 换书推荐(微信读书/番茄书架各 1-2 本)
   let loaded = false;
+  const manuals = new Map();   // date -> 手动添加的条目[]
+  let curDate = '';            // 当前选中日期（弹窗保存时要用）
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => (
@@ -119,16 +121,143 @@
       quotes + recoBlock('接下来读');
   }
 
+  // ---------- 手动添加的阅读记录（微信读书之外的书 / 纸质书） ----------
+
+  function manualCard(x) {
+    const photos = (x.photos || []).slice(0, 4)
+      .map((p) => '<img src="' + esc(p) + '" alt="" loading="lazy">').join('');
+    const meta = [];
+    if (x.author) meta.push(x.author);
+    if (x.minutes) meta.push(x.minutes + ' 分');
+    return '<div class="rm-card">' +
+      '<div class="rm-top">' +
+        '<b>' + esc(x.title) + '</b>' +
+        (meta.length ? '<em>' + esc(meta.join(' · ')) + '</em>' : '') +
+        '<button type="button" class="rm-del" data-rm-del="' + x.id + '" aria-label="删除这条">✕</button>' +
+      '</div>' +
+      (x.note ? '<p class="rm-note">' + esc(x.note) + '</p>' : '') +
+      (x.summary ? '<p class="rm-summary">' + esc(x.summary) + '</p>' : '') +
+      (photos ? '<div class="rm-photos">' + photos + '</div>' : '') +
+      '</div>';
+  }
+
+  function manualBlock(date) {
+    const list = manuals.get(date) || [];
+    const cards = list.map(manualCard).join('');
+    // 未登录只看不写：有别人的记录就照常显示，但没有「记一本」按钮
+    const add = window.currentUser
+      ? '<button type="button" class="rm-add" id="rm-add">＋ 记一本</button>'
+      : '';
+    if (!cards && !add) return '';
+    return '<div class="rm-wrap">' + cards + add + '</div>';
+  }
+
+  function bindManual() {
+    const addBtn = document.getElementById('rm-add');
+    if (addBtn) addBtn.onclick = rmOpen;
+    body.querySelectorAll('.rm-del').forEach((b) => {
+      b.onclick = () => rmDelete(Number(b.dataset.rmDel));
+    });
+  }
+
+  function rmOpen() {
+    const modal = document.getElementById('read-modal');
+    if (!modal) return;
+    ['rm-title', 'rm-author', 'rm-minutes', 'rm-note', 'rm-summary'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    const file = document.getElementById('rm-photos');
+    if (file) file.value = '';
+    const cnt = document.getElementById('rm-file-count');
+    if (cnt) cnt.textContent = '';
+    modal.hidden = false;
+    const t = document.getElementById('rm-title');
+    if (t) setTimeout(() => t.focus(), 60);
+  }
+
+  function rmClose() {
+    const modal = document.getElementById('read-modal');
+    if (modal) modal.hidden = true;
+  }
+
+  async function rmSave() {
+    const btn = document.getElementById('rm-save');
+    const val = (id) => {
+      const el = document.getElementById(id);
+      return el ? el.value.trim() : '';
+    };
+    const title = val('rm-title');
+    if (!title) { alert('书名不能为空'); return; }
+
+    const fd = new FormData();
+    fd.append('date', curDate || todayStr());
+    fd.append('title', title);
+    fd.append('author', val('rm-author'));
+    fd.append('minutes', val('rm-minutes') || '0');
+    fd.append('note', val('rm-note'));
+    fd.append('summary', val('rm-summary'));
+
+    const fileInput = document.getElementById('rm-photos');
+    const files = fileInput && fileInput.files ? [...fileInput.files].slice(0, 4) : [];
+    files.forEach((f) => fd.append('photos', f));
+
+    if (btn) { btn.disabled = true; btn.textContent = '保存中…'; }
+    try {
+      const r = await fetch('/api/reading-manual', { method: 'POST', body: fd });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || '保存失败');
+      rmClose();
+      await loadManuals();
+      render(curDate || todayStr());
+    } catch (err) {
+      alert(err.message || '保存失败');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '保存'; }
+    }
+  }
+
+  async function rmDelete(id) {
+    if (!id || !confirm('删掉这条阅读记录？')) return;
+    try {
+      const r = await fetch('/api/reading-manual?id=' + id, { method: 'DELETE' });
+      if (!r.ok) throw new Error('删除失败');
+      await loadManuals();
+      render(curDate || todayStr());
+    } catch (err) {
+      alert(err.message || '删除失败');
+    }
+  }
+
+  function loadManuals() {
+    return fetch('/api/reading-manual?days=60', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        manuals.clear();
+        ((d && d.items) || []).forEach((it) => {
+          if (!manuals.has(it.date)) manuals.set(it.date, []);
+          manuals.get(it.date).push(it);
+        });
+      })
+      .catch(() => { /* 接口挂了就当没有手动记录 */ });
+  }
+
   function render(date) {
     if (!date) { body.innerHTML = ''; return; }
+    curDate = date;
     const it = payloads.get(date);
     const m = it ? Number(it.minutes) || 0 : (minutes.get(date) || 0);
-    if (it && m > 0) body.innerHTML = fullCard(it);
-    else if (m > 0) body.innerHTML = compactState(date);
-    else body.innerHTML = emptyState(date);
+    let html;
+    if (it && m > 0) html = fullCard(it);
+    else if (m > 0) html = compactState(date);
+    else html = emptyState(date);
+    body.innerHTML = html + manualBlock(date);
+    bindManual();
   }
 
   function load() {
+    // 手动条目独立拉取：接口挂了也不影响微信读书那张卡
+    loadManuals().then(() => { if (curDate) render(curDate); });
     fetch('/api/reading?days=30')
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
@@ -169,6 +298,26 @@
   // 调试/直链:?rd=YYYY-MM-DD 可强制看某天
   const forced = new URLSearchParams(location.search).get('rd');
   if (/^\d{4}-\d{2}-\d{2}$/.test(forced || '')) window.__ggSelectedDate = forced;
+
+  // 弹窗按钮
+  const rmCloseBtn = document.getElementById('rm-close');
+  if (rmCloseBtn) rmCloseBtn.onclick = rmClose;
+  const rmSaveBtn = document.getElementById('rm-save');
+  if (rmSaveBtn) rmSaveBtn.onclick = rmSave;
+  const rmFile = document.getElementById('rm-photos');
+  if (rmFile) {
+    rmFile.onchange = () => {
+      const cnt = document.getElementById('rm-file-count');
+      if (!cnt) return;
+      const n = rmFile.files ? rmFile.files.length : 0;
+      cnt.textContent = n ? n + ' 张' : '';
+      if (n > 4) cnt.textContent = '最多 4 张，只取前 4 张';
+    };
+  }
+  const rmModal = document.getElementById('read-modal');
+  if (rmModal) {
+    rmModal.addEventListener('click', (e) => { if (e.target === rmModal) rmClose(); });
+  }
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', load);
