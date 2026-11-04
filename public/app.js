@@ -402,6 +402,8 @@ async function initPortalUser(authP) {
     }
     // 当日动态「记一把」按钮(登录可见;点击打开日记弹窗,不跳转写日记页)
     const addBtn = $('#btn-entry-add');
+    const addWrap = $('#day-head-actions');
+    if (addWrap) addWrap.hidden = false;
     if (addBtn) {
       addBtn.hidden = false;
       addBtn.addEventListener('click', (ev) => {
@@ -435,7 +437,9 @@ async function initPortalUser(authP) {
       if (todoTab) todoTab.hidden = true;
     }
     const addBtn2 = $('#btn-entry-add');
+    const addWrap2 = $('#day-head-actions');
     if (addBtn2) addBtn2.hidden = true;
+    if (addWrap2) addWrap2.hidden = true;   // 访客没有「记一把」,整行收掉,免得留一块空白
     if (activeTab === 'todos') switchTab('entries'); // 未登录不留在待办 tab
   }
 }
@@ -493,7 +497,7 @@ function renderDayTodos(ds) {
       }).join('')
     : '<p class="todo-empty">这天还没有待办,添加一条开始打卡</p>';
   box.innerHTML = `
-    <div class="todo-head"><span>当日待办</span><span class="todo-progress">已勾 ${done}/${list.length}</span></div>
+    <div class="todo-head-slim"><span class="todo-progress">已勾 ${done}/${list.length}</span></div>
     <form class="todo-add"><input type="text" maxlength="200" placeholder="添加一条待办…" required><button type="submit" class="btn-small">添加</button></form>
     ${itemsHtml}`;
   // 打卡展开区缩略图:横图(宽>高)加 landscape 单列占满行,竖图双列(与 photo-grid 一致)

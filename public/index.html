@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>咕咕嘎嘎 · 旅行日记</title>
-  <link rel="stylesheet" href="style.css?v=20261104g">
+  <link rel="stylesheet" href="style.css?v=20261104h">
 </head>
 <body>
   <header class="site-header">
@@ -39,9 +39,8 @@
         <div id="day-todos" class="todo-section" hidden></div>
       </div>
       <div id="tab-entries" class="tab-pane">
-        <div class="todo-head day-head"><span>当日动态</span>
-          <a id="btn-entry-add" class="btn-add-entry" href="edit.html" hidden>记一把</a>
-        </div>
+        <!-- tab 已经写明「当日动态」,这里不再重复标题;只留「记一把」入口 -->
+        <div class="day-head-actions" id="day-head-actions"><a id="btn-entry-add" class="btn-add-entry" href="edit.html" hidden>记一把</a></div>
         <div id="day-entries" class="entries"></div>
         <!-- 当天足迹:当天带定位的条目点位 + 轨迹(复用 map-common.renderCheckinMap,与专辑/分享/导出页同款组件) -->
         <div id="day-map" class="day-map"></div>
@@ -151,7 +150,7 @@
   <script src="loc-picker.js?v=20261102f"></script>
   <script src="entry-modal.js?v=20261102e"></script>
   <script src="pull-refresh.js?v=20261102d"></script>
-  <script src="app.js?v=20261104e"></script>
+  <script src="app.js?v=20261104f"></script>
   <script src="reading.js?v=20261104h"></script>
 </body>
 </html>
